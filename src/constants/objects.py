@@ -9,7 +9,7 @@ class Objects:
     CAPACITANCE = "capacitance"  # Capacitance identifier
     FILE = "file"  # File identifier
     LOAD_BASE = "load_base"  # Base load identifier
-    OCCUPANCY = "occupancy"  # Occupancy identifier
+    OCCUPATION = "occupation"  # Occupancy identifier (for timeseries files)
     RESISTANCE = "resistance"  # Resistance identifier
     VERBOSE = "verbose"  # Verbose identifier
     WEATHER = "weather"  # Weather data identifier
@@ -18,7 +18,7 @@ class Objects:
         CAPACITANCE: int | float | np.number,
         FILE: str,
         LOAD_BASE: int | float | np.number,
-        OCCUPANCY: str,
+        OCCUPATION: str,
         RESISTANCE: int | float | np.number,
         VERBOSE: bool,
         WEATHER: str,

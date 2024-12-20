@@ -13,6 +13,8 @@ class Keys:
     REQUIRED = "required"  # Key for specifying required keys
     SUMMARY = "summary"  # Key for summary metrics
     TIMESERIES = "timeseries"  # Key for timeseries data
+    TIMESERIES_REQUIRED = "timeseries_required"  # Key for specifying required timeseries
+    TIMESERIES_OPTIONAL = "timeseries_optional"  # Key for specifying optional timeseries
 
 
 SEP = ":"  # Separator for any type of keys
