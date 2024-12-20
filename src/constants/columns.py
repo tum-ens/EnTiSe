@@ -1,6 +1,20 @@
+import pandas as pd
+import numpy as np
+
+
 class Columns:
     """Column names used in timeseries data."""
     DATETIME = "datetime"  # Timestamps
-    T_OUT = "temp_out"  # Outdoor temperature
-    LOAD = "load"  # Load values (e.g., electricity load)
     DEMAND = "demand"  # Heating or cooling demand
+    LOAD = "load"  # Load values (e.g., electricity load)
+    OCCUPANCY = "occupancy"  # Occupancy data
+    SOLAR_GHI = "solar_ghi"  # Global horizontal irradiance
+    T_OUT = "temp_out"  # Outdoor temperature
+    DTYPES = {
+        DATETIME: pd.Timestamp | np.datetime64 | str | int | float,
+        DEMAND: float | int | np.number,
+        LOAD: float | int | np.number,
+        OCCUPANCY: float,
+        SOLAR_GHI: float | int | np.number,
+        T_OUT: float | int | np.number,
+    }
