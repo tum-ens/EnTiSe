@@ -4,23 +4,42 @@ from tqdm import tqdm
 
 
 class ResultCollector:
+    """
+    A class to collect, manage, and export summary and timeseries results.
+
+    This class processes results from timeseries generation methods, stores
+    them in internal structures, and provides functionalities for exporting the
+    results to various formats.
+    """
+
     def __init__(self):
+        """
+        Initializes the ResultCollector instance.
+
+        Attributes:
+            summary_list (list): A list to store summary metrics for all objects.
+            timeseries_dict (dict): A dictionary to store timeseries DataFrames keyed by object ID.
+        """
         self.summary_list = []
         self.timeseries_dict = {}
 
-    def collect(self, results: list):
+    def collect(self, results: list) -> tuple[pd.DataFrame, dict]:
         """
-        Collects results into internal structures.
+        Collect results into internal structures.
 
-        Parameters:
-        - results (list): A list of result dictionaries, each containing:
-            - 'id': Objects ID.
-            - 'summary': Summary metrics for the object.
-            - 'timeseries': Timeseries DataFrame for the object.
+        Args:
+            results (list): A list of result dictionaries, each containing:
+                - 'id' (str): Object ID.
+                - 'summary' (dict): Summary metrics for the object.
+                - 'timeseries' (pd.DataFrame): Timeseries DataFrame for the object.
 
         Returns:
-        - summary_df (pd.DataFrame): Collected summaries as a DataFrame.
-        - timeseries_dict (dict): Collected timeseries keyed by object ID.
+            tuple:
+                - pd.DataFrame: A DataFrame containing all collected summaries.
+                - dict: A dictionary containing all collected timeseries keyed by object ID.
+
+        Raises:
+            ValueError: If a result dictionary is missing required keys.
         """
         for result in results:
             if "id" not in result or "summary" not in result or "timeseries" not in result:
@@ -30,21 +49,34 @@ class ResultCollector:
 
         return self.get_summary_df(), self.get_timeseries_dict()
 
-    def get_summary_df(self):
-        """Returns the collected summaries as a DataFrame."""
+    def get_summary_df(self) -> pd.DataFrame:
+        """
+        Retrieve the collected summaries as a DataFrame.
+
+        Returns:
+            pd.DataFrame: DataFrame containing all collected summaries.
+        """
         return pd.DataFrame(self.summary_list)
 
-    def get_timeseries_dict(self):
-        """Returns the collected timeseries as a dictionary."""
+    def get_timeseries_dict(self) -> dict:
+        """
+        Retrieve the collected timeseries as a dictionary.
+
+        Returns:
+            dict: Dictionary of timeseries DataFrames keyed by object ID.
+        """
         return self.timeseries_dict
 
-    def export_summary(self, filepath, file_format="csv"):
+    def export_summary(self, filepath: str, file_format: str = "csv"):
         """
-        Exports the summary to a file.
+        Export the collected summary metrics to a file.
 
-        Parameters:
-        - filepath (str): Path to the file.
-        - file_format (str): File format ('csv', 'json', 'excel'). Default is 'csv'.
+        Args:
+            filepath (str): Path to the output file.
+            file_format (str, optional): File format ('csv', 'json', 'excel'). Defaults to "csv".
+
+        Raises:
+            ValueError: If an unsupported file format is provided.
         """
         summary_df = self.get_summary_df()
 
@@ -58,12 +90,18 @@ class ResultCollector:
             case _:
                 raise ValueError(f"Unsupported file format: {file_format}")
 
-    def export_timeseries(self, directory: str, file_format="csv"):
+    def export_timeseries(self, directory: str, file_format: str = "csv"):
         """
-        Exports timeseries for each object to individual files.
+        Export collected timeseries to individual files.
 
-        Parameters:
-        - directory (str): Directory to save the timeseries files.
+        Each object's timeseries is exported as a separate file.
+
+        Args:
+            directory (str): Directory path where timeseries files will be saved.
+            file_format (str, optional): File format ('csv', 'json', 'excel', 'feather'). Defaults to "csv".
+
+        Raises:
+            ValueError: If an unsupported file format is provided.
         """
         os.makedirs(directory, exist_ok=True)
         for obj_id, ts_df in tqdm(self.timeseries_dict.items(), desc="Exporting Timeseries"):
@@ -80,20 +118,24 @@ class ResultCollector:
                     raise ValueError(f"Unsupported file format: {file_format}")
 
     def reset(self):
-        """Resets the collector's state."""
+        """
+        Reset the internal state of the ResultCollector.
+
+        Clears all stored summaries and timeseries.
+        """
         self.summary_list = []
         self.timeseries_dict = {}
 
     @staticmethod
     def get_available_outputs(methods: dict) -> dict:
         """
-        Retrieve the available outputs for each method in use.
+        Retrieve available outputs for all specified timeseries methods.
 
-        Parameters:
-        - methods (dict): A dictionary of timeseries methods being used.
+        Args:
+            methods (dict): A dictionary of timeseries methods being used.
 
         Returns:
-        - dict: Outputs available for each method.
+            dict: A dictionary mapping method names to their available outputs.
         """
         outputs = {}
         for name, method in methods.items():
