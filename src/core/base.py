@@ -1,6 +1,5 @@
 from abc import ABC, abstractmethod
 import logging
-
 import pandas as pd
 
 from src.constants import Keys, SEP, Objects as O
@@ -12,15 +11,26 @@ logger = logging.getLogger(__name__)
 class TimeSeriesMethod(ABC):
     """
     Abstract base class for timeseries generation methods.
-    Subclasses must define the `generate` method.
+
+    Subclasses must implement the `generate` method and define the class-level attributes:
+    - `required_keys`: Dictionary specifying the required object keys and their types.
+    - `required_timeseries`: Dictionary specifying required timeseries data and columns.
+    - `dependencies`: List of dependencies required for this method.
+    - `available_outputs`: Dictionary specifying available outputs (summary and timeseries).
     """
-    # Define required keys for each method (which keys have to be in obj with which dtype)
+
+    # Define required and optional keys for each method (key names and their types)
     required_keys = dict()
-    # Define required timeseries for each method (which timeseries have to be in data with which columns and dtype)
+    optional_keys = dict()
+
+    # Define required and optional timeseries data (key names, expected columns, and their types)
     required_timeseries = dict()
-    # Define dependencies for each method (on which method does this method depend)
+    optional_timeseries = dict()
+
+    # List of dependencies for this method
     dependencies = []
-    # Placeholder for future implementation of available outputs for each method (not implemented yet)
+
+    # Available outputs (placeholders for summary and timeseries outputs)
     available_outputs = {
         Keys.SUMMARY: dict(),
         Keys.TIMESERIES: dict()
@@ -29,109 +39,123 @@ class TimeSeriesMethod(ABC):
     @abstractmethod
     def generate(self, obj: dict, data: dict, ts_type: str, dependencies: dict = None, **kwargs):
         """
-        Generate a timeseries for the given object.
+        Abstract method for generating a timeseries.
 
-        Parameters:
-        - obj (dict): Objects metadata and parameters.
-        - *args: Additional positional arguments for the subclass method.
-        - **kwargs: Additional keyword arguments for the subclass method.
+        Args:
+            obj (dict): The input object's metadata and parameters.
+            data (dict): The input data dictionary containing timeseries.
+            ts_type (str): The type of timeseries being generated.
+            dependencies (dict, optional): Dependencies required by the method.
+            **kwargs: Additional keyword arguments for subclass-specific implementations.
+
+        Raises:
+            NotImplementedError: If the method is not implemented in the subclass.
 
         Returns:
-        - pd.DataFrame: Generated timeseries.
+            pd.DataFrame: The generated timeseries data.
         """
         raise NotImplementedError("Method 'generate' must be implemented in the subclass.")
 
     def prepare_inputs(self, obj: dict, data: dict, ts_type: str) -> dict:
         """
-        Reduce object to relevant keys and validate inputs.
+        Prepare and validate the inputs for timeseries generation.
 
-        Parameters:
-        - obj (dict): The input object dictionary.
-        - data (dict): The input data dictionary.
-        - ts_type (str): The timeseries type being processed.
+        Args:
+            obj (dict): The input object metadata and parameters.
+            data (dict): The input data dictionary.
+            ts_type (str): The type of timeseries being processed.
 
         Returns:
-        - dict: The reduced and validated object.
-        """
+            dict: A reduced and validated object dictionary.
 
+        Raises:
+            ValueError: If validation of the inputs fails.
+        """
         # Check for verbose flag; default to True
         verbose = obj.get(O.VERBOSE, True)
 
-        # Reduce obj to only the relevant keys
+        # Reduce object to relevant keys
         relevant_obj = self.get_relevant_objects(obj, ts_type)
 
-        # Initialize Validator
+        # Initialize and configure the validator
         validator = Validator()
-
-        # Enable or disable caching based on verbosity
         if verbose:
             validator.disable_cache()
         else:
             validator.enable_cache()
 
-        # Validate inputs
-        validator.validate_object(relevant_obj, self.required_keys)
-        validator.validate_timeseries(data, self.required_timeseries)
+        # Validate the object and timeseries data
+        validator.validate_object(relevant_obj, self.required_keys, self.optional_keys)
+        validator.validate_timeseries(data, self.required_timeseries, self.optional_timeseries)
 
         return relevant_obj
 
     @staticmethod
     def resolve_column(ts_key: str, column: str, ts_type: str, data: dict) -> pd.Series:
         """
-        Resolve the correct column from the data based on the naming convention.
+        Resolve a column from the input data, checking for prefixed and shared columns.
 
-        Parameters:
-        - ts_key (str): The timeseries key in the data dictionary.
-        - column (str): The base column name.
-        - ts_type (str): The timeseries type prefix.
-        - data (dict): The data dictionary.
+        Args:
+            ts_key (str): The key identifying the timeseries data.
+            column (str): The column name to resolve.
+            ts_type (str): The type of timeseries (used for prefixing).
+            data (dict): The input data dictionary.
 
         Returns:
-        - pd.Series: The resolved column.
+            pd.Series: The resolved column data.
 
         Raises:
-        - ValueError: If the column is not found.
+            ValueError: If the specified column is not found.
         """
-        # Check for prefixed column first
+        # Extract timeseries data based on the key
         ts_data = data.get(ts_key)
         if ts_data is None:
             raise ValueError(f"Timeseries key '{ts_key}' not found in data.")
 
+        # Check for prefixed column
         prefixed_col = f"{ts_type}{SEP}{column}"
         if prefixed_col in ts_data.columns:
             return ts_data[prefixed_col]
 
-        # Fall back to shared column
+        # Fallback to shared column
         if column in ts_data.columns:
             return ts_data[column]
 
         raise ValueError(f"Neither '{prefixed_col}' nor '{column}' found in timeseries '{ts_key}'.")
 
-    def get_relevant_objects(self, obj: dict, ts_type: str = None):
+    def get_relevant_objects(self, obj: dict, ts_type: str = None) -> dict:
         """
-        Get only the relevant objects for this method.
+        Retrieve only the relevant object keys for the method.
 
-        Parameters:
-        - obj (dict): Objects metadata and parameters.
-        - ts_type (str): Timeseries type for which keys are resolved.
+        Args:
+            obj (dict): The input object metadata and parameters.
+            ts_type (str, optional): The timeseries type being processed.
 
         Returns:
-        - dict: Relevant objects for this method.
+            dict: A dictionary containing the relevant object keys.
         """
         if ts_type is None:
             return obj
 
-        # Collect all prefixed keys for the specific ts_type
-        relevant_objs = {k.split(SEP, 1)[1]: v for k, v in obj.items() if k.startswith(f'{ts_type}{SEP}')}
+        # Extract relevant prefixed keys
+        relevant_objs = {
+            k.split(SEP, 1)[1]: v
+            for k, v in obj.items()
+            if k.startswith(f"{ts_type}{SEP}")
+        }
 
-        # Determine shared keys that are to be used
+        # Collect shared keys not present in prefixed keys
         shared_keys_set = set(self.required_keys.keys()) - set(relevant_objs.keys())
-        shared_objs = {k: v for k, v in obj.items() if k in shared_keys_set and k not in relevant_objs}
+        shared_objs = {
+            k: v
+            for k, v in obj.items()
+            if k in shared_keys_set and k not in relevant_objs
+        }
 
-        # Update relevant objects with shared keys
+        # Combine relevant objects and shared keys
         relevant_objs.update(shared_objs)
 
-        # Log details of the operation
+        # Log the process for debugging
         logger.debug(
             f"Method '{self.__class__.__name__}':\n"
             f"- Required keys: {self.required_keys}\n"
@@ -142,34 +166,36 @@ class TimeSeriesMethod(ABC):
         return relevant_objs
 
     @classmethod
-    def get_requirements(cls):
+    def get_requirements(cls) -> dict:
         """
-        Get the requirements for this method.
+        Retrieve the requirements for this method.
 
         Returns:
-        - dict: Required keys and timeseries for this method.
+            dict: A dictionary containing required keys and timeseries.
         """
         return {
-            Keys.KEYS: cls.required_keys,
-            Keys.TIMESERIES: cls.required_timeseries
+            Keys.KEYS_REQUIRED: cls.required_keys,
+            Keys.KEYS_OPTIONAL: cls.optional_keys,
+            Keys.TIMESERIES_REQUIRED: cls.required_timeseries,
+            Keys.TIMESERIES_OPTIONAL: cls.optional_timeseries,
         }
 
     @classmethod
-    def get_dependencies(cls):
+    def get_dependencies(cls) -> list:
         """
-        Get the dependencies for this method.
+        Retrieve the dependencies for this method.
 
         Returns:
-        - list: Required dependencies for this method.
+            list: A list of method dependencies.
         """
         return cls.dependencies
 
     @classmethod
-    def get_available_outputs(cls):
+    def get_available_outputs(cls) -> dict:
         """
-        Get the available outputs for this method.
+        Retrieve the available outputs for this method.
 
         Returns:
-        - dict: Available outputs for this method.
+            dict: A dictionary containing available summary and timeseries outputs.
         """
         return cls.available_outputs
