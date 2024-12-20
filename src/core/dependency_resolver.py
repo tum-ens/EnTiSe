@@ -1,22 +1,49 @@
 import logging
-from collections import defaultdict, deque
+from collections import defaultdict
 
 logger = logging.getLogger(__name__)
 
 
 class DependencyResolver:
+    """
+    A class to resolve the order of timeseries generation based on method dependencies.
+
+    This class supports dependency resolution, circular dependency detection,
+    caching for performance optimization, and optional visualization of the
+    dependency graph.
+    """
+
     def __init__(self):
+        """
+        Initializes the DependencyResolver.
+
+        Attributes:
+            cache (dict): Cache to store previously resolved dependency orders.
+        """
         self.cache = {}
 
     def resolve(self, methods: dict) -> list:
         """
         Resolve the order of timeseries generation.
 
-        Parameters:
-        - methods (dict): A dictionary mapping timeseries types to their methods.
+        Args:
+            methods (dict): A dictionary mapping timeseries types to their methods.
+                Each method is expected to have a `dependencies` attribute.
 
         Returns:
-        - list: A list of timeseries types in the order they should be generated.
+            list: A list of timeseries types in the order they should be generated.
+
+        Raises:
+            ValueError: If circular dependencies or undefined dependencies are encountered.
+
+        Example:
+            >>> methods = {
+            ...     "type_a": MethodA(dependencies=["type_b"]),
+            ...     "type_b": MethodB(dependencies=[]),
+            ... }
+            >>> resolver = DependencyResolver()
+            >>> resolver.resolve(methods)
+            ['type_b', 'type_a']
         """
         if not methods:
             logger.debug("No methods provided for dependency resolution.")
@@ -37,23 +64,39 @@ class DependencyResolver:
         """
         Resolve the order of timeseries generation, supporting multilevel dependencies.
 
-        Parameters:
-        - methods (dict): A dictionary mapping timeseries types to their methods.
+        Args:
+            methods (dict): A dictionary mapping timeseries types to their methods.
+                Each method must have a `dependencies` attribute.
 
         Returns:
-        - list: A list of timeseries types in the order they should be generated.
+            list: A list of timeseries types in the topologically sorted order.
 
         Raises:
-        - ValueError: If circular dependencies are detected.
-        """
-        # Build the dependency graph
-        graph = {ts_type: set(method.dependencies) for ts_type, method in methods.items()}
+            ValueError: If circular dependencies are detected or if any dependency is undefined.
 
-        resolved = []  # Resolved nodes in topological order
+        Example:
+            >>> methods = {
+            ...     "type_a": MethodA(dependencies=["type_b"]),
+            ...     "type_b": MethodB(dependencies=[]),
+            ... }
+            >>> DependencyResolver._resolve_dependencies(methods)
+            ['type_b', 'type_a']
+        """
+        graph = {ts_type: set(method.dependencies) for ts_type, method in methods.items()}
+        resolved = []  # Topologically sorted nodes
         visiting = set()  # Nodes in the current recursive path
         visited = set()  # Nodes already resolved
 
         def visit(node):
+            """
+            Recursively visit nodes to perform a depth-first traversal of the graph.
+
+            Args:
+                node (str): The current node being visited.
+
+            Raises:
+                ValueError: If circular dependencies or undefined dependencies are found.
+            """
             logger.debug(f"Visiting node: {node}")
             if node in visiting:
                 raise ValueError(f"Circular dependency detected: {node}")
@@ -78,10 +121,26 @@ class DependencyResolver:
     @staticmethod
     def visualize_dependencies(methods: dict):
         """
-        Visualize the dependency graph.
+        Visualize the dependency graph for the provided methods.
 
-        Parameters:
-        - methods (dict): A dictionary mapping timeseries types to their methods.
+        Args:
+            methods (dict): A dictionary mapping timeseries types to their methods.
+                Each method must have a `dependencies` attribute.
+
+        Raises:
+            ImportError: If `networkx` or `matplotlib` are not installed.
+
+        Example:
+            >>> methods = {
+            ...     "type_a": MethodA(dependencies=["type_b"]),
+            ...     "type_b": MethodB(dependencies=[]),
+            ... }
+            >>> DependencyResolver.visualize_dependencies(methods)
+
+        Note:
+            This method generates a directed graph showing the dependencies using
+            `networkx` and `matplotlib`. Nodes represent timeseries types, and edges
+            indicate dependencies.
         """
         try:
             import networkx as nx
@@ -89,6 +148,7 @@ class DependencyResolver:
         except ImportError as e:
             raise ImportError("Visualization requires 'networkx' and 'matplotlib' to be installed.") from e
 
+        # Build the graph representation
         graph = defaultdict(list)
         for ts_type, method in methods.items():
             for dep in method.dependencies:
