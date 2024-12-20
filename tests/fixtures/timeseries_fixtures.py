@@ -10,7 +10,7 @@ def get_mock_timeseries_data():
         }),
         Objects.OCCUPANCY: pd.DataFrame({
             Columns.DATETIME: [1, 2, 3],
-            Columns.OCCUPANCY: [0, 1, 1]
+            Columns.OCCUPATION: [0, 1, 1]
         })
     }
 
