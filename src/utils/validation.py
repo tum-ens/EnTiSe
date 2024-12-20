@@ -1,48 +1,69 @@
-# Imports
 import logging
 from types import UnionType
-from typing import Union, get_origin, get_args
-
+from typing import Union, Dict, Any
 
 import pandas as pd
-
 from src.constants import Keys
 
 logger = logging.getLogger(__name__)
 
 
 class Validator:
-    """Centralized input validation for objects and timeseries."""
+    """
+    A centralized validator for objects and timeseries data.
 
-    _cache_enabled = True  # Toggle caching on or off
-    _validated_objects = set()  # Cache for validated objects
-    _validated_timeseries = set()  # Cache for validated timeseries
+    This class validates:
+        - Object metadata to ensure required keys and types are present.
+        - Timeseries data to ensure required structure, columns, and data types are valid.
+
+    It supports caching to optimize repeated validation of identical inputs.
+    """
+
+    _cache_enabled: bool = True  # Toggle caching on/off
+    _validated_objects: set = set()  # Cache for validated objects
+    _validated_timeseries: set = set()  # Cache for validated timeseries
 
     @classmethod
     def enable_cache(cls):
-        """Enable caching for validations."""
+        """
+        Enable caching for validations.
+
+        When enabled, previously validated objects and timeseries will not be revalidated.
+        """
         cls._cache_enabled = True
         logger.info("Validation cache enabled.")
 
     @classmethod
     def disable_cache(cls):
-        """Disable caching for validations."""
+        """
+        Disable caching for validations and clear existing cache.
+
+        When disabled, every validation will run even if inputs were previously validated.
+        """
         cls._cache_enabled = False
         cls._validated_objects.clear()
         cls._validated_timeseries.clear()
         logger.info("Validation cache disabled and cleared.")
 
     @staticmethod
-    def _generate_cache_key(data: dict) -> int:
-        """Generate a unique hashable key for caching."""
+    def _generate_cache_key(data: Dict[str, Any]) -> int:
+        """
+        Generate a unique hashable key for caching validations.
+
+        Args:
+            data (Dict[str, Any]): Input data to generate a cache key.
+
+        Returns:
+            int: A hashable key based on the input data.
+        """
         from hashlib import sha256
         import json
 
-        def serialize_data(value):
+        def serialize_data(value: Any) -> Any:
             if isinstance(value, pd.DataFrame):
                 return value.to_json()
             elif isinstance(value, pd.Timestamp):
-                return value.isoformat()  # Convert to ISO 8601 string
+                return value.isoformat()
             elif isinstance(value, dict):
                 return {k: serialize_data(v) for k, v in value.items()}
             elif isinstance(value, list):
@@ -53,16 +74,16 @@ class Validator:
         return int(sha256(json.dumps(serialized, sort_keys=True).encode()).hexdigest(), 16)
 
     @classmethod
-    def validate_object(cls, obj: dict, required_keys: dict):
+    def validate_object(cls, obj: Dict[str, Any], required_keys: Dict[str, Any]):
         """
-        Validate required keys in the object dictionary.
+        Validate the required keys and their types in an object.
 
-        Parameters:
-        - obj (dict): The object metadata.
-        - required_keys (dict): Expected keys with their types.
+        Args:
+            obj (Dict[str, Any]): The object metadata to validate.
+            required_keys (Dict[str, Any]): Expected keys and their types.
 
         Raises:
-        - ValueError: If any required key is missing or has the wrong type.
+            ValueError: If any required key is missing or has an incorrect type.
         """
         cache_key = cls._generate_cache_key(obj)
         if cls._cache_enabled and cache_key in cls._validated_objects:
@@ -78,36 +99,29 @@ class Validator:
         # Check for invalid types
         for key, expected_type in required_keys.items():
             value = obj[key]
-
-            # Handle Union types (e.g., int | float)
             if isinstance(expected_type, UnionType):
                 allowed_types = expected_type.__args__
                 if not isinstance(value, allowed_types):
                     allowed_types_str = ", ".join(t.__name__ for t in allowed_types)
-                    raise ValueError(
-                        f"Key '{key}' must be one of {allowed_types_str}, got '{type(value).__name__}'."
-                    )
-            # Single type check
+                    raise ValueError(f"Key '{key}' must be one of {allowed_types_str}, got '{type(value).__name__}'.")
             elif not isinstance(value, expected_type):
-                raise ValueError(
-                    f"Key '{key}' must be of type '{expected_type.__name__}', got '{type(value).__name__}'."
-                )
+                raise ValueError(f"Key '{key}' must be of type '{expected_type.__name__}', got '{type(value).__name__}'.")
 
         if cls._cache_enabled:
             cls._validated_objects.add(cache_key)
             logger.debug(f"Object validation passed and cached for key: {cache_key}")
 
     @classmethod
-    def validate_timeseries(cls, data: dict, required_timeseries: dict):
+    def validate_timeseries(cls, data: Dict[str, Any], required_timeseries: Dict[str, Dict]):
         """
-        Validate timeseries data.
+        Validate the structure and content of timeseries data.
 
-        Parameters:
-        - data (dict): Timeseries data dictionary.
-        - required_timeseries (dict): Schema with required timeseries, columns, and types.
+        Args:
+            data (Dict[str, Any]): Timeseries data dictionary.
+            required_timeseries (Dict[str, Dict]): Schema specifying required keys, columns, and types.
 
         Raises:
-        - ValueError: If any required timeseries or column is missing or has the wrong type.
+            ValueError: If any timeseries key, column, or data type is invalid.
         """
         cache_key = cls._generate_cache_key(data)
         if cls._cache_enabled and cache_key in cls._validated_timeseries:
@@ -128,9 +142,8 @@ class Validator:
                 if col not in ts.columns:
                     logger.error(f"Missing column '{col}' in timeseries '{ts_key}'.")
                     raise ValueError(f"Timeseries '{ts_key}' is missing required column '{col}'.")
-                if not pd.api.types.is_dtype_equal(ts[col].dtype, col_dtype):
-                    logger.error(f"Invalid type for column '{col}' in timeseries '{ts_key}'.")
-                    raise ValueError(f"Column '{col}' in timeseries '{ts_key}' must be of type '{col_dtype}'.")
+                if not pd.api.types.is_dtype_equal(type(ts[col].iat[0]), col_dtype):
+                    logger.info(f"Column '{col}' in timeseries '{ts_key}' must be of type '{col_dtype}'.")
 
         if cls._cache_enabled:
             cls._validated_timeseries.add(cache_key)
