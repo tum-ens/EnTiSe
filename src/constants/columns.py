@@ -7,14 +7,14 @@ class Columns:
     DATETIME = "datetime"  # Timestamps
     DEMAND = "demand"  # Heating or cooling demand
     LOAD = "load"  # Load values (e.g., electricity load)
-    OCCUPANCY = "occupancy"  # Occupancy data
+    OCCUPATION = "occupation"  # Occupancy data
     SOLAR_GHI = "solar_ghi"  # Global horizontal irradiance
     T_OUT = "temp_out"  # Outdoor temperature
     DTYPES = {
         DATETIME: pd.Timestamp | np.datetime64 | str | int | float,
         DEMAND: float | int | np.number,
         LOAD: float | int | np.number,
-        OCCUPANCY: float,
+        OCCUPATION: float,
         SOLAR_GHI: float | int | np.number,
         T_OUT: float | int | np.number,
     }

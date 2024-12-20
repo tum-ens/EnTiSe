@@ -1,8 +1,10 @@
 class Types:
     """Valid timeseries types."""
-    HVAC = "hvac"  # Heating, Ventilation, and Air Conditioning
+    COOLING = "cooling"  # Cooling demand or supply
     DHW = "dhw"  # Domestic Hot Water
     ELECTRICITY = "electricity"  # Electricity demand or supply
+    HEATING = "heating"  # Heating demand or supply
+    HVAC = "hvac"  # Heating, Ventilation, and Air Conditioning
     MOBILITY = "mobility"  # Transportation-related data
     OCCUPANCY = "occupancy"  # Occupancy data
 
