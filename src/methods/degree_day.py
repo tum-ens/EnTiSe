@@ -5,7 +5,7 @@ import pandas as pd
 from src.core.base import TimeSeriesMethod
 from src.core.registry import Meta
 from src.utils.decorators import supported_types
-from src.constants import Columns as C, Keys as K, Objects as O, Types, SEP
+from src.constants import Columns as C, Keys as K, Objects as O, Types
 
 logger = logging.getLogger(__name__)
 
@@ -14,14 +14,16 @@ logger = logging.getLogger(__name__)
 class DegreeDay(TimeSeriesMethod, metaclass=Meta):
     """Timeseries generation method using degree days."""
     # Define required keys for each method
-    required_keys = {O.WEATHER: str,
-                     O.LOAD_BASE: int | float,
+    required_keys = {O.WEATHER: O.DTYPES[O.WEATHER],
+                     O.LOAD_BASE: O.DTYPES[O.LOAD_BASE],
                      }
     # Define required timeseries for each method
     required_timeseries = {O.WEATHER:
-                               {K.COLUMNS: {C.DATETIME: pd.Timestamp,
-                                            C.T_OUT: float,
-                                            },
+                               {K.COLS_REQUIRED: {
+                                    C.DATETIME: C.DTYPES[C.DATETIME],
+                                    C.T_OUT: C.DTYPES[C.T_OUT],
+                                    },
+                                K.COLS_OPTIONAL: {},
                                 K.DTYPE: pd.DataFrame
                                 },
                            }
