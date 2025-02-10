@@ -145,7 +145,11 @@ class TimeSeriesMethod(ABC):
         }
 
         # Collect shared keys not present in prefixed keys
-        shared_keys_set = set(self.required_keys.keys()) - set(relevant_objs.keys())
+
+        all_required_keys = set(self.required_keys.keys())
+        all_optional_keys = set(self.optional_keys.keys())
+        all_expected_keys = all_required_keys.union(all_optional_keys)
+        shared_keys_set = all_expected_keys - set(relevant_objs.keys())
         shared_objs = {
             k: v
             for k, v in obj.items()
