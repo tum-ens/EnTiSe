@@ -34,7 +34,7 @@ class DummyMethod(TimeSeriesMethod, metaclass=Meta):
     required_keys = {Objects.WEATHER: str}
     required_timeseries = {
         Objects.WEATHER: {
-            Keys.COLUMNS: {Columns.T_OUT: float},
+            Keys.COLUMNS: {Columns.TEMP_OUT: float},
             Keys.DTYPE: pd.DataFrame,
         }
     }

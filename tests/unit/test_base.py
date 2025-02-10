@@ -47,7 +47,7 @@ def test_prepare_inputs_invalid_object(valid_object, valid_timeseries):
 
 # Test resolve_column
 def test_resolve_column_prefixed_column(valid_timeseries):
-    column = Columns.T_OUT
+    column = Columns.TEMP_OUT
     ts_type = Types.HVAC
     prefixed_col = f"{ts_type}{SEP}{column}"
     valid_timeseries["weather"][prefixed_col] = valid_timeseries["weather"][column]
@@ -57,14 +57,14 @@ def test_resolve_column_prefixed_column(valid_timeseries):
 
 
 def test_resolve_column_shared_column(valid_timeseries):
-    column = Columns.T_OUT
+    column = Columns.TEMP_OUT
     resolved = DummyMethod.resolve_column("weather", column, "hvac", valid_timeseries)
     pd.testing.assert_series_equal(resolved, valid_timeseries["weather"][column])
 
 
 def test_resolve_column_missing_column(valid_timeseries):
     with pytest.raises(ValueError, match=r"Neither '.*' nor '.*' found in timeseries '.*'."):
-        DummyMethod.resolve_column(Objects.WEATHER, Columns.T_OUT, Types.HVAC, {Objects.WEATHER: pd.DataFrame()})
+        DummyMethod.resolve_column(Objects.WEATHER, Columns.TEMP_OUT, Types.HVAC, {Objects.WEATHER: pd.DataFrame()})
 
 
 # Test get_relevant_objects
@@ -84,10 +84,10 @@ def test_get_relevant_objects_shared_key(valid_object):
 # Test class methods
 def test_get_requirements():
     requirements = DummyMethod.get_requirements()
-    assert Keys.KEYS in requirements
-    assert Keys.TIMESERIES in requirements
-    assert requirements[Keys.KEYS] == DummyMethod.required_keys
-    assert requirements[Keys.TIMESERIES] == DummyMethod.required_timeseries
+    assert Keys.KEYS_REQUIRED in requirements
+    assert Keys.TIMESERIES_REQUIRED in requirements
+    assert requirements[Keys.KEYS_REQUIRED] == DummyMethod.required_keys
+    assert requirements[Keys.TIMESERIES_REQUIRED] == DummyMethod.required_timeseries
 
 
 def test_get_dependencies():
