@@ -47,3 +47,7 @@ def test_end_to_end_multiple_objects():
     for obj in objects:
         obj_id = obj[Objects.ID]
         assert obj_id in timeseries_dict, f"Object ID {obj_id} should exist in the timeseries output."
+
+
+if __name__ == "__main__":
+    pytest.main()
