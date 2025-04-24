@@ -1,0 +1,1 @@
+import src.methods  # Dynamically load all methods
