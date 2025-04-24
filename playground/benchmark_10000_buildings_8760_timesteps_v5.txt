@@ -1,0 +1,28 @@
+         2553899 function calls (2514410 primitive calls) in 7.233 seconds
+
+   Ordered by: cumulative time
+   List reduced from 596 to 20 due to restriction <20>
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+    10002    0.025    0.000    7.936    0.001 C:\Users\ge23nur\Documents\Python Scripts\TS_Creator\venv\Lib\site-packages\joblib\parallel.py:1638(_get_outputs)
+        1    0.003    0.003    7.232    7.232 C:\Users\ge23nur\Documents\Python Scripts\TS_Creator\playground\rc_model5.py:95(run_simulation)
+      742    0.189    0.000    6.551    0.009 C:\Users\ge23nur\Documents\Python Scripts\TS_Creator\venv\Lib\site-packages\joblib\externals\loky\process_executor.py:644(wait_result_broken_or_wakeup)
+      736    0.016    0.000    4.805    0.007 C:\Users\ge23nur\Documents\Python Scripts\TS_Creator\venv\Lib\site-packages\joblib\externals\loky\process_executor.py:720(process_result_item)
+      736    0.008    0.000    4.058    0.006 C:\Users\ge23nur\AppData\Local\Programs\Python\Python312\Lib\multiprocessing\connection.py:245(recv)
+      736    1.819    0.002    3.073    0.004 {built-in method _pickle.loads}
+     9986    0.343    0.000    2.285    0.000 C:\Users\ge23nur\Documents\Python Scripts\TS_Creator\venv\Lib\site-packages\joblib\parallel.py:1746(_retrieve)
+     1472    0.174    0.000    1.348    0.001 C:\Users\ge23nur\AppData\Local\Programs\Python\Python312\Lib\multiprocessing\connection.py:293(_recv_bytes)
+        1    0.000    0.000    1.273    1.273 C:\Users\ge23nur\Documents\Python Scripts\TS_Creator\playground\rc_model5.py:74(process_buildings_parallel)
+      736    0.007    0.000    1.159    0.002 C:\Users\ge23nur\AppData\Local\Programs\Python\Python312\Lib\multiprocessing\connection.py:331(_get_more_data)
+ 1472/742    0.024    0.000    1.042    0.001 C:\Users\ge23nur\AppData\Local\Programs\Python\Python312\Lib\multiprocessing\connection.py:181(send_bytes)
+    10736    0.040    0.000    0.904    0.000 C:\Users\ge23nur\Documents\Python Scripts\TS_Creator\venv\Lib\site-packages\pandas\core\indexes\base.py:292(_new_Index)
+ 1472/742    0.178    0.000    0.792    0.001 C:\Users\ge23nur\AppData\Local\Programs\Python\Python312\Lib\multiprocessing\connection.py:278(_send_bytes)
+     3732    0.671    0.000    0.671    0.000 {built-in method _winapi.ReadFile}
+      402    0.530    0.001    0.659    0.002 {built-in method time.sleep}
+    10000    0.098    0.000    0.627    0.000 C:\Users\ge23nur\Documents\Python Scripts\TS_Creator\venv\Lib\site-packages\pandas\core\indexes\base.py:475(__new__)
+      743    0.011    0.000    0.558    0.001 C:\Users\ge23nur\Documents\Python Scripts\TS_Creator\venv\Lib\site-packages\joblib\externals\loky\process_executor.py:134(clear)
+      736    0.004    0.000    0.554    0.001 C:\Users\ge23nur\Documents\Python Scripts\TS_Creator\venv\Lib\site-packages\joblib\externals\loky\backend\reduction.py:211(dumps)
+      736    0.013    0.000    0.549    0.001 C:\Users\ge23nur\Documents\Python Scripts\TS_Creator\venv\Lib\site-packages\joblib\externals\loky\backend\reduction.py:205(dump)
+     1472    0.537    0.000    0.537    0.000 {method 'write' of '_io.BytesIO' objects}
+
+

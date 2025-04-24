@@ -1,0 +1,28 @@
+         6521152 function calls (6371642 primitive calls) in 119.648 seconds
+
+   Ordered by: cumulative time
+   List reduced from 617 to 20 due to restriction <20>
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+    10001    0.200    0.000  247.007    0.025 C:\Users\ge23nur\Documents\Python Scripts\TS_Creator\venv\Lib\site-packages\tqdm\std.py:1160(__iter__)
+    10021    0.211    0.000  243.029    0.024 C:\Users\ge23nur\AppData\Local\Programs\Python\Python312\Lib\multiprocessing\connection.py:278(_send_bytes)
+    10301    0.126    0.000  215.702    0.021 C:\Users\ge23nur\AppData\Local\Programs\Python\Python312\Lib\multiprocessing\pool.py:500(_wait_for_updates)
+    10302    0.372    0.000  196.546    0.019 C:\Users\ge23nur\AppData\Local\Programs\Python\Python312\Lib\multiprocessing\queues.py:354(empty)
+    10016    0.486    0.000  127.230    0.013 C:\Users\ge23nur\AppData\Local\Programs\Python\Python312\Lib\multiprocessing\connection.py:201(send)
+    16/15    0.660    0.041  119.562    7.971 C:\Users\ge23nur\AppData\Local\Programs\Python\Python312\Lib\threading.py:616(wait)
+60931/57465    0.409    0.000  119.094    0.002 {method 'GetOverlappedResult' of '_winapi.Overlapped' objects}
+      2/1    0.000    0.000  118.852  118.852 C:\Users\ge23nur\Documents\Python Scripts\TS_Creator\rc_model.py:67(run_simulation)
+      2/1    0.001    0.001  118.851  118.851 C:\Users\ge23nur\Documents\Python Scripts\TS_Creator\rc_model.py:57(process_buildings_parallel)
+       17    0.000    0.000  118.850    6.991 C:\Users\ge23nur\AppData\Local\Programs\Python\Python312\Lib\multiprocessing\util.py:205(__call__)
+        1    0.000    0.000  118.849  118.849 C:\Users\ge23nur\AppData\Local\Programs\Python\Python312\Lib\multiprocessing\pool.py:738(__exit__)
+        1    0.000    0.000  118.849  118.849 C:\Users\ge23nur\AppData\Local\Programs\Python\Python312\Lib\multiprocessing\pool.py:654(terminate)
+        1    0.000    0.000  118.849  118.849 C:\Users\ge23nur\AppData\Local\Programs\Python\Python312\Lib\multiprocessing\pool.py:680(_terminate_pool)
+      894    0.084    0.000  118.809    0.133 {method 'acquire' of '_multiprocessing.SemLock' objects}
+        1    0.000    0.000  118.804  118.804 C:\Users\ge23nur\AppData\Local\Programs\Python\Python312\Lib\multiprocessing\pool.py:671(_help_stuff_finish)
+      3/1    0.000    0.000  118.724  118.724 C:\Users\ge23nur\AppData\Local\Programs\Python\Python312\Lib\threading.py:978(run)
+        1    0.000    0.000  118.724  118.724 C:\Users\ge23nur\AppData\Local\Programs\Python\Python312\Lib\multiprocessing\pool.py:527(_handle_tasks)
+        5    0.000    0.000  117.361   23.472 C:\Users\ge23nur\AppData\Local\Programs\Python\Python312\Lib\multiprocessing\queues.py:371(put)
+        5    0.000    0.000  117.360   23.472 C:\Users\ge23nur\AppData\Local\Programs\Python\Python312\Lib\multiprocessing\connection.py:181(send_bytes)
+    20604    0.533    0.000   65.237    0.003 C:\Users\ge23nur\AppData\Local\Programs\Python\Python312\Lib\multiprocessing\connection.py:1014(wait)
+
+

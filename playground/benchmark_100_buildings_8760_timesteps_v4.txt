@@ -1,0 +1,28 @@
+         56235 function calls (55405 primitive calls) in 2.599 seconds
+
+   Ordered by: cumulative time
+   List reduced from 630 to 20 due to restriction <20>
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+       18    0.000    0.000    3.701    0.206 C:\Users\ge23nur\AppData\Local\Programs\Python\Python312\Lib\multiprocessing\connection.py:201(send)
+       23    0.000    0.000    3.698    0.161 C:\Users\ge23nur\AppData\Local\Programs\Python\Python312\Lib\multiprocessing\connection.py:278(_send_bytes)
+      7/4    0.003    0.000    2.482    0.620 C:\Users\ge23nur\AppData\Local\Programs\Python\Python312\Lib\threading.py:616(wait)
+      2/1    0.000    0.000    2.479    2.479 C:\Users\ge23nur\Documents\Python Scripts\TS_Creator\rc_model4.py:116(run_simulation)
+      2/1    0.002    0.001    2.478    2.478 C:\Users\ge23nur\Documents\Python Scripts\TS_Creator\rc_model4.py:76(process_buildings_parallel)
+       17    0.000    0.000    2.476    0.146 C:\Users\ge23nur\AppData\Local\Programs\Python\Python312\Lib\multiprocessing\util.py:205(__call__)
+        1    0.000    0.000    2.476    2.476 C:\Users\ge23nur\AppData\Local\Programs\Python\Python312\Lib\multiprocessing\pool.py:738(__exit__)
+        1    0.000    0.000    2.476    2.476 C:\Users\ge23nur\AppData\Local\Programs\Python\Python312\Lib\multiprocessing\pool.py:654(terminate)
+        1    0.000    0.000    2.476    2.476 C:\Users\ge23nur\AppData\Local\Programs\Python\Python312\Lib\multiprocessing\pool.py:680(_terminate_pool)
+        1    0.000    0.000    2.440    2.440 C:\Users\ge23nur\AppData\Local\Programs\Python\Python312\Lib\multiprocessing\pool.py:671(_help_stuff_finish)
+        7    0.034    0.005    2.440    0.349 {method 'acquire' of '_multiprocessing.SemLock' objects}
+      3/1    0.000    0.000    2.406    2.406 C:\Users\ge23nur\AppData\Local\Programs\Python\Python312\Lib\threading.py:978(run)
+        1    0.000    0.000    2.406    2.406 C:\Users\ge23nur\AppData\Local\Programs\Python\Python312\Lib\multiprocessing\pool.py:527(_handle_tasks)
+       23    0.000    0.000    2.406    0.105 {built-in method _winapi.WriteFile}
+        1    0.000    0.000    2.404    2.404 C:\Users\ge23nur\AppData\Local\Programs\Python\Python312\Lib\multiprocessing\pool.py:573(_handle_results)
+        2    0.000    0.000    2.387    1.193 C:\Users\ge23nur\AppData\Local\Programs\Python\Python312\Lib\multiprocessing\pool.py:767(get)
+        2    0.001    0.000    2.384    1.192 C:\Users\ge23nur\AppData\Local\Programs\Python\Python312\Lib\multiprocessing\pool.py:764(wait)
+        6    0.000    0.000    2.338    0.390 C:\Users\ge23nur\AppData\Local\Programs\Python\Python312\Lib\multiprocessing\pool.py:500(_wait_for_updates)
+       13    0.000    0.000    2.337    0.180 C:\Users\ge23nur\AppData\Local\Programs\Python\Python312\Lib\multiprocessing\connection.py:1014(wait)
+        1    0.000    0.000    0.097    0.097 C:\Users\ge23nur\AppData\Local\Programs\Python\Python312\Lib\multiprocessing\pool.py:305(_repopulate_pool)
+
+
