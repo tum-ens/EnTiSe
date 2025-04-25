@@ -1,3 +1,14 @@
+_author__ = "Markus Doepfert"
+__license__ = "MIT"
+__maintainer__ = "Markus Doepfert"
+__email__ = "markus.doepfert@tum.de"
+__status__ = "Stable"
+__date__ = "2025-04-14"
+__credits__ = []
+__description__ = "Abstract base class for timeseries generation methods."
+__url__ = ""
+__dependencies__ = ["pandas"]
+
 from abc import ABC, abstractmethod
 import logging
 import pandas as pd
@@ -71,18 +82,20 @@ class TimeSeriesMethod(ABC):
         Raises:
             ValueError: If validation of the inputs fails.
         """
-        # Check for verbose flag; default to True
-        verbose = obj.get(O.VERBOSE, True)
+        # Check for verbose flag; default to False
+        verbose = obj.get(O.VERBOSE, False)
 
         # Reduce object to relevant keys
         relevant_obj = self.get_relevant_objects(obj, ts_type)
 
         # Initialize and configure the validator
         validator = Validator()
-        if verbose:
+        if verbose == 'once':
+            validator.enable_cache()
+        elif verbose:
             validator.disable_cache()
         else:
-            validator.enable_cache()
+            return relevant_obj
 
         # Validate the object and timeseries data
         validator.validate_object(relevant_obj, self.required_keys, self.optional_keys)

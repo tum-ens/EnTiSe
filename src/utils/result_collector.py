@@ -1,6 +1,7 @@
 import os
 import pandas as pd
 from tqdm import tqdm
+from src.constants import Objects as O, Keys as K
 
 
 class ResultCollector:
@@ -42,10 +43,11 @@ class ResultCollector:
             ValueError: If a result dictionary is missing required keys.
         """
         for result in results:
-            if "id" not in result or "summary" not in result or "timeseries" not in result:
+            if O.ID not in result or K.SUMMARY not in result or K.TIMESERIES not in result:
                 raise ValueError(f"Invalid result structure: {result}")
-            self.summary_list.append(result["summary"])
-            self.timeseries_dict[result["id"]] = result["timeseries"]
+            result[K.SUMMARY][O.ID] = result[O.ID]
+            self.summary_list.append(result[K.SUMMARY])
+            self.timeseries_dict[result[O.ID]] = result[K.TIMESERIES]
 
         return self.get_summary_df(), self.get_timeseries_dict()
 
@@ -56,7 +58,8 @@ class ResultCollector:
         Returns:
             pd.DataFrame: DataFrame containing all collected summaries.
         """
-        return pd.DataFrame(self.summary_list)
+        df = pd.DataFrame(self.summary_list)
+        return df.set_index(O.ID, drop=True)
 
     def get_timeseries_dict(self) -> dict:
         """
@@ -67,30 +70,36 @@ class ResultCollector:
         """
         return self.timeseries_dict
 
-    def export_summary(self, filepath: str, file_format: str = "csv"):
+    def export_summary(self,  filepath: str, df: pd.DataFrame = None):
         """
         Export the collected summary metrics to a file.
 
         Args:
             filepath (str): Path to the output file.
-            file_format (str, optional): File format ('csv', 'json', 'excel'). Defaults to "csv".
+            df (DataFrame, optional): DataFrame to export. If not provided, uses the collected summary.
 
         Raises:
             ValueError: If an unsupported file format is provided.
         """
-        summary_df = self.get_summary_df()
+        if df is None:
+            df = self.get_summary_df()
 
+        os.makedirs(os.path.dirname(filepath), exist_ok=True)
+
+        file_format = filepath.rsplit('.', 1)[-1]
         match file_format:
             case "csv":
-                summary_df.to_csv(filepath, index=False)
+                df.to_csv(filepath)
             case "json":
-                summary_df.to_json(filepath, orient="records")
+                df.to_json(filepath, orient="records")
             case "excel":
-                summary_df.to_excel(filepath, index=False)
+                df.to_excel(filepath)
+            case "ft" | "feather":
+                df.to_feather(filepath)
             case _:
                 raise ValueError(f"Unsupported file format: {file_format}")
 
-    def export_timeseries(self, directory: str, file_format: str = "csv"):
+    def export_timeseries(self, directory: str, timeseries: dict = None, file_format: str = "csv"):
         """
         Export collected timeseries to individual files.
 
@@ -98,13 +107,16 @@ class ResultCollector:
 
         Args:
             directory (str): Directory path where timeseries files will be saved.
+            timeseries (dict, optional): Dictionary containing the timeseries DataFrames keyed by object ID. If not provided, uses the collected timeseries.
             file_format (str, optional): File format ('csv', 'json', 'excel', 'feather'). Defaults to "csv".
 
         Raises:
             ValueError: If an unsupported file format is provided.
         """
+        if not timeseries:
+            timeseries = self.timeseries_dict
         os.makedirs(directory, exist_ok=True)
-        for obj_id, ts_df in tqdm(self.timeseries_dict.items(), desc="Exporting Timeseries"):
+        for obj_id, ts_df in tqdm(timeseries.items(), desc="Exporting Timeseries"):
             match file_format:
                 case "csv":
                     ts_df.to_csv(f"{directory}/{obj_id}_timeseries.csv", index=False)
