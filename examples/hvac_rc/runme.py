@@ -32,7 +32,7 @@ print('Loaded data keys:', list(data.keys()))
 gen = TimeSeriesGenerator()
 
 # Define the building ID to process and visualize
-building_id = 31991691  # This object worked in the previous run
+building_id = 31991690  # This object worked in the previous run
 
 # Filter objects to only include one object (for debugging)
 objects_filtered = objects[objects['id'] == building_id]
@@ -50,7 +50,7 @@ print(summary_kwh)
 # Visualize results for the processed building
 # Note: We're using the same building_id as defined above (31991691)
 building_data = df[building_id][Types.HVAC]
-building_data.index = pd.to_datetime(building_data[Col.DATETIME])
+building_data.index = pd.to_datetime(building_data.index)
 
 # Figure 1: Indoor & Outdoor Temperature and Solar Radiation (GHI)
 fig, ax1 = plt.subplots(figsize=(15, 6))
