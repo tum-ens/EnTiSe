@@ -20,12 +20,17 @@ class SolarGainsPVLib(AuxiliaryMethod):
     required_timeseries = [O.WEATHER, O.WINDOWS]
 
     def get_input_data(self, obj, data):
+        object_id = obj[O.ID]
+        windows = data.get(O.WINDOWS, None)
+        if windows is not None:
+            windows = windows.loc[windows[O.ID] == object_id]
+            windows = windows if not windows.empty else None
         input_data = {
             O.LAT: obj[O.LAT],
             O.LON: obj[O.LON],
             "model": obj.get("model", "isotropic"),
             O.WEATHER: data[O.WEATHER],
-            O.WINDOWS: data[O.WINDOWS],
+            O.WINDOWS: windows,
         }
         return input_data
 
@@ -45,6 +50,8 @@ class SolarGainsPVLib(AuxiliaryMethod):
         Raises:
             ValueError: If the irradiance model is unknown.
         """
+        if windows is None:
+            return pd.DataFrame({O.GAINS_SOLAR: np.zeros(len(weather), dtype=np.float32)}, index=weather.index)
 
         # Obtain all relevant information upfront
         altitude = pvlib.location.lookup_altitude(latitude, longitude)
