@@ -1,37 +1,35 @@
 import pytest
-from src.constants.ts_types import Types
+from entise.core.registry import register, get_strategy, list_strategies
+from entise.core.base import Method
 
+class DummyMethod(Method):
+    types = ["hvac"]
+    name = "example"
+    required_keys = []
+    produces = []
 
-def test_register_method():
-    from src.core.registry import register_method, get_method, method_registry
+    def generate(self, obj, data, ts_type):
+        return {"summary": {"test": 1}, "timeseries": {}}
 
-    class MockMethod:
-        dependencies = []
-        supported_types = [Types.HVAC]
+def test_autoregister_explicit_name():
+    class ExplicitName(Method):
+        types = ["hvac"]
+        name = "myStrategy"
+        required_keys = []
+        produces = []
+        def generate(self, obj, data, ts_type):
+            return {"summary": {}, "timeseries": {}}
 
-    method_name = "mockmethod"
+    assert get_strategy("mystrategy") is ExplicitName
 
-    # Ensure the method is not registered
-    if method_name in method_registry:
-        del method_registry[method_name]
-
-    register_method(method_name, MockMethod)
-
-    assert get_method(method_name) == MockMethod
+def test_get_strategy_error():
     with pytest.raises(ValueError):
-        register_method(method_name, MockMethod)  # Duplicate registration
+        get_strategy("nonexistent")
 
+def test_list_strategies_keys():
+    strategies = list_strategies()
+    assert isinstance(strategies, list)
+    assert "example" in strategies
 
-def test_get_method():
-    from src.core.registry import get_method
-
-    with pytest.raises(ValueError):
-        get_method("nonexistentmethod")  # Should raise error
-
-
-def test_mock_methods_registration():
-    from src.core.registry import get_method
-    method1 = get_method("method1")
-    method2 = get_method("method2")
-    assert method1 is not None
-    assert method2 is not None
+if __name__ == "__main__":
+    pytest.main()
