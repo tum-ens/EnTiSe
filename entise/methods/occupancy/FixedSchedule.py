@@ -22,7 +22,7 @@ class FixedSchedule(Method):
         df.index.name = C.DATETIME
         return {
             "summary": {
-                f'Average_{O.OCCUPATION}': df[f'{O.OCCUPATION}'].mean(),
+                f'average_{O.OCCUPATION}': df[f'{O.OCCUPATION}'].mean().round(2),
             },
             "timeseries": df
         }
