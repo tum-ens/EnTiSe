@@ -53,9 +53,12 @@ class R1C1(Method):
 
         logger.debug(f"[HVAC R1C1] {ts_type}: max heating {p_heat.max()}, cooling {p_cool.max()}")
 
+        timestep = data[O.WEATHER][C.DATETIME].diff().dt.total_seconds().dropna().mode()[0]
         summary = {
-            f"{C.DEMAND}_{Types.HEATING}": float(p_heat.sum()),
-            f"{C.DEMAND}_{Types.COOLING}": float(p_cool.sum()),
+            f"{C.DEMAND}_{Types.HEATING}": int(round(p_heat.sum() * timestep / 3600)),
+            f'{O.LOAD_MAX}_{Types.HEATING}': int(max(p_heat)),
+            f"{C.DEMAND}_{Types.COOLING}": int(round(p_cool.sum() * timestep / 3600)),
+            f'{O.LOAD_MAX}_{Types.COOLING}': int(max(p_cool)),
         }
 
         df = pd.DataFrame({
