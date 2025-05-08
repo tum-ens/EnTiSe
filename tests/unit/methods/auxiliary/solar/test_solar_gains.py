@@ -10,7 +10,7 @@ def minimal_weather():
 
 @pytest.fixture
 def dummy_windows():
-    return pd.DataFrame([{"area": 1.0, "transmittance": 0.9, "shading": 1.0, "tilt": 90, "orientation": 180}])
+    return pd.DataFrame([{O.ID: 42, "area": 1.0, "transmittance": 0.9, "shading": 1.0, "tilt": 90, "orientation": 180}])
 
 def test_inactive_strategy_used(minimal_weather):
     sg = SolarGains()
@@ -23,7 +23,7 @@ def test_inactive_strategy_used(minimal_weather):
 
 def test_pvlib_strategy_used(minimal_weather, dummy_windows):
     sg = SolarGains()
-    obj = {O.LAT: 48.1, O.LON: 11.6}
+    obj = {O.ID: 42, O.LAT: 48.1, O.LON: 11.6}
     data = {
         O.WEATHER: minimal_weather.assign(solar_ghi=500, solar_dhi=100, solar_dni=400),
         O.WINDOWS: dummy_windows,
