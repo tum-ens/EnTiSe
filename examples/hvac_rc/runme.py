@@ -15,7 +15,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../.
 
 # Import the new TimeSeriesGenerator
 from entise.core.generator import TimeSeriesGenerator
-from entise.constants import Types, Columns as Col
+from entise.constants import Types
 
 # Load data
 cwd = '.'  # Current working directory: change if your kernel is not running in the same folder
@@ -120,5 +120,3 @@ ax1.set_title(f'Building ID: {building_id} - Outdoor Temp & HVAC Loads')
 ax1.grid(True)
 fig.tight_layout()
 plt.show()
-
-print("Pipeline architecture example completed successfully!")
