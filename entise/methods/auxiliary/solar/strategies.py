@@ -15,7 +15,7 @@ class SolarGainsInactive(AuxiliaryMethod):
         return pd.DataFrame({O.GAINS_SOLAR: np.zeros(len(weather), dtype=np.float32)}, index=weather.index)
 
 class SolarGainsPVLib(AuxiliaryMethod):
-    required_keys = [O.LAT, O.LON]
+    required_keys = [O.ID, O.LAT, O.LON]
     optional_keys = ["model"]
     required_timeseries = [O.WEATHER, O.WINDOWS]
 
