@@ -1,6 +1,18 @@
 {{ method_name }}
 =========================
 
+{% if hasattr(cls, 'name') and cls.name %}
+**Method Key:** ``{{ cls.name }}``
+
+.. note::
+   This is the key required to call this method when using bulk generation with TimeSeriesGenerator.
+{% else %}
+**Method Key:** ``{{ method_name }}``
+
+.. note::
+   This is the class name. For auxiliary methods, the key is determined by the selector class.
+{% endif %}
+
 Description
 -----------
 
@@ -12,6 +24,7 @@ Requirements
 Required Keys
 ~~~~~~~~~~~~~
 
+{% if required_keys %}
 .. list-table::
    :widths: auto
    :header-rows: 1
@@ -22,11 +35,15 @@ Required Keys
    * - ``{{ key }}``
      - ``{{ dtype.__name__ }}``
    {% endfor %}
+{% else %}
+None
+{% endif %}
 
 
 Required Timeseries
 ~~~~~~~~~~~~~~~~~~~
 
+{% if required_timeseries %}
 {% for ts_key, schema in required_timeseries.items() %}
 **Timeseries Key:** ``{{ ts_key }}``
 
@@ -65,6 +82,9 @@ Required Timeseries
 {% endif %}
 
 {% endfor %}
+{% else %}
+None
+{% endif %}
 
 
 
@@ -80,11 +100,12 @@ Dependencies
 Methods
 -------
 
-{% for method, doc in methods.items() %}
+{% for method, info in methods.items() %}
 **{{ method }}**:
 
-  .. code-block:: none
 
-     {{ doc | indent(3) }}
+  .. code-block:: python
+
+     {{ info.source_code | indent(3) }}
 
 {% endfor %}
