@@ -58,46 +58,22 @@ html_css_files = [
     'tum-theme.css',
 ]
 
-# AutoAPI configuration (disabled for now)
-# autoapi_dirs = ['../../entise']  # Path to your code
-# autoapi_root = "autoapi"
-# autoapi_add_toctree_entry = True  # Add entries to the toctree
-# autoapi_generate_api_docs = True  # Automatically generate API docs
 
-# autoapi_keep_files = False  # Cleanup intermediate .rst files after generation
-# autoapi_options = [
-#     "members",              # Include class and module members
-#     "undoc-members",        # Include undocumented members
-#     "show-inheritance",     # Show inheritance diagrams
-#     "show-module-summary",  # Show a summary for each module
-#     "special-members",      # Include special methods like __init__
-# ]
-
-# autoapi_member_order = "bysource"  # Order members by their appearance in the source
-
-# Add methods docs through automated script (disabled for now)
-# def generate_method_docs(app):
-#     """
-#     Generate documentation for all methods before the Sphinx build starts.
-#     """
-#     # Import the generation functions from your module
-#     from docs.source.generate_methods_docs import generate_docs_for_all_methods, generate_indexes, discover_method_classes
-#
-#     # Automatically discover all method classes in the package.
-#     method_classes = discover_method_classes("entise.methods")
-#
-#     # Determine the absolute paths for the template and output directories.
-#     template_path = os.path.join(app.confdir, "_templates", "method.rst")
-#     base_output_dir = os.path.join(app.confdir, "methods")
-#
-#     # Generate documentation files for each method in their corresponding folders.
-#     generate_docs_for_all_methods(method_classes, template_path, base_output_dir)
-#
-#     # Generate index files for each subfolder in the methods directory.
-#     generate_indexes(base_output_dir)
-
+def copy_notebooks_and_generate_index(app):
+    """
+    Copy notebooks from examples to docs and generate the examples index.
+    """
+    import os
+    import sys
+    # Add the source directory to the Python path
+    sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
+    from copy_notebooks import copy_notebooks_to_docs, generate_examples_index
+    copy_notebooks_to_docs()
+    generate_examples_index()
 
 def setup(app):
     # Connect the generate_method_docs function to the builder-inited event.
     # app.connect("builder-inited", generate_method_docs)
-    pass
+
+    # Connect the copy_notebooks_and_generate_index function to the builder-inited event
+    app.connect("builder-inited", copy_notebooks_and_generate_index)
