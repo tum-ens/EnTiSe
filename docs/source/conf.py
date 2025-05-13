@@ -20,10 +20,29 @@ extensions = [
     "sphinx.ext.autodoc",       # Automatically document code
     "sphinx.ext.napoleon",      # Support Google/NumPy-style docstrings
     "sphinx.ext.viewcode",      # Add links to source code
-    "nbsphinx",                 # Support Jupyter Notebooks
+    "myst_nb",                  # Support Jupyter Notebooks with MyST-NB
     "sphinxcontrib.mermaid"     # Support Mermaid diagrams
     # "autoapi"                 # Generate docs directly from modules (disabled for now)
 ]
+
+# MyST-NB configuration
+myst_enable_extensions = [
+    "amsmath",                  # For math equations
+    "colon_fence",              # For code blocks with colons
+    "deflist",                  # For definition lists
+    "dollarmath",               # For inline math with $
+    "html_image",               # For HTML images
+    "html_admonition",          # For HTML admonitions
+    "tasklist",                 # For task lists
+]
+
+# Notebook execution settings
+nb_execution_mode = "off"       # Don't execute notebooks (options: 'auto', 'force', 'cache', 'off')
+nb_execution_allow_errors = True  # Continue building even if there are errors
+nb_execution_timeout = 30       # Timeout for cell execution in seconds
+
+# MyST parser settings
+myst_heading_anchors = 3        # Generate anchors for headings h1-h3
 
 templates_path = ['_templates']
 exclude_patterns = []
