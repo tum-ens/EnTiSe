@@ -5,6 +5,7 @@ import pkgutil
 import importlib
 import inspect
 from entise.core.base import Method
+from entise.core.base_auxiliary import AuxiliaryMethod
 
 TEMPLATE_PATH = "./_templates/method.rst"
 BASE_OUTPUT_DIR = "./methods"  # Base folder for output
@@ -35,8 +36,10 @@ def discover_method_classes(package_name):
                 continue
             # Iterate over classes defined in the module
             for name, obj in inspect.getmembers(module, inspect.isclass):
-                # Ensure the class is defined in this package and is a subclass of Method.
-                if issubclass(obj, Method) and obj.__module__.startswith(package_name):
+                # Ensure the class is defined in this package and is a subclass of Method or AuxiliaryMethod.
+                if ((issubclass(obj, Method) or issubclass(obj, AuxiliaryMethod)) 
+                    and obj.__module__.startswith(package_name)
+                    and obj is not AuxiliaryMethod):  # Exclude the base AuxiliaryMethod class
                     discovered_classes.append(obj)
     return discovered_classes
 
@@ -51,12 +54,33 @@ def extract_method_metadata(cls):
     Returns:
       dict: Metadata including description, required keys, and required timeseries.
     """
-    required_keys = getattr(cls, "required_keys", {})
-    required_timeseries = getattr(cls, "required_timeseries", {})
+    # Get required keys as a list and convert to a dictionary with str type as default
+    required_keys_list = getattr(cls, "required_keys", [])
+    required_keys = {key: str for key in required_keys_list}
+
+    # Get required timeseries as a list and convert to a dictionary with empty dict as default
+    required_timeseries_list = getattr(cls, "required_timeseries", [])
+    required_timeseries = {ts: {} for ts in required_timeseries_list}
+
     dependencies = getattr(cls, "dependencies", [])
-    docstring = inspect.getdoc(cls)
-    # Extract method docstrings for each function in the class
-    methods = {name: inspect.getdoc(meth) for name, meth in inspect.getmembers(cls, predicate=inspect.isfunction)}
+    docstring = inspect.getdoc(cls) or ""
+
+    # Extract method docstrings and source code for each function in the class, excluding dunder, private, and inherited methods
+    methods = {}
+    for name, meth in inspect.getmembers(cls, predicate=inspect.isfunction):
+        # Skip dunder methods (methods starting with __) and private methods (methods starting with _)
+        if not name.startswith('__') and not name.startswith('_'):
+            # Check if the method is defined in this class (not inherited)
+            if meth.__qualname__.split('.')[0] == cls.__name__:
+                docstring = inspect.getdoc(meth) or ""
+                try:
+                    source_code = inspect.getsource(meth)
+                except (IOError, TypeError):
+                    source_code = "# Source code not available"
+                methods[name] = {
+                    "docstring": docstring,
+                    "source_code": source_code
+                }
     return {
         "description": docstring,
         "required_keys": required_keys,
@@ -88,6 +112,7 @@ def generate_docs_for_method(cls, timeseries_type, template_path, output_dir):
     # Render the template with the metadata and provided timeseries type.
     rendered = template.render(
         method_name=cls.__name__,
+        cls=cls,  # Pass the class object to access its attributes
         description=metadata["description"],
         required_keys=metadata["required_keys"],
         required_timeseries=metadata["required_timeseries"],
@@ -109,24 +134,83 @@ def generate_docs_for_all_methods(method_classes, template_path, base_output_dir
     based on the timeseries types they support.
 
     If a method supports multiple types, it is generated in each corresponding folder.
+    For auxiliary methods, they are organized by their subtype (e.g., internal, solar).
     """
-    for cls in method_classes:
-        # Assume each method class has a 'types' attribute listing its valid types.
-        supported_types = getattr(cls, "types", None)
-        if supported_types is None:
-            supported_types = ["HVAC"]  # Fallback if not specified
+    # First, clean up any existing auxiliary method files in the main auxiliary directory
+    # to avoid duplicate documentation
+    auxiliary_dir = os.path.join(base_output_dir, "auxiliary")
+    if os.path.exists(auxiliary_dir):
+        for file in os.listdir(auxiliary_dir):
+            file_path = os.path.join(auxiliary_dir, file)
+            if os.path.isfile(file_path) and file.endswith('.rst') and file != 'index.rst':
+                os.remove(file_path)
 
-        for timeseries_type in supported_types:
-            # Determine the output folder based on the timeseries type.
-            out_dir = os.path.join(base_output_dir, timeseries_type.lower())
-            os.makedirs(out_dir, exist_ok=True)
-            generate_docs_for_method(cls, timeseries_type, template_path, out_dir)
+    for cls in method_classes:
+        # Check if this is an auxiliary method
+        if issubclass(cls, AuxiliaryMethod):
+            # For auxiliary methods, determine the subtype from the module path
+            module_path = cls.__module__.split('.')
+            if len(module_path) >= 4 and module_path[-2] in ['internal', 'solar']:
+                # Extract the subtype (e.g., 'internal', 'solar')
+                subtype = module_path[-2]
+                # Place in auxiliary/subtype directory
+                out_dir = os.path.join(base_output_dir, "auxiliary", subtype)
+                os.makedirs(out_dir, exist_ok=True)
+                generate_docs_for_method(cls, "auxiliary", template_path, out_dir)
+            else:
+                # Fallback for auxiliary methods without a clear subtype
+                out_dir = os.path.join(base_output_dir, "auxiliary")
+                os.makedirs(out_dir, exist_ok=True)
+                generate_docs_for_method(cls, "auxiliary", template_path, out_dir)
+        else:
+            # For regular methods, use the 'types' attribute or fallback to "HVAC"
+            supported_types = getattr(cls, "types", None)
+            if supported_types is None:
+                supported_types = ["HVAC"]  # Fallback if not specified
+
+            for timeseries_type in supported_types:
+                # Determine the output folder based on the timeseries type.
+                out_dir = os.path.join(base_output_dir, timeseries_type.lower())
+                os.makedirs(out_dir, exist_ok=True)
+                generate_docs_for_method(cls, timeseries_type, template_path, out_dir)
 
 
 def generate_index_for_folder(folder_path):
     """
     Generate an index.rst file in the given folder_path that lists all .rst files (except index.rst).
+    For the auxiliary directory, only include links to subdirectories.
     """
+    folder_name = os.path.basename(folder_path)
+
+    # Special handling for the auxiliary directory
+    if folder_name.lower() == "auxiliary":
+        # Create a custom index file that only includes links to subdirectories
+        title = "AUXILIARY Methods"
+        underline = "=" * len(title)
+        content_lines = [
+            title,
+            underline,
+            "",
+            ".. toctree::",
+            "   :maxdepth: 1",
+            "",
+        ]
+
+        # Add links to subdirectories
+        for entry in os.listdir(folder_path):
+            subdir_path = os.path.join(folder_path, entry)
+            if os.path.isdir(subdir_path):
+                content_lines.append(f"   {entry}/index")
+
+        content = "\n".join(content_lines)
+
+        # Write the content to index.rst in the folder
+        output_file = os.path.join(folder_path, "index.rst")
+        with open(output_file, "w", encoding="utf-8") as f:
+            f.write(content)
+        return
+
+    # For other directories, use the original logic
     # List all .rst files in the folder, excluding index.rst
     rst_files = sorted([
         f for f in os.listdir(folder_path)
@@ -137,7 +221,6 @@ def generate_index_for_folder(folder_path):
         return
 
     # Create a title from the folder name (e.g., "hvac" -> "HVAC Methods")
-    folder_name = os.path.basename(folder_path)
     title = f"{folder_name.upper()} Methods"
     underline = "=" * len(title)
     # Build the content with a toctree directive
@@ -146,7 +229,7 @@ def generate_index_for_folder(folder_path):
         underline,
         "",
         ".. toctree::",
-        "   :maxdepth: 2",
+        "   :maxdepth: 1",
         "",
     ]
     for rst_file in rst_files:
@@ -161,14 +244,73 @@ def generate_index_for_folder(folder_path):
     # print(f"Created index file: {output_file}")
 
 
+def update_parent_index(parent_dir, subdir_name):
+    """
+    Update the parent directory's index.rst file to include a link to the subdirectory.
+
+    Parameters:
+      - parent_dir: Path to the parent directory
+      - subdir_name: Name of the subdirectory to include
+    """
+    index_path = os.path.join(parent_dir, "index.rst")
+    if not os.path.exists(index_path):
+        return
+
+    # Read the current content
+    with open(index_path, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    # Check if the toctree directive exists
+    if ".. toctree::" not in content:
+        return
+
+    # Check if the subdirectory is already included
+    if f"{subdir_name}/index" in content:
+        return
+
+    # Find the toctree section and add the subdirectory
+    lines = content.split("\n")
+    toctree_index = -1
+    for i, line in enumerate(lines):
+        if ".. toctree::" in line:
+            toctree_index = i
+            break
+
+    if toctree_index == -1:
+        return
+
+    # Find where to insert the new entry (after the last entry in the toctree)
+    insert_index = toctree_index + 1
+    while insert_index < len(lines) and (not lines[insert_index].strip() or lines[insert_index].startswith("   ")):
+        insert_index += 1
+
+    # Insert the new entry
+    lines.insert(insert_index, f"   {subdir_name}/index")
+
+    # Write the updated content
+    with open(index_path, "w", encoding="utf-8") as f:
+        f.write("\n".join(lines))
+
+
 def generate_indexes(base_dir):
     """
     Walk through each subdirectory in base_dir and generate an index.rst file.
+    Also handles nested subdirectories (e.g., auxiliary/internal).
     """
     for entry in os.listdir(base_dir):
         subdir_path = os.path.join(base_dir, entry)
         if os.path.isdir(subdir_path):
+            # Generate index for this directory
             generate_index_for_folder(subdir_path)
+
+            # Check for subdirectories and generate indexes for them too
+            for subentry in os.listdir(subdir_path):
+                subsubdir_path = os.path.join(subdir_path, subentry)
+                if os.path.isdir(subsubdir_path):
+                    generate_index_for_folder(subsubdir_path)
+
+                    # Update the parent directory's index to include the subdirectory
+                    update_parent_index(subdir_path, subentry)
 
 
 if __name__ == "__main__":
