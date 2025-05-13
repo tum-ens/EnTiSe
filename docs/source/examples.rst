@@ -8,7 +8,6 @@ different aspect of the library, from basic usage to more complex scenarios. You
 ``examples`` directory of the repository.
 
 .. toctree::
-   :maxdepth: 2
-   :caption: Jupyter Notebook Examples
+   :maxdepth: 1
 
-   examples/hvac_rc
+   examples/hvac_rc/runme
