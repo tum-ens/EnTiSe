@@ -1,4 +1,4 @@
-MOBILITY Methods
+SOLAR_PV Methods
 ================
 
 .. toctree::

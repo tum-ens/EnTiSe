@@ -1,5 +1,5 @@
-MOBILITY Methods
-================
+GEOTHERMAL Methods
+==================
 
 .. toctree::
    :maxdepth: 1

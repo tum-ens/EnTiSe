@@ -1,5 +1,5 @@
-MOBILITY Methods
-================
+TIDAL Methods
+=============
 
 .. toctree::
    :maxdepth: 1

@@ -1,5 +1,5 @@
-MOBILITY Methods
-================
+WIND Methods
+============
 
 .. toctree::
    :maxdepth: 1

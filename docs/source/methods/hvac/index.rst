@@ -2,9 +2,8 @@ HVAC Methods
 ============
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
 
-   degreeday.rst
-   dependentheating.rst
-   file.rst
+   fileloader.rst
+   internaloccupancy.rst
    r1c1.rst

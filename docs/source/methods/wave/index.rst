@@ -1,5 +1,5 @@
-MOBILITY Methods
-================
+WAVE Methods
+============
 
 .. toctree::
    :maxdepth: 1

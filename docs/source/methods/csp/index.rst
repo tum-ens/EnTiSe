@@ -1,5 +1,5 @@
-MOBILITY Methods
-================
+CSP Methods
+===========
 
 .. toctree::
    :maxdepth: 1

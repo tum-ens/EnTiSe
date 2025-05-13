@@ -2,6 +2,7 @@ OCCUPANCY Methods
 =================
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
 
-   file.rst
+   fileloader.rst
+   fixedschedule.rst

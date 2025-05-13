@@ -1,16 +1,24 @@
 R1C1
 =========================
 
+
+**Method Key:** ``1R1C``
+
+.. note::
+   This is the key required to call this method when using bulk generation with TimeSeriesGenerator.
+
+
 Description
 -----------
 
-Timeseries generation method using a 1R1C-model.
+
 
 Requirements
 -------------
 
 Required Keys
 ~~~~~~~~~~~~~
+
 
 .. list-table::
    :widths: auto
@@ -19,45 +27,30 @@ Required Keys
    * - Key
      - Type
    
-   * - ``weather``
+   * - ``capacitance``
      - ``str``
    
    * - ``resistance``
-     - ````
+     - ``str``
    
-   * - ``capacitance``
-     - ````
+   * - ``weather``
+     - ``str``
    
+
 
 
 Required Timeseries
 ~~~~~~~~~~~~~~~~~~~
 
 
+
 **Timeseries Key:** ``weather``
 
 
-**Required Columns**
-
-.. list-table::
-   :widths: auto
-   :header-rows: 1
-
-   * - Column
-     - Type
-   
-   * - ``datetime``
-     - ``pandas._libs.tslibs.timestamps.Timestamp | numpy.datetime64 | str | int | float``
-   
-   * - ``temp_out``
-     - ``float | int | numpy.number``
-   
 
 
 
 
-
-**DataFrame Type:** ``DataFrame``
 
 
 
@@ -77,65 +70,40 @@ Methods
 
 **generate**:
 
-  .. code-block:: none
 
-     Generate HVAC timeseries using degree days.
+  .. code-block:: python
 
-   Parameters:
-   - obj (dict): Objects metadata and parameters.
-   - data (dict): Timeseries data.
+         def generate(self, obj, data, ts_type):
 
-   Returns:
-   - pd.DataFrame: Timeseries for HVAC demand.
+           obj, data = get_input_data(obj, data)
 
+           # Precompute auxiliary data
+           data[O.GAINS_SOLAR] = SolarGains().generate(obj, data)
+           data[O.GAINS_INTERNAL] = InternalGains().generate(obj, data)
 
-**get_relevant_objects**:
+           # Compute temperature and energy demand
+           temp_in, p_heat, p_cool = calculate_timeseries(obj, data)
 
-  .. code-block:: none
+           logger.debug(f"[HVAC R1C1] {ts_type}: max heating {p_heat.max()}, cooling {p_cool.max()}")
 
-     Retrieve only the relevant object keys for the method.
+           timestep = data[O.WEATHER][C.DATETIME].diff().dt.total_seconds().dropna().mode()[0]
+           summary = {
+               f"{C.DEMAND}_{Types.HEATING}": int(round(p_heat.sum() * timestep / 3600)),
+               f'{O.LOAD_MAX}_{Types.HEATING}': int(max(p_heat)),
+               f"{C.DEMAND}_{Types.COOLING}": int(round(p_cool.sum() * timestep / 3600)),
+               f'{O.LOAD_MAX}_{Types.COOLING}': int(max(p_cool)),
+           }
 
-   Args:
-       obj (dict): The input object metadata and parameters.
-       ts_type (str, optional): The timeseries type being processed.
+           df = pd.DataFrame({
+               f"{C.TEMP_IN}": temp_in,
+               f"{C.LOAD}_{Types.HEATING}": p_heat,
+               f"{C.LOAD}_{Types.COOLING}": p_cool,
+           }, index= data[O.WEATHER].index)
+           df.index.name = C.DATETIME
 
-   Returns:
-       dict: A dictionary containing the relevant object keys.
+           return {
+               "summary": summary,
+               "timeseries": df
+           }
 
-
-**prepare_inputs**:
-
-  .. code-block:: none
-
-     Prepare and validate the inputs for timeseries generation.
-
-   Args:
-       obj (dict): The input object metadata and parameters.
-       data (dict): The input data dictionary.
-       ts_type (str): The type of timeseries being processed.
-
-   Returns:
-       dict: A reduced and validated object dictionary.
-
-   Raises:
-       ValueError: If validation of the inputs fails.
-
-
-**resolve_column**:
-
-  .. code-block:: none
-
-     Resolve a column from the input data, checking for prefixed and shared columns.
-
-   Args:
-       ts_key (str): The key identifying the timeseries data.
-       column (str): The column name to resolve.
-       ts_type (str): The type of timeseries (used for prefixing).
-       data (dict): The input data dictionary.
-
-   Returns:
-       pd.Series: The resolved column data.
-
-   Raises:
-       ValueError: If the specified column is not found.
 

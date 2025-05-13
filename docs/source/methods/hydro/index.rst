@@ -1,5 +1,5 @@
-MOBILITY Methods
-================
+HYDRO Methods
+=============
 
 .. toctree::
    :maxdepth: 1

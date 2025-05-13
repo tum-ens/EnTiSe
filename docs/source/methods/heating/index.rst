@@ -1,5 +1,5 @@
-MOBILITY Methods
-================
+HEATING Methods
+===============
 
 .. toctree::
    :maxdepth: 1

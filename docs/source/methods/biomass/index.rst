@@ -1,5 +1,5 @@
-MOBILITY Methods
-================
+BIOMASS Methods
+===============
 
 .. toctree::
    :maxdepth: 1
