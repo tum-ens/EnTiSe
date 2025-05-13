@@ -14,8 +14,8 @@ Welcome to the documentation for EnTiSe.
    getting_started
    workflow
    methods/index
-   api/index
    examples
+   api/index
 
 Indices and tables
 ==================
