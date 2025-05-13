@@ -1,0 +1,28 @@
+         328807 function calls (323845 primitive calls) in 0.806 seconds
+
+   Ordered by: cumulative time
+   List reduced from 592 to 20 due to restriction <20>
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+      168    0.012    0.000    0.856    0.005 C:\Users\ge23nur\Documents\Python Scripts\TS_Creator\venv\Lib\site-packages\joblib\externals\loky\process_executor.py:644(wait_result_broken_or_wakeup)
+        1    0.000    0.000    0.800    0.800 C:\Users\ge23nur\Documents\Python Scripts\TS_Creator\playground\rc_model5.py:95(run_simulation)
+        1    0.007    0.007    0.799    0.799 C:\Users\ge23nur\Documents\Python Scripts\TS_Creator\playground\rc_model5.py:74(process_buildings_parallel)
+      168    0.003    0.000    0.619    0.004 C:\Users\ge23nur\Documents\Python Scripts\TS_Creator\venv\Lib\site-packages\joblib\externals\loky\process_executor.py:720(process_result_item)
+      168    0.001    0.000    0.499    0.003 C:\Users\ge23nur\AppData\Local\Programs\Python\Python312\Lib\multiprocessing\connection.py:245(recv)
+      168    0.199    0.001    0.337    0.002 {built-in method _pickle.loads}
+      336    0.008    0.000    0.157    0.000 C:\Users\ge23nur\AppData\Local\Programs\Python\Python312\Lib\multiprocessing\connection.py:293(_recv_bytes)
+      168    0.001    0.000    0.146    0.001 C:\Users\ge23nur\AppData\Local\Programs\Python\Python312\Lib\multiprocessing\connection.py:331(_get_more_data)
+      169    0.002    0.000    0.144    0.001 C:\Users\ge23nur\Documents\Python Scripts\TS_Creator\venv\Lib\site-packages\joblib\externals\loky\process_executor.py:134(clear)
+      168    0.001    0.000    0.112    0.001 C:\Users\ge23nur\Documents\Python Scripts\TS_Creator\venv\Lib\site-packages\joblib\externals\loky\backend\reduction.py:211(dumps)
+      168    0.002    0.000    0.111    0.001 C:\Users\ge23nur\Documents\Python Scripts\TS_Creator\venv\Lib\site-packages\joblib\externals\loky\backend\reduction.py:205(dump)
+      168    0.000    0.000    0.092    0.001 C:\Users\ge23nur\Documents\Python Scripts\TS_Creator\venv\Lib\site-packages\joblib\externals\cloudpickle\cloudpickle.py:1243(dump)
+      168    0.027    0.000    0.091    0.001 {function Pickler.dump at 0x000001C0C2B998A0}
+      874    0.081    0.000    0.081    0.000 {built-in method _winapi.ReadFile}
+     1168    0.005    0.000    0.076    0.000 C:\Users\ge23nur\Documents\Python Scripts\TS_Creator\venv\Lib\site-packages\pandas\core\indexes\base.py:292(_new_Index)
+      336    0.073    0.000    0.073    0.000 {method 'write' of '_io.BytesIO' objects}
+      337    0.002    0.000    0.061    0.000 C:\Users\ge23nur\AppData\Local\Programs\Python\Python312\Lib\multiprocessing\connection.py:252(poll)
+     1000    0.010    0.000    0.061    0.000 C:\Users\ge23nur\Documents\Python Scripts\TS_Creator\venv\Lib\site-packages\pandas\core\indexes\base.py:475(__new__)
+  336/197    0.002    0.000    0.060    0.000 C:\Users\ge23nur\AppData\Local\Programs\Python\Python312\Lib\multiprocessing\connection.py:181(send_bytes)
+  336/197    0.007    0.000    0.054    0.000 C:\Users\ge23nur\AppData\Local\Programs\Python\Python312\Lib\multiprocessing\connection.py:278(_send_bytes)
+
+
