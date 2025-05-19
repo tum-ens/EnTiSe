@@ -18,11 +18,13 @@ logger = logging.getLogger(__name__)
 
 # Default values for optional keys
 DEFAULT_TEMP_COLD = 10  # °C
-DEFAULT_TEMP_HOT = 60   # °C
+DEFAULT_TEMP_HOT = 50   # °C
 DEFAULT_DENSITY_WATER = 1000  # kg/m³
 DEFAULT_SPECIFIC_HEAT_WATER = 4186  # J/(kg·K)
-DEFAULT_SEASONAL_VARIATION = 0.1  # ±10% seasonal variation
+DEFAULT_SEASONAL_VARIATION = 0  # ±0% seasonal variation
 DEFAULT_SEASONAL_PEAK_DAY = 15  # Day of year with peak demand (January 15)
+
+DEFAULT_METHOD = 'jordan_vajen'
 
 class BaseProbabilisticDHW(Method, ABC):
     """
@@ -43,8 +45,12 @@ class BaseProbabilisticDHW(Method, ABC):
     required_timeseries = [O.WEATHER]
     optional_timeseries = []
     output_summary = {
-        f'{C.DEMAND}_{Types.DHW}_volume': 'total hot water demand in liters',
-        f'{C.DEMAND}_{Types.DHW}_energy': 'total energy demand for hot water in kWh',
+        f'{C.DEMAND}_{Types.DHW}_volume_total': 'total hot water demand in liters',
+        f'{C.DEMAND}_{Types.DHW}_volume_avg': 'average hot water demand in liters',
+        f'{C.DEMAND}_{Types.DHW}_volume_peak': 'peak hot water demand in liters',
+        f'{C.DEMAND}_{Types.DHW}_energy_total': 'total energy demand for hot water in Wh',
+        f'{C.DEMAND}_{Types.DHW}_energy_avg': 'average energy demand for hot water in Wh',
+        f'{C.DEMAND}_{Types.DHW}_energy_peak': 'peak energy demand for hot water in Wh',
     }
     output_timeseries = {
         f'{C.LOAD}_{Types.DHW}_volume': 'hot water demand in liters',
@@ -104,8 +110,12 @@ class BaseProbabilisticDHW(Method, ABC):
 
         # Create output
         summary = {
-            f'{C.DEMAND}_{Types.DHW}_volume': float(total_volume),
-            f'{C.DEMAND}_{Types.DHW}_energy': float(total_energy),
+            f'{C.DEMAND}_{Types.DHW}_volume_total': float(ts_volume.sum()),
+            f'{C.DEMAND}_{Types.DHW}_volume_avg': float(ts_volume.mean()),
+            f'{C.DEMAND}_{Types.DHW}_volume_peak': float(ts_volume.max()),
+            f'{C.DEMAND}_{Types.DHW}_energy_total': float(ts_energy.sum()),
+            f'{C.DEMAND}_{Types.DHW}_energy_avg': float(ts_energy.mean()),
+            f'{C.DEMAND}_{Types.DHW}_energy_peak': float(ts_energy.max()),
         }
 
         timeseries = pd.DataFrame({
@@ -150,7 +160,7 @@ class BaseProbabilisticDHW(Method, ABC):
         str
             Path to the default activity file
         """
-        return os.path.join('entise', 'data', 'dhw', 'jordan_vajen', 'dhw_activity.csv')
+        return os.path.join('entise', 'data', 'dhw', DEFAULT_METHOD, 'dhw_activity.csv')
 
     def _generate_timeseries(self, weather, activity_data, daily_demand, temp_cold, temp_hot, 
                             seasonal_variation, seasonal_peak_day):

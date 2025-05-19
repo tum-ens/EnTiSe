@@ -7,40 +7,31 @@ This package contains methods for generating domestic hot water demand time seri
 # Import the main facade class
 from entise.methods.dhw.probabilistic import ProbabilisticDHW
 
-# Import the base class
-from entise.methods.dhw.base import BaseProbabilisticDHW
+# Import the Jordan & Vajen method
+from entise.methods.dhw.jordan_vajen import JordanVajen
 
-# Import source-specific methods
-from entise.methods.dhw.jordan_vajen import JordanVajenDwellingSizeDHW, JordanVajenWeekdayActivityDHW
-from entise.methods.dhw.hendron_burch import HendronBurchOccupantsDHW
-from entise.methods.dhw.iea_annex42 import IEAAnnex42HouseholdTypeDHW
-from entise.methods.dhw.ashrae import ASHRAEWeekendActivityDHW
-from entise.methods.dhw.vdi4655 import VDI4655ColdWaterTemperatureDHW
-from entise.methods.dhw.user import UserDefinedDHW
+# Import utility functions
+from entise.methods.dhw.utils import (
+    get_activity_data, get_demand_data, get_cold_water_temperature, calculate_timeseries,
+    DEFAULT_TEMP_COLD, DEFAULT_TEMP_HOT, DEFAULT_SEASONAL_VARIATION, DEFAULT_SEASONAL_PEAK_DAY
+)
 
 __all__ = [
     # Main facade class
     'ProbabilisticDHW',
-    
-    # Base class
-    'BaseProbabilisticDHW',
-    
-    # Jordan & Vajen methods
-    'JordanVajenDwellingSizeDHW',
-    'JordanVajenWeekdayActivityDHW',
-    
-    # Hendron & Burch methods
-    'HendronBurchOccupantsDHW',
-    
-    # IEA Annex 42 methods
-    'IEAAnnex42HouseholdTypeDHW',
-    
-    # ASHRAE methods
-    'ASHRAEWeekendActivityDHW',
-    
-    # VDI 4655 methods
-    'VDI4655ColdWaterTemperatureDHW',
-    
-    # User-defined methods
-    'UserDefinedDHW'
+
+    # Jordan & Vajen method
+    'JordanVajen',
+
+    # Utility functions
+    'get_activity_data',
+    'get_demand_data',
+    'get_cold_water_temperature',
+    'calculate_timeseries',
+
+    # Default values
+    'DEFAULT_TEMP_COLD',
+    'DEFAULT_TEMP_HOT',
+    'DEFAULT_SEASONAL_VARIATION',
+    'DEFAULT_SEASONAL_PEAK_DAY'
 ]

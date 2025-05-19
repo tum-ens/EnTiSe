@@ -15,11 +15,15 @@ class Objects:
     CAPACITANCE = "capacitance"  # Capacitance (J/K)
     COLUMN = "column"
     DEMAND = "demand"
+    DHW_ACTIVITY_FILE = "dhw_activity_file"  # Path to DHW activity file
+    DHW_DEMAND_FILE = "dhw_demand_file"  # Path to DHW demand file
+    DWELLING_SIZE = "dwelling_size"  # Size of dwelling (m2)
     FILE = "file"  # File
     GAINS_INTERNAL = "gains_internal"  # Internal gains (W)
     GAINS_INTERNAL_COL = f'{GAINS_INTERNAL}_{COLUMN}'  # column in which the internal gains are (if dataframe is provided)
     GAINS_INTERNAL_PER_PERSON = f'{GAINS_INTERNAL}_per_person'  # Internal gains per person (W)
     GAINS_SOLAR = "gains_solar"  # Solar gains (W)
+    HOUSEHOLD_TYPE = "household_type"  # Type of household
     INHABITANTS = "inhabitants"  # Number of inhabitants
     LAT = "latitude"  # Latitude (degrees)
     LOAD = "load"
@@ -27,10 +31,16 @@ class Objects:
     LOAD_MAX = f"{LOAD}_max"
     LON = "longitude"  # Longitude (degrees)
     OCCUPATION = "occupation"  # Occupancy (for timeseries files)
+    OCCUPANTS = "occupants"  # Number of occupants
     ORIENTATION = "orientation"  # Orientation (degrees; 180 = south)
     POWER_COOLING = "power_cooling"  # Power cooling (W)
     POWER_HEATING = "power_heating"  # Power heating (W)
     RESISTANCE = "resistance"  # Resistance (K/W)
+    SEASONAL_PEAK_DAY = "seasonal_peak_day"  # Day of year with peak demand
+    SEASONAL_VARIATION = "seasonal_variation"  # Seasonal variation factor
+    SOURCE = "source"  # Source of data or method
+    TEMP_COLD = "temp_cold"  # Cold water temperature (C)
+    TEMP_HOT = "temp_hot"  # Hot water temperature (C)
     TEMP_INIT = "temp_init"  # Initial temperature (C)
     TEMP_MAX = "temp_max"  # Maximum temperature (C)
     TEMP_MIN = "temp_min"  # Minimum temperature (C)
@@ -41,6 +51,7 @@ class Objects:
     VENTILATION = "ventilation"  # Ventilation losses (W/K)
     VERBOSE = "verbose"  # Verbose
     WEATHER = "weather"  # Weather data
+    WEEKEND_ACTIVITY = "weekend_activity"  # Use weekend activity profiles
     WINDOWS = "windows"  # Windows
     DTYPES = {
         ID: object,
@@ -50,20 +61,30 @@ class Objects:
         AREA: int | float | np.number,
         CAPACITANCE: int | float | np.number,
         DEMAND: int | float | np.number,
+        DHW_ACTIVITY_FILE: str,
+        DHW_DEMAND_FILE: str,
+        DWELLING_SIZE: int | float | np.number,
         FILE: str,
         GAINS_INTERNAL: int | float | np.number | str,
         GAINS_INTERNAL_COL: str,
         GAINS_SOLAR: int | float | np.number | str,
+        HOUSEHOLD_TYPE: str,
         LAT: int | float | np.number,
         LOAD: int | float | np.number,
         LOAD_BASE: int | float | np.number,
         LOAD_MAX: int | float | np.number,
         LON: int | float | np.number,
         OCCUPATION: str,
+        OCCUPANTS: int,
         ORIENTATION: int | float | np.number,
         POWER_COOLING: int | float | np.number,
         POWER_HEATING: int | float | np.number,
         RESISTANCE: int | float | np.number,
+        SEASONAL_PEAK_DAY: int,
+        SEASONAL_VARIATION: float,
+        SOURCE: str,
+        TEMP_COLD: int | float | np.number,
+        TEMP_HOT: int | float | np.number,
         TEMP_INIT: int | float | np.number,
         TEMP_MAX: int | float | np.number,
         TEMP_MIN: int | float | np.number,
@@ -72,5 +93,6 @@ class Objects:
         VENTILATION: int | float | np.number,
         VERBOSE: bool,
         WEATHER: str,
+        WEEKEND_ACTIVITY: bool,
         WINDOWS: str,
         }

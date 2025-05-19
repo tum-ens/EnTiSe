@@ -3,6 +3,10 @@ Hendron & Burch DHW (Domestic Hot Water) methods.
 
 This module implements DHW methods based on Hendron & Burch (2007):
 "Development of Standardized Domestic Hot Water Event Schedules for Residential Buildings (NREL)"
+
+Source: Hendron, R., & Burch, J. (2007). Development of Standardized Domestic Hot Water Event Schedules
+for Residential Buildings. National Renewable Energy Laboratory (NREL).
+URL: https://www.nrel.gov/docs/fy08osti/40874.pdf
 """
 
 import os
@@ -18,7 +22,7 @@ logger = logging.getLogger(__name__)
 class HendronBurchOccupantsDHW(BaseProbabilisticDHW):
     """
     Probabilistic DHW demand method based on number of occupants from Hendron & Burch (2007).
-    
+
     This method calculates daily DHW demand based on the number of occupants in the dwelling.
     """
     name = "HendronBurchOccupantsDHW"
@@ -43,17 +47,17 @@ class HendronBurchOccupantsDHW(BaseProbabilisticDHW):
         """
         occupants = obj[O.OCCUPANTS]
         dhw_demand_file = obj.get(O.DHW_DEMAND_FILE, None)
-        
+
         # Get the demand file with fallback mechanism
         demand_file = self.get_data_file(
             'hendron_burch', 
             'dhw_demand_by_occupants.csv',
             dhw_demand_file
         )
-        
+
         # Load demand data
         demand_data = pd.read_csv(demand_file)
-        
+
         # Find closest number of occupants in data
         occupants_values = demand_data['occupants'].values
         idx = np.abs(occupants_values - occupants).argmin()
@@ -68,7 +72,7 @@ class HendronBurchOccupantsDHW(BaseProbabilisticDHW):
     def get_default_activity_file(self):
         """
         Get the default activity file path.
-        
+
         Returns:
         --------
         str

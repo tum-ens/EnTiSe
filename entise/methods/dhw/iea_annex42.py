@@ -3,6 +3,10 @@ IEA Annex 42 DHW (Domestic Hot Water) methods.
 
 This module implements DHW methods based on IEA Annex 42:
 "The Simulation of Building-Integrated Fuel Cell and Other Cogeneration Systems"
+
+Source: IEA/ECBCS Annex 42. (2007). The Simulation of Building-Integrated Fuel Cell and 
+Other Cogeneration Systems. International Energy Agency.
+URL: https://www.iea-ebc.org/projects/project?AnnexID=42
 """
 
 import os
@@ -18,7 +22,7 @@ logger = logging.getLogger(__name__)
 class IEAAnnex42HouseholdTypeDHW(BaseProbabilisticDHW):
     """
     Probabilistic DHW demand method based on household type from IEA Annex 42.
-    
+
     This method calculates daily DHW demand based on the type of household.
     """
     name = "IEAAnnex42HouseholdTypeDHW"
@@ -43,17 +47,17 @@ class IEAAnnex42HouseholdTypeDHW(BaseProbabilisticDHW):
         """
         household_type = obj[O.HOUSEHOLD_TYPE]
         dhw_demand_file = obj.get(O.DHW_DEMAND_FILE, None)
-        
+
         # Get the demand file with fallback mechanism
         demand_file = self.get_data_file(
             'iea_annex42', 
             'dhw_demand_by_household_type.csv',
             dhw_demand_file
         )
-        
+
         # Load demand data
         demand_data = pd.read_csv(demand_file)
-        
+
         # Find the row for this household type
         try:
             row = demand_data[demand_data['household_type'] == household_type].iloc[0]
@@ -73,7 +77,7 @@ class IEAAnnex42HouseholdTypeDHW(BaseProbabilisticDHW):
     def get_default_activity_file(self):
         """
         Get the default activity file path.
-        
+
         Returns:
         --------
         str

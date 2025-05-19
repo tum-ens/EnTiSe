@@ -28,19 +28,24 @@ The data files are organized by source:
 ## Data Sources
 
 ### Jordan & Vajen (2001)
-Jordan, U., & Vajen, K. (2001). Realistic Domestic Hot-Water Profiles in Different Time Scales. Universität Marburg.
+Jordan, U., & Vajen, K. (2001). Realistic Domestic Hot-Water Profiles in Different Time Scales. Universität Marburg.  
+URL: [https://www.researchgate.net/publication/257356121_Realistic_Domestic_Hot-Water_Profiles_in_Different_Time_Scales](https://www.researchgate.net/publication/257356121_Realistic_Domestic_Hot-Water_Profiles_in_Different_Time_Scales)
 
 ### Hendron & Burch (2007)
-Hendron, R., & Burch, J. (2007). Development of Standardized Domestic Hot Water Event Schedules for Residential Buildings. National Renewable Energy Laboratory (NREL).
+Hendron, R., & Burch, J. (2007). Development of Standardized Domestic Hot Water Event Schedules for Residential Buildings. National Renewable Energy Laboratory (NREL).  
+URL: [https://www.nrel.gov/docs/fy08osti/40874.pdf](https://www.nrel.gov/docs/fy08osti/40874.pdf)
 
 ### IEA Annex 42
-IEA Annex 42: The Simulation of Building-Integrated Fuel Cell and Other Cogeneration Systems.
+IEA/ECBCS Annex 42. (2007). The Simulation of Building-Integrated Fuel Cell and Other Cogeneration Systems. International Energy Agency.  
+URL: [https://www.iea-ebc.org/projects/project?AnnexID=42](https://www.iea-ebc.org/projects/project?AnnexID=42)
 
 ### ASHRAE Handbook
-ASHRAE Handbook: HVAC Applications chapter on Service Water Heating.
+ASHRAE. (2019). ASHRAE Handbook - HVAC Applications. Chapter 51: Service Water Heating. American Society of Heating, Refrigerating and Air-Conditioning Engineers.  
+URL: [https://www.ashrae.org/technical-resources/ashrae-handbook](https://www.ashrae.org/technical-resources/ashrae-handbook)
 
 ### VDI 4655
-VDI 4655: Reference load profiles of single-family and multi-family houses for the use of CHP systems.
+VDI 4655. (2008). Reference load profiles of single-family and multi-family houses for the use of CHP systems. Verein Deutscher Ingenieure (Association of German Engineers).  
+URL: [https://www.vdi.de/richtlinien/details/vdi-4655-reference-load-profiles-of-single-family-and-multi-family-houses-for-the-use-of-chp-systems](https://www.vdi.de/richtlinien/details/vdi-4655-reference-load-profiles-of-single-family-and-multi-family-houses-for-the-use-of-chp-systems)
 
 ## Usage
 

@@ -3,6 +3,10 @@ VDI 4655 DHW (Domestic Hot Water) methods.
 
 This module implements DHW methods based on VDI 4655:
 "Reference load profiles of single-family and multi-family houses for the use of CHP systems"
+
+Source: VDI 4655. (2008). Reference load profiles of single-family and multi-family houses 
+for the use of CHP systems. Verein Deutscher Ingenieure (Association of German Engineers).
+URL: https://www.vdi.de/richtlinien/details/vdi-4655-reference-load-profiles-of-single-family-and-multi-family-houses-for-the-use-of-chp-systems
 """
 
 import os
@@ -18,9 +22,18 @@ logger = logging.getLogger(__name__)
 
 class VDI4655ColdWaterTemperatureDHW(BaseProbabilisticDHW):
     """
-    Probabilistic DHW demand method with seasonal cold water temperature variations from VDI 4655.
-    
-    This method adjusts the energy demand based on monthly cold water temperature variations.
+    Mixin class for DHW methods that provides seasonal cold water temperature variations from VDI 4655.
+
+    This class is intended to be used as a mixin with another DHW class that implements
+    the _calculate_daily_demand method. It adjusts the energy demand based on monthly 
+    cold water temperature variations.
+
+    Example usage:
+    -------------
+    class CombinedDHW(VDI4655ColdWaterTemperatureDHW, IEAAnnex42HouseholdTypeDHW):
+        name = "CombinedDHW"
+        # This class will use IEAAnnex42HouseholdTypeDHW for demand calculation
+        # and VDI4655ColdWaterTemperatureDHW for cold water temperature variations
     """
     name = "VDI4655ColdWaterTemperatureDHW"
     optional_keys = BaseProbabilisticDHW.optional_keys + [O.TEMP_COLD]
@@ -98,6 +111,14 @@ class VDI4655ColdWaterTemperatureDHW(BaseProbabilisticDHW):
     def _calculate_daily_demand(self, obj, data):
         """
         This method must be implemented by a concrete subclass.
+
+        This class is a mixin and does not implement this method.
+        It should be used with another class that provides this implementation.
+
+        Raises:
+        -------
+        NotImplementedError
+            If this method is called directly without being overridden by a subclass
         """
         raise NotImplementedError("This class should be used as a mixin with a concrete demand calculation method.")
 
@@ -184,7 +205,7 @@ class VDI4655ColdWaterTemperatureDHW(BaseProbabilisticDHW):
 
                 # Add volume to time series
                 ts_volume.iloc[closest_idx] += activity_volume
-                
+
                 # Add energy to time series
                 ts_energy.iloc[closest_idx] += activity_volume * energy_factor
 
