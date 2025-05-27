@@ -79,7 +79,7 @@ class JordanVajen(Method):
         f'{Types.DHW}_{O.TEMP_WATER_HOT}': 'hot water temperature in degrees Celsius',
     }
 
-    def generate(self, obj, data, ts_type):
+    def generate(self, obj, data, ts_type: str = Types.DHW):
         """
         Generate DHW demand time series.
 
