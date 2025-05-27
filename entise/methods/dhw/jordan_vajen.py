@@ -292,7 +292,7 @@ def _sample_event_volumes(
     return dist.rvs(size=num_events, random_state=rng)
 
 
-def _vectorized_inverse_sampling(
+def _calculate_volume_timeseries(
     activity_data: pd.DataFrame,
     annual_volumes: Dict[str, float],
     mean_flows: Dict[str, float],
@@ -311,10 +311,6 @@ def _vectorized_inverse_sampling(
     4. Sampling event occurrences using inverse transform sampling
     5. Sampling event volumes from truncated normal distributions
     6. Aggregating the volumes into a time series
-
-    The implementation is highly optimized using NumPy's vectorized operations,
-    with a computational complexity of O(E + T), where E is the number of events
-    and T is the number of timestamps.
 
     Parameters:
     -----------
@@ -1031,7 +1027,7 @@ def _calculate_timeseries(
 
     # Generate volume time series using vectorized inverse sampling
     logger.info("Generating volume time series using vectorized inverse sampling")
-    ts_volume = _vectorized_inverse_sampling(
+    ts_volume = _calculate_volume_timeseries(
         events,
         annual_volumes,
         mean_flows,
