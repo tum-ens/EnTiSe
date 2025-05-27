@@ -24,6 +24,9 @@ import entise.methods.dhw.defaults as defaults
 
 logger = logging.getLogger(__name__)
 
+# Internal strings for this method
+SEASONAL_FACTOR = "seasonal_factor"
+
 
 class JordanVajen(Method):
     """
@@ -39,7 +42,7 @@ class JordanVajen(Method):
     """
     types = [Types.DHW]
     name = "jordanvajen"
-    required_keys = [O.WEATHER, O.DWELLING_SIZE]
+    required_keys = [O.DATETIMES, O.DWELLING_SIZE]
     optional_keys = [
         O.DHW_ACTIVITY,
         O.DHW_DEMAND_PER_SIZE,
@@ -50,7 +53,7 @@ class JordanVajen(Method):
         O.SEASONAL_PEAK_DAY,
         O.SEED,
     ]
-    required_timeseries = [O.WEATHER]
+    required_timeseries = [O.DATETIMES]
     optional_timeseries = [
         O.DHW_ACTIVITY,
         O.DHW_DEMAND_PER_SIZE,
@@ -99,8 +102,9 @@ class JordanVajen(Method):
         rng = np.random.default_rng(seed)
 
         # Get parameters
-        weather = data[O.WEATHER]
-        weather[C.DATETIME] = pd.to_datetime(weather[C.DATETIME])
+        datetimes = obj[O.DATETIMES]
+        datetimes = data[datetimes]
+        datetimes[C.DATETIME] = pd.to_datetime(datetimes[C.DATETIME])
         dwelling_size = obj[O.DWELLING_SIZE]
 
         # Get activity data
@@ -123,8 +127,8 @@ class JordanVajen(Method):
         a, b = (0 - mean_daily_l) / sd_daily_l, np.inf
 
         # Build a date index for each simulation day
-        start = weather[C.DATETIME].iloc[0].normalize()
-        end = weather[C.DATETIME].iloc[-1].normalize()
+        start = datetimes[C.DATETIME].iloc[0].normalize()
+        end = datetimes[C.DATETIME].iloc[-1].normalize()
         days = pd.date_range(start, end, freq='D')
 
         # 5) sample once **per day** from the truncated normal
@@ -132,16 +136,16 @@ class JordanVajen(Method):
         daily_demand_l = pd.Series(dist.rvs(size=len(days), random_state=rng), index=days)
 
         # Get cold water temperature
-        water_temp = _get_water_temperatures(obj, data, weather)
+        water_temp = _get_water_temperatures(obj, data, datetimes)
 
         # Generate time series
         ts_volume, ts_energy = _calculate_timeseries(
-            weather, activity_data, daily_demand_l, water_temp, obj
+            datetimes, activity_data, daily_demand_l, water_temp, obj
         )
 
         # Convert energy into power
         # Calculate time interval in hours
-        time_diff = pd.Series(weather[C.DATETIME]).diff().dt.total_seconds() / 3600
+        time_diff = pd.Series(datetimes[C.DATETIME]).diff().dt.total_seconds() / 3600
         # Use the median time difference for the first element
         time_diff.iloc[0] = time_diff.median()
         # Calculate power as energy divided by time
@@ -164,7 +168,7 @@ class JordanVajen(Method):
             f'{C.LOAD}_{Types.DHW}_volume': ts_volume,
             f'{C.LOAD}_{Types.DHW}_energy': ts_energy,
             f'{C.LOAD}_{Types.DHW}_power': ts_power,
-        }, index=weather[C.DATETIME])
+        }, index=datetimes[C.DATETIME])
 
         return {
             "summary": summary,
@@ -197,12 +201,12 @@ def _vectorized_inverse_sampling(
     all_positions = []
     all_volumes   = []
 
-    for event, df_ev in activity_data.groupby('event'):
+    for event, df_ev in activity_data.groupby(C.EVENT):
         # Compute number of events N
         N = int(round(annual_volumes[event] / mean_flows[event]))
 
         # Vectorized convert 'time' strings to seconds of day
-        t_parts = df_ev['time'].str.split(':', expand=True).astype(int)
+        t_parts = df_ev[C.TIME].str.split(':', expand=True).astype(int)
         activity_times = (
             t_parts[0] * 3600 +
             t_parts[1] * 60 +
@@ -211,9 +215,9 @@ def _vectorized_inverse_sampling(
 
         # Apply probability_day × seasonal × holiday weighting before normalization
         weighted_probs = (
-                df_ev['probability'].values
-                * df_ev['probability_day'].values
-                * df_ev['seasonal_factor'].values
+                df_ev[C.PROBABILITY].values
+                * df_ev[C.PROBABILITY_DAY].values
+                * df_ev[SEASONAL_FACTOR].values
         )
 
         # Sort activity times for searchsorted
@@ -415,23 +419,23 @@ def _calculate_timeseries(weather, activity_data, daily_demand, water_temp, obj)
     years_in_simulation = days_in_simulation / 365.0
 
     # Determine weekdays
-    days = pd.DataFrame({'date': pd.date_range(start_date, end_date, freq='D')})
-    days['weekday'] = days['date'].dt.weekday
+    days = pd.DataFrame({C.DATE: pd.date_range(start_date, end_date, freq='D')})
+    days[C.DAY_OF_WEEK] = days[C.DATE].dt.weekday
 
     # Cross-join only matching weekday rows
     # `activity_data.day` is 0=Mon…6=Sun
     events = days.merge(
         activity_data,
-        left_on='weekday',
-        right_on='day',
+        left_on=C.DAY_OF_WEEK,
+        right_on=C.DAY_OF_WEEK,
         how='inner'
     )
 
     # Include seasonal factor (sine wave)
     seasonal_var = obj.get(O.SEASONAL_VARIATION, defaults.DEFAULT_SEASONAL_VARIATION)
     seasonal_peak = obj.get(O.SEASONAL_PEAK_DAY, defaults.DEFAULT_SEASONAL_PEAK_DAY)
-    events['dayofyear'] = events['date'].dt.dayofyear
-    events['seasonal_factor'] = (1 + seasonal_var * np.cos(2 * np.pi * (events['dayofyear'] - seasonal_peak) / 365))
+    events['dayofyear'] = events[C.DATE].dt.dayofyear
+    events[SEASONAL_FACTOR] = (1 + seasonal_var * np.cos(2 * np.pi * (events['dayofyear'] - seasonal_peak) / 365))
 
     # Holiday suppression (0 on holiday, 1 otherwise)
     location = obj.get(O.HOLIDAYS_LOCATION, [])
@@ -444,13 +448,13 @@ def _calculate_timeseries(weather, activity_data, daily_demand, water_temp, obj)
         holiday_dates = set()
 
     # Flag holiday rows and override their 'day' to Sunday (6)
-    is_hol = events['date'].dt.date.isin(holiday_dates)
-    events.loc[is_hol, 'day'] = 6
+    is_hol = events[C.DATE].dt.date.isin(holiday_dates)
+    events.loc[is_hol, C.DAY_OF_WEEK] = 6
 
     # Re‐assign probability_day from the original activity_data
-    pd_map = activity_data.set_index(['event', 'day', 'time'])['probability_day']
-    mi = pd.MultiIndex.from_frame(events[['event', 'day', 'time']])
-    events['probability_day'] = pd_map.reindex(mi).values
+    pd_map = activity_data.set_index([C.EVENT, C.DAY_OF_WEEK, C.TIME])[C.PROBABILITY_DAY]
+    mi = pd.MultiIndex.from_frame(events[[C.EVENT, C.DAY_OF_WEEK, C.TIME]])
+    events[C.PROBABILITY_DAY] = pd_map.reindex(mi).values
 
     # Calculate annual volumes for each event type
     # If daily_demand is a Series, calculate the total annual demand
@@ -472,21 +476,21 @@ def _calculate_timeseries(weather, activity_data, daily_demand, water_temp, obj)
     sigma_rel = {}
 
     # Group activity data by event type
-    event_groups = events.groupby('event')
+    event_groups = events.groupby(C.EVENT)
 
     # Check if probability_day column exists
-    if 'probability_day' in activity_data.columns:
+    if C.PROBABILITY_DAY in activity_data.columns:
         # Calculate total probability_day across all event types
-        total_prob_day = sum(group['probability_day'].iloc[0] for _, group in event_groups)
+        total_prob_day = sum(group[C.PROBABILITY_DAY].iloc[0] for _, group in event_groups)
 
         # Distribute annual demand based on probability_day
         for event, group in event_groups:
-            prob_day = group['probability_day'].iloc[0]
+            prob_day = group[C.PROBABILITY_DAY].iloc[0]
             annual_volumes[event] = total_annual_demand * prob_day / total_prob_day
 
             # Calculate mean flow and sigma for each event type
-            mean_flows[event] = group['flow_rate'].iloc[0] * group['duration'].iloc[0]  # liters per event
-            sigma_rel[event] = group['sigma_flow_rate'].iloc[0] / group['flow_rate'].iloc[0]  # relative sigma
+            mean_flows[event] = group[C.FLOW_RATE].iloc[0] * group[C.DURATION].iloc[0]  # liters per event
+            sigma_rel[event] = group[C.FLOW_RATE_SIGMA].iloc[0] / group[C.FLOW_RATE].iloc[0]  # relative sigma
     else:
         # If probability_day is not available, distribute evenly
         event_count = len(event_groups)
@@ -494,8 +498,8 @@ def _calculate_timeseries(weather, activity_data, daily_demand, water_temp, obj)
             annual_volumes[event] = total_annual_demand / event_count
 
             # Calculate mean flow and sigma for each event type
-            mean_flows[event] = group['flow_rate'].iloc[0] * group['duration'].iloc[0]  # liters per event
-            sigma_rel[event] = group['sigma_flow_rate'].iloc[0] / group['flow_rate'].iloc[0]  # relative sigma
+            mean_flows[event] = group[C.FLOW_RATE].iloc[0] * group[C.DURATION].iloc[0]  # liters per event
+            sigma_rel[event] = group[C.FLOW_RATE_SIGMA].iloc[0] / group[C.FLOW_RATE].iloc[0]  # relative sigma
 
     # Generate volume time series using vectorized inverse sampling
     ts_volume = _vectorized_inverse_sampling(
