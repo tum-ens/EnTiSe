@@ -1,0 +1,28 @@
+         508991 function calls (497231 primitive calls) in 0.944 seconds
+
+   Ordered by: cumulative time
+   List reduced from 504 to 20 due to restriction <20>
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+      168    0.013    0.000    1.025    0.006 C:\Users\ge23nur\Documents\Python Scripts\TS_Creator\venv\Lib\site-packages\joblib\externals\loky\process_executor.py:644(wait_result_broken_or_wakeup)
+        1    0.000    0.000    0.934    0.934 C:\Users\ge23nur\Documents\Python Scripts\TS_Creator\rc_optim.py:103(run_simulation)
+        1    0.011    0.011    0.934    0.934 C:\Users\ge23nur\Documents\Python Scripts\TS_Creator\rc_optim.py:92(process_buildings_parallel)
+      168    0.004    0.000    0.639    0.004 C:\Users\ge23nur\Documents\Python Scripts\TS_Creator\venv\Lib\site-packages\joblib\externals\loky\process_executor.py:720(process_result_item)
+      168    0.001    0.000    0.506    0.003 C:\Users\ge23nur\AppData\Local\Programs\Python\Python312\Lib\multiprocessing\connection.py:245(recv)
+      168    0.184    0.001    0.327    0.002 {built-in method _pickle.loads}
+      169    0.002    0.000    0.264    0.002 C:\Users\ge23nur\Documents\Python Scripts\TS_Creator\venv\Lib\site-packages\joblib\externals\loky\process_executor.py:134(clear)
+      168    0.001    0.000    0.234    0.001 C:\Users\ge23nur\Documents\Python Scripts\TS_Creator\venv\Lib\site-packages\joblib\externals\loky\backend\reduction.py:211(dumps)
+      168    0.004    0.000    0.233    0.001 C:\Users\ge23nur\Documents\Python Scripts\TS_Creator\venv\Lib\site-packages\joblib\externals\loky\backend\reduction.py:205(dump)
+      168    0.000    0.000    0.212    0.001 C:\Users\ge23nur\Documents\Python Scripts\TS_Creator\venv\Lib\site-packages\joblib\externals\cloudpickle\cloudpickle.py:1243(dump)
+      168    0.044    0.000    0.212    0.001 {function Pickler.dump at 0x000001FC129CA0C0}
+      337    0.002    0.000    0.122    0.000 C:\Users\ge23nur\AppData\Local\Programs\Python\Python312\Lib\multiprocessing\connection.py:252(poll)
+     1001    0.002    0.000    0.120    0.000 C:\Users\ge23nur\Documents\Python Scripts\TS_Creator\rc_optim.py:96(<genexpr>)
+      336    0.008    0.000    0.112    0.000 C:\Users\ge23nur\AppData\Local\Programs\Python\Python312\Lib\multiprocessing\connection.py:293(_recv_bytes)
+      170    0.001    0.000    0.105    0.001 C:\Users\ge23nur\Documents\Python Scripts\TS_Creator\venv\Lib\site-packages\joblib\parallel.py:1433(dispatch_one_batch)
+      168    0.001    0.000    0.105    0.001 C:\Users\ge23nur\AppData\Local\Programs\Python\Python312\Lib\concurrent\futures\_base.py:537(set_result)
+      168    0.001    0.000    0.102    0.001 C:\Users\ge23nur\Documents\Python Scripts\TS_Creator\venv\Lib\site-packages\joblib\externals\loky\_base.py:23(_invoke_callbacks)
+      168    0.001    0.000    0.102    0.001 C:\Users\ge23nur\AppData\Local\Programs\Python\Python312\Lib\multiprocessing\connection.py:331(_get_more_data)
+      168    0.001    0.000    0.101    0.001 C:\Users\ge23nur\Documents\Python Scripts\TS_Creator\venv\Lib\site-packages\joblib\parallel.py:792(__call__)
+      168    0.001    0.000    0.098    0.001 C:\Users\ge23nur\Documents\Python Scripts\TS_Creator\venv\Lib\site-packages\joblib\parallel.py:830(_dispatch_new)
+
+

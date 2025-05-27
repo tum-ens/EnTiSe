@@ -1,0 +1,76 @@
+:root {
+  /* TUM Blue Colors */
+  --primary-color:       #005293;  /* TUM Blue */
+  --primary-color-dark:  #003f73;  /* Darker variant */
+  --primary-color-light: #0072ce;  /* Lighter variant */
+
+  /* Background and Text */
+  --background-color:            #ffffff;
+  --secondary-background-color:  #f7f7f7;
+  --text-color:                  #333333;
+
+  /* Link and Accent */
+  --link-color:         var(--primary-color);
+  --link-hover-color:   var(--primary-color-dark);
+  --accent-color:       #ffc20e;  /* Optional accent (TUM yellow-like) */
+}
+
+/* General body styles */
+body {
+  background-color: var(--background-color);
+  color: var(--text-color);
+  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+}
+
+/* Links */
+a {
+  color: var(--link-color);
+  text-decoration: none;
+}
+
+a:hover,
+a:focus {
+  color: var(--link-hover-color);
+  text-decoration: underline;
+}
+
+/* Header (if used) */
+header, .header {
+  background-color: var(--primary-color);
+  color: #ffffff;
+  padding: 1rem;
+}
+
+/* Footer (if used) */
+footer, .footer {
+  background-color: var(--primary-color-dark);
+  color: #ffffff;
+  padding: 1rem;
+}
+
+/* Buttons */
+.btn-primary {
+  background-color: var(--primary-color);
+  border: 1px solid var(--primary-color-dark);
+  color: #ffffff;
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+}
+
+.btn-primary:hover {
+  background-color: var(--primary-color-dark);
+  border-color: var(--primary-color);
+}
+
+/* Additional elements for Sphinx docs */
+.wy-nav-side, .wy-nav-content {
+  background-color: var(--secondary-background-color);
+}
+
+.wy-menu-vertical a {
+  color: var(--text-color);
+}
+
+.wy-menu-vertical a:hover {
+  color: var(--primary-color);
+}

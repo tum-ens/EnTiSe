@@ -1,0 +1,28 @@
+         646396 function calls (633256 primitive calls) in 12.714 seconds
+
+   Ordered by: cumulative time
+   List reduced from 446 to 20 due to restriction <20>
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+     1001    0.016    0.000   25.372    0.025 C:\Users\ge23nur\Documents\Python Scripts\TS_Creator\venv\Lib\site-packages\tqdm\std.py:1160(__iter__)
+      960    0.007    0.000   13.165    0.014 C:\Users\ge23nur\AppData\Local\Programs\Python\Python312\Lib\multiprocessing\connection.py:252(poll)
+      957    0.003    0.000   12.880    0.013 C:\Users\ge23nur\AppData\Local\Programs\Python\Python312\Lib\multiprocessing\pool.py:333(_maintain_pool)
+      960    0.012    0.000   12.840    0.013 C:\Users\ge23nur\AppData\Local\Programs\Python\Python312\Lib\multiprocessing\connection.py:325(_poll)
+        1    0.000    0.000   12.714   12.714 C:\Users\ge23nur\Documents\Python Scripts\TS_Creator\rc_model.py:67(run_simulation)
+        1    0.000    0.000   12.713   12.713 C:\Users\ge23nur\Documents\Python Scripts\TS_Creator\rc_model.py:57(process_buildings_parallel)
+        1    0.000    0.000   12.713   12.713 C:\Users\ge23nur\AppData\Local\Programs\Python\Python312\Lib\multiprocessing\pool.py:738(__exit__)
+        1    0.000    0.000   12.713   12.713 C:\Users\ge23nur\AppData\Local\Programs\Python\Python312\Lib\multiprocessing\pool.py:654(terminate)
+1960/1873    0.061    0.000   12.625    0.007 {built-in method _winapi.PeekNamedPipe}
+       17    0.000    0.000   12.604    0.741 C:\Users\ge23nur\AppData\Local\Programs\Python\Python312\Lib\multiprocessing\util.py:205(__call__)
+        1    0.000    0.000   12.603   12.603 C:\Users\ge23nur\AppData\Local\Programs\Python\Python312\Lib\multiprocessing\pool.py:680(_terminate_pool)
+       97    0.010    0.000   12.576    0.130 {method 'acquire' of '_multiprocessing.SemLock' objects}
+        1    0.000    0.000   12.576   12.576 C:\Users\ge23nur\AppData\Local\Programs\Python\Python312\Lib\multiprocessing\pool.py:671(_help_stuff_finish)
+      3/1    0.012    0.004   12.567   12.567 C:\Users\ge23nur\AppData\Local\Programs\Python\Python312\Lib\threading.py:995(_bootstrap)
+      3/1    0.000    0.000   12.567   12.567 C:\Users\ge23nur\AppData\Local\Programs\Python\Python312\Lib\threading.py:1035(_bootstrap_inner)
+      3/1    0.000    0.000   12.567   12.567 C:\Users\ge23nur\AppData\Local\Programs\Python\Python312\Lib\threading.py:978(run)
+        1    0.000    0.000   12.567   12.567 C:\Users\ge23nur\AppData\Local\Programs\Python\Python312\Lib\multiprocessing\pool.py:573(_handle_results)
+        1    0.000    0.000   12.553   12.553 C:\Users\ge23nur\AppData\Local\Programs\Python\Python312\Lib\multiprocessing\pool.py:527(_handle_tasks)
+      957    0.015    0.000   12.531    0.013 C:\Users\ge23nur\AppData\Local\Programs\Python\Python312\Lib\multiprocessing\pool.py:289(_join_exited_workers)
+      957    0.012    0.000    9.081    0.009 C:\Users\ge23nur\AppData\Local\Programs\Python\Python312\Lib\multiprocessing\pool.py:500(_wait_for_updates)
+
+

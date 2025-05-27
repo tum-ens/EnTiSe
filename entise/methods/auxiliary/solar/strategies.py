@@ -6,15 +6,61 @@ from entise.core.base_auxiliary import AuxiliaryMethod, BaseSelector
 from entise.constants import Keys, SEP, Objects as O, Columns as C
 
 class SolarGainsInactive(AuxiliaryMethod):
+    """
+    Handles the creation of solar gains data for cases where solar gains are inactive.
+
+    This class is used to define an auxiliary method that generates a time-series
+    of solar gains data with zero values when solar gains calculations are not
+    applicable. It ensures compatibility with the required input data and produces
+    an output in a specific format.
+    """
     required_timeseries = [O.WEATHER]
 
     def get_input_data(self, obj, data):
+        """
+        Processes input data and extracts specified information for further usage.
+
+        Args:
+            obj: A reference to an object that may hold contextual information or be used
+                in processing, nature of its usage to be defined by implementation.
+            data: Dictionary or mapping that contains information from which specific
+                values, such as weather data, are extracted.
+
+        Returns:
+            Dictionary containing the extracted weather data under a predefined key.
+        """
         return {O.WEATHER: data[O.WEATHER]}
 
     def run(self, weather):
+        """
+        Processes weather data to compute a DataFrame with solar gains.
+
+        This function calculates a DataFrame containing a single column of zeros that
+        represents the solar gains. The DataFrame uses the same index as the provided
+        weather data. This is primarily used in scenarios where solar gains need to
+        be initialized or simulated with a default value.
+
+        Args:
+            weather: A pandas DataFrame representing weather data. The index should
+                be a time-based index, and the length of the DataFrame determines the
+                number of rows in the resultant DataFrame.
+
+        Returns:
+            pandas.DataFrame: A DataFrame with a single column named 'O.GAINS_SOLAR',
+            filled with zeros of type `np.float32`. The index corresponds to the input
+            weather DataFrame's index.
+        """
         return pd.DataFrame({O.GAINS_SOLAR: np.zeros(len(weather), dtype=np.float32)}, index=weather.index)
 
 class SolarGainsPVLib(AuxiliaryMethod):
+    """
+    Perform calculations of solar gains for buildings using irradiance models.
+
+    This class provides methods to process input data and calculate solar gains by considering
+    weather conditions, window configurations, and solar irradiance models. It integrates
+    with `pvlib` to compute solar positions and irradiance values. The class supports different
+    irradiance models, such as "isotropic" and "haydavies", and handles missing input gracefully.
+    """
     required_keys = [O.ID, O.LAT, O.LON]
     optional_keys = ["model"]
     required_timeseries = [O.WEATHER, O.WINDOWS]
