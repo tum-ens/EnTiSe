@@ -15,7 +15,7 @@ from entise.methods.dhw.jordan_vajen import (
     _convert_time_to_seconds_of_day,
     _find_nearest_activity_times,
     _sample_event_volumes,
-    _vectorized_inverse_sampling,
+    _calculate_volume_timeseries,
     _get_activity_data,
     _get_demand_data,
     _get_water_temperatures,
