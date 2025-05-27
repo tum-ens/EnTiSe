@@ -14,16 +14,19 @@ class Objects:
     AREA = "area"  # Area (m2)
     CAPACITANCE = "capacitance"  # Capacitance (J/K)
     COLUMN = "column"
+    DATETIMES = "datetimes"
     DEMAND = "demand"
-    DHW_ACTIVITY_FILE = "dhw_activity_file"  # Path to DHW activity file
-    DHW_DEMAND_FILE = "dhw_demand_file"  # Path to DHW demand file
+    DHW_ACTIVITY = "dhw_activity"  # DHW activity filename
+    DHW_DEMAND_PER_SIZE = "dhw_demand_per_size"  # DHW demand per size, i.e. m2
+    DHW_DEMAND_PER_PERSON = "dhw_demand_per_person"  # DHW demand poer person
     DWELLING_SIZE = "dwelling_size"  # Size of dwelling (m2)
-    FILE = "file"  # File
+    FILE = "filename"  # File
     GAINS_INTERNAL = "gains_internal"  # Internal gains (W)
     GAINS_INTERNAL_COL = f'{GAINS_INTERNAL}_{COLUMN}'  # column in which the internal gains are (if dataframe is provided)
     GAINS_INTERNAL_PER_PERSON = f'{GAINS_INTERNAL}_per_person'  # Internal gains per person (W)
     GAINS_SOLAR = "gains_solar"  # Solar gains (W)
     HOUSEHOLD_TYPE = "household_type"  # Type of household
+    HOLIDAYS_LOCATION = "holidays_location"  # Location from which to get the holidays from (e.g. BY,DE for Bavaria, Germany)
     INHABITANTS = "inhabitants"  # Number of inhabitants
     LAT = "latitude"  # Latitude (degrees)
     LOAD = "load"
@@ -38,9 +41,10 @@ class Objects:
     RESISTANCE = "resistance"  # Resistance (K/W)
     SEASONAL_PEAK_DAY = "seasonal_peak_day"  # Day of year with peak demand
     SEASONAL_VARIATION = "seasonal_variation"  # Seasonal variation factor
+    SEED = "seed"  # Seed to ensure reproducibility
     SOURCE = "source"  # Source of data or method
-    TEMP_COLD = "temp_cold"  # Cold water temperature (C)
-    TEMP_HOT = "temp_hot"  # Hot water temperature (C)
+    TEMP_WATER_COLD = "temp_water_cold"  # Cold water temperature (C)
+    TEMP_WATER_HOT = "temp_water_hot"  # Hot water temperature (C)
     TEMP_INIT = "temp_init"  # Initial temperature (C)
     TEMP_MAX = "temp_max"  # Maximum temperature (C)
     TEMP_MIN = "temp_min"  # Minimum temperature (C)
@@ -51,7 +55,6 @@ class Objects:
     VENTILATION = "ventilation"  # Ventilation losses (W/K)
     VERBOSE = "verbose"  # Verbose
     WEATHER = "weather"  # Weather data
-    WEEKEND_ACTIVITY = "weekend_activity"  # Use weekend activity profiles
     WINDOWS = "windows"  # Windows
     DTYPES = {
         ID: object,
@@ -60,15 +63,18 @@ class Objects:
         ACTIVE_GAINS_SOLAR: bool,
         AREA: int | float | np.number,
         CAPACITANCE: int | float | np.number,
+        DATETIMES: str,
         DEMAND: int | float | np.number,
-        DHW_ACTIVITY_FILE: str,
-        DHW_DEMAND_FILE: str,
+        DHW_ACTIVITY: str,
+        DHW_DEMAND_PER_SIZE: str,
         DWELLING_SIZE: int | float | np.number,
         FILE: str,
         GAINS_INTERNAL: int | float | np.number | str,
         GAINS_INTERNAL_COL: str,
         GAINS_SOLAR: int | float | np.number | str,
         HOUSEHOLD_TYPE: str,
+        HOLIDAYS_LOCATION: str,
+        INHABITANTS: int | float | np.number,
         LAT: int | float | np.number,
         LOAD: int | float | np.number,
         LOAD_BASE: int | float | np.number,
@@ -83,16 +89,16 @@ class Objects:
         SEASONAL_PEAK_DAY: int,
         SEASONAL_VARIATION: float,
         SOURCE: str,
-        TEMP_COLD: int | float | np.number,
-        TEMP_HOT: int | float | np.number,
+        TEMP_WATER_COLD: int | float | np.number,
+        TEMP_WATER_HOT: int | float | np.number,
         TEMP_INIT: int | float | np.number,
         TEMP_MAX: int | float | np.number,
         TEMP_MIN: int | float | np.number,
         TEMP_SET: int | float | np.number,
         THERMAL_INERTIA: int | float | np.number,
+        TILT: int | float | np.number,
         VENTILATION: int | float | np.number,
         VERBOSE: bool,
         WEATHER: str,
-        WEEKEND_ACTIVITY: bool,
         WINDOWS: str,
         }
