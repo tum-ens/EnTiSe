@@ -10,4 +10,5 @@ different aspect of the library, from basic usage to more complex scenarios. You
 .. toctree::
    :maxdepth: 1
 
+   examples/dhw_probabilistic/runme
    examples/hvac_rc/runme
