@@ -5,7 +5,7 @@ EnTiSe
 
 A simple tool for generating time series data related to energy systems and building operations.
 
-.. list-table::
+.. .. list-table::
    :widths: auto
 
    * - License
@@ -18,7 +18,7 @@ A simple tool for generating time series data related to energy systems and buil
      - |badge_contributing| |badge_contributors| |badge_repo_counts|
 
 .. contents::
-    :depth: 2
+    :depth: 1
     :local:
     :backlinks: top
 
