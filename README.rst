@@ -1,17 +1,9 @@
-.. list-table::
-   :widths: 10 90
-   :class: no-bullet
 
-   * - .. image:: docs/img/logo_TUM.png
-         :width: 50px
-         :target: https://github.com/tum-ens/entise.git
-         :alt: Repo logo
-     -
-       ==========
-       EnTiSe
-       ==========
+======
+EnTiSe
+======
 
-**A comprehensive tool for generating time series data related to energy systems and building operations.**
+A simple tool for generating time series data related to energy systems and building operations.
 
 .. list-table::
    :widths: auto
