@@ -1,14 +1,14 @@
 
 .. figure:: docs/img/logo_TUM.png
     :width: 200px
-    :target: https://gitlab.lrz.de/tum-ens/super-repo
+    :target: https://github.com/tum-ens/entise.git
     :alt: Repo logo
 
 ==========
-ENS Template Repo
+EnTiSe
 ==========
 
-**A template repo to kickstart your research projects with best practices in coding, version control, and documentation.**
+**A comprehensive tool for generating time series data related to energy systems and building operations.**
 
 .. list-table::
    :widths: auto
@@ -29,15 +29,16 @@ ENS Template Repo
 
 Introduction
 ============
-**ENS Repo Template** provides a standardized structure, tools, and practices to help researchers focus on development while ensuring best practices in coding, version control, and documentation. By using this template, researchers can create organized, maintainable, and collaborative projects that align with modern software engineering standards.
+**EnTiSe** (**En**ergy **Ti**me **Se**ries) is a Python package designed to generate realistic time series data for various energy systems and building operations.
+It provides a flexible, pipeline- and strategy-based approach to create time series for different applications including HVAC, domestic hot water, electricity, mobility, and occupancy patterns.
 
 Key Features
 ------------
-- Enforced coding standards and style checks.
+- Multiple time series types including DHW, HVAC, and more in the works.
 
-- Automated CI/CD workflows for continuous integration.
+- Flexible pipeline- and strategy-based architecture for customizable time series generation.
 
-- Comprehensive documentation setup.
+- Support for dependent methods to create related time series.
 
 
 Getting Started
@@ -46,8 +47,9 @@ To get started, follow these steps:
 
 Requirements
 ------------
-- Programming language (e.g., Python, R, Julia, etc.)
-- Git for version control (download from https://git-scm.com/)
+- `Python <https://www.python.org/>`_
+- `Git <https://git-scm.com/>`_ for version control
+
 
 Installation
 ------------
@@ -55,7 +57,7 @@ Installation
 
    .. code-block:: bash
 
-      git clone <repository_url>
+      git clone https://github.com/tum-ens/entise.git
 
 #. Set up the virtual environment:
 
@@ -63,7 +65,7 @@ Installation
 
       python -m venv venv
       # For Windows
-      source venv\Scripts\activate
+      venv\Scripts\activate
 
       # For Linux/MacOS
       source venv/bin/activate
@@ -75,19 +77,22 @@ Installation
 
       pip install -r requirements.txt
 
-This template is now ready to use! Follow the repository structure and guidelines below to begin your project.
+Now you're ready to use EnTiSe! Check the examples directory for usage examples.
+
+EnTiSe is currently still under development but will be made available as package soon.
 
 Repository Structure
 ====================
 
-- **src/**: Main project code. (Rename as needed.)
+- **entise/**: Main project code organized in a Python package.
+
+  - **constants/**: Definitions of time series types and other constants.
+  - **core/**: Core functionality and base classes.
+  - **data/**: Data files and data handling utilities.
+  - **methods/**: Implementation of various time series generation methods.
 - **tests/**: Folder for tests; structured by functionality.
-- **docs/**: Documentation source files. Use MkDocs to build and update.
-- **examples/**: Example scripts and notebooks.
-- **data/**: Data files used in the project. (optional)
-- **notebooks/**: Jupyter notebooks for data exploration and analysis. (optional)
-- **scripts/**: Utility scripts for data processing, model training, etc. (optional)
-- **code_examples/**: Code examples, demonstrating the expected coding style and documentation practices. (Can be removed after the project is set up.)
+- **docs/**: Documentation source files.
+- **examples/**: Example scripts demonstrating usage of the package.
 
 Usage Guidelines
 ================
@@ -95,50 +100,73 @@ Usage Guidelines
 Basic Usage
 -----------
 
-Use this template to start new research projects by forking or cloning it. Customize the repository structure and documentation to fit your project's needs.
+EnTiSe provides a flexible API for generating various types of time series data. Here's a basic example of how to use it:
 
-Basic Workflow
---------------
-#. **Open an issue** to discuss new features, bugs, or changes.
-#. **Create a new branch** for each feature or bug fix based on an issue.
-#. **Write code** and **tests** for the new feature or bug fix.
-#. **Run tests** to ensure the code works as expected.
-#. **Create a pull request** to merge the new feature or bug fix into the main branch.
-#. **Review the code** and **tests** in the pull request.
-#. **Merge the pull request** after approval.
+.. code-block:: python
+
+   from entise.core.generator import TimeSeriesGenerator as TSG
+
+   # Initialize the generator
+    gen = TimeSeriesGenerator()
+
+    # Add objects (e.g., buildings)
+    gen.add_objects({
+        "id": "building1",
+        "hvac": "1R1C",
+        "resistance": 2.0,
+        "capacitance": 1e5,
+        "temp_min": 20.0,
+        "temp_max": 24.0,
+    })
+
+    # Prepare input data (e.g., weather)
+    data = {
+        "weather": pd.DataFrame({
+            "temp_out": [0.0] * 24,
+        }, index=pd.date_range("2025-01-01", periods=24, freq="h"))
+    }
+
+    # Generate time series
+    summary, df = gen.generate(data)
+
+For more detailed examples, check the `examples` directory.
+
+Supported or Planned Time Series Types
+---------------------------
+EnTiSe supports generating time series for the following types:
+
+Integrated
+
+- Domestic Hot Water (DHW)
+- HVAC (Heating, Ventilation, and Air Conditioning)
+- Occupancy data
+
+Planned
+
+- Concentrated Solar Power (CSP)
+- Electricity demand or supply
+- Geothermal energy
+- Hydroelectric power
+- Mobility (transportation-related data)
+- Solar Photovoltaic (PV)
+- Tidal energy
+- Wave energy
+- Wind energy
 
 Documentation
 =============
 
-The documentation is created with Markdown using `MkDocs <https://www.mkdocs.org/>`_. All files are stored in the ``docs`` folder of the repository.
+Please see the `documentation <https://entise.readthedocs.io>`_ for further information.
 
-Build the documentation using MkDocs:
-
-.. code-block:: bash
-
-   mkdocs serve
-
-The documentation will be available at http://127.0.0.1:8000/.
-
-CI/CD Workflow
-==============
-
-The CI/CD workflow is set up using GitLab CI/CD.
-The workflow runs tests, checks code style, and builds the documentation on every push to the repository.
-You can view workflow results directly in the repository's CI/CD section.
 
 Contribution and Code Quality
 =============================
-Everyone is invited to develop this repository with good intentions.
+Everyone is invited to develop this repository.
 Please follow the workflow described in the `CONTRIBUTING.md <CONTRIBUTING.md>`_.
 
 Coding Standards
 ----------------
 This repository follows consistent coding styles. Refer to `CONTRIBUTING.md <CONTRIBUTING.md>`_ for detailed standards.
-
-Pre-commit Hooks
-----------------
-Pre-commit hooks are configured to check code quality before commits, helping enforce standards.
 
 Changelog
 ---------
@@ -151,7 +179,7 @@ License and Citation
 | The code of this repository is licensed under the **MIT License** (MIT).
 | See `LICENSE <LICENSE>`_ for rights and obligations.
 | See the *Cite this repository* function or `CITATION.cff <CITATION.cff>`_ for citation of this repository.
-| Copyright: `ens-repo-template <https://gitlab.lrz.de/tum-ens/super-repo>`_ © `TU Munich - ENS <https://www.epe.ed.tum.de/en/ens/homepage/>`_ | `MIT <LICENSE>`_
+| Copyright: `EnTiSe <https://gitlab.lrz.de/tum-ens/need/entise>`_ © `TU Munich - ENS <https://www.epe.ed.tum.de/en/ens/homepage/>`_ | `MIT <LICENSE>`_
 
 
 .. |badge_license| image:: https://img.shields.io/badge/license-MIT-blue
@@ -159,7 +187,7 @@ License and Citation
     :alt: License
 
 .. |badge_documentation| image:: https://img.shields.io/badge/docs-available-brightgreen
-    :target: https://gitlab.lrz.de/tum-ens/super-repo
+    :target: https://gitlab.lrz.de/tum-ens/need/entise
     :alt: Documentation
 
 .. |badge_contributing| image:: https://img.shields.io/badge/contributions-welcome-brightgreen
@@ -173,17 +201,17 @@ License and Citation
     :alt: repository counter
 
 .. |badge_issue_open| image:: https://img.shields.io/badge/issues-open-blue
-    :target: https://gitlab.lrz.de/tum-ens/super-repo/-/issues
+    :target: https://gitlab.lrz.de/tum-ens/need/entise/-/issues
     :alt: open issues
 
 .. |badge_issue_closes| image:: https://img.shields.io/badge/issues-closed-green
-    :target: https://gitlab.lrz.de/tum-ens/super-repo/-/issues
+    :target: https://gitlab.lrz.de/tum-ens/need/entise/-/issues
     :alt: closed issues
 
 .. |badge_pr_open| image:: https://img.shields.io/badge/merge_requests-open-blue
-    :target: https://gitlab.lrz.de/tum-ens/super-repo/-/merge_requests
+    :target: https://gitlab.lrz.de/tum-ens/need/entise/-/merge_requests
     :alt: open merge requests
 
 .. |badge_pr_closes| image:: https://img.shields.io/badge/merge_requests-closed-green
-    :target: https://gitlab.lrz.de/tum-ens/super-repo/-/merge_requests
+    :target: https://gitlab.lrz.de/tum-ens/need/entise/-/merge_requests
     :alt: closed merge requests
