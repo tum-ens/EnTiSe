@@ -173,7 +173,7 @@ License and Citation
 ====================
 | The code of this repository is licensed under the **MIT License** (MIT).
 | See `LICENSE <LICENSE>`_ for rights and obligations.
-| See the *Cite this repository* function or `CITATION.cff <CITATION.cff>`_ for citation of this repository.
+| See `CITATION.cff <CITATION.cff>`_ for citation of this repository.
 | Copyright: `EnTiSe <https://gitlab.lrz.de/tum-ens/need/entise>`_ © `TU Munich - ENS <https://www.epe.ed.tum.de/en/ens/homepage/>`_ | `MIT <LICENSE>`_
 
 
