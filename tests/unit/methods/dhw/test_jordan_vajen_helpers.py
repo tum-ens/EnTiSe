@@ -11,14 +11,14 @@ import numpy as np
 import pytest
 from datetime import datetime, timedelta
 
-from entise.methods.dhw.jordan_vajen import (
+from entise.methods.dhw.jordanvajen.activity import _get_activity_data, _get_demand_data
+from entise.methods.dhw.jordanvajen.calculation import _calculate_volume_timeseries
+from entise.methods.dhw.jordanvajen.temperature import _get_water_temperatures
+
+from entise.methods.dhw.jordanvajen.utils import (
     _convert_time_to_seconds_of_day,
     _find_nearest_activity_times,
     _sample_event_volumes,
-    _calculate_volume_timeseries,
-    _get_activity_data,
-    _get_demand_data,
-    _get_water_temperatures,
     SEASONAL_FACTOR
 )
 from entise.constants import Columns as C, Objects as O, Types
