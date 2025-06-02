@@ -1,0 +1,9 @@
+id,pv,latitude,longitude,weather,power,azimuth,tilt,altitude,pv_arrays
+1,pvlib,49.72,11.06,weather,5000,180,30,520,
+2,pvlib,49.72,11.06,weather,5000,90,30,520,
+3,pvlib,49.72,11.06,weather,5000,270,30,520,
+4,pvlib,49.72,11.06,weather,5000,180,0,520,
+5,pvlib,49.72,11.06,weather,5000,180,45,520,
+6,pvlib,49.72,11.06,weather,5000,180,90,520,
+7,pvlib,49.72,11.06,weather,10000,180,30,520,
+8,pvlib,49.72,11.06,weather,2500,180,30,520,
