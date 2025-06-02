@@ -1,0 +1,11 @@
+{
+  "module_parameters": {
+    "pdc0": 1,
+    "gamma_pdc": -0.007
+  },
+  "temperature_model_parameters": {
+    "a": -3.76,
+    "b": -0.09,
+    "deltaT": 2.6
+  }
+}
