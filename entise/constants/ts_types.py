@@ -11,7 +11,7 @@ class Types:
     HVAC = "hvac"  # Heating, Ventilation, and Air Conditioning
     MOBILITY = "mobility"  # Transportation-related data
     OCCUPANCY = "occupancy"  # Occupancy data
-    SOLAR_PV = "solar_pv"  # Solar Photovoltaic
+    PV = "pv"  # Solar Photovoltaic
     TIDAL = "tidal"  # Tidal energy
     WAVE = "wave"  # Wave energy
     WIND = "wind"  # Wind energy
