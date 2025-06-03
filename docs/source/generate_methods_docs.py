@@ -6,6 +6,7 @@ import importlib
 import inspect
 from entise.core.base import Method
 from entise.core.base_auxiliary import AuxiliaryMethod
+from entise.constants import VALID_TYPES
 
 TEMPLATE_PATH = "./_templates/method.rst"
 BASE_OUTPUT_DIR = "./methods"  # Base folder for output
@@ -28,19 +29,27 @@ def discover_method_classes(package_name):
 
     # Walk through all modules in the package
     for _, module_name, is_pkg in pkgutil.walk_packages(package_path, prefix=package.__name__ + '.'):
-        if not is_pkg:
-            try:
-                module = importlib.import_module(module_name)
-            except Exception as e:
-                print(f"Could not import module {module_name}: {e}")
-                continue
+        try:
+            # Import the module or package
+            module = importlib.import_module(module_name)
+
+            # If it's a package, recursively discover classes in its submodules
+            if is_pkg:
+                # Recursively discover classes in the subpackage
+                subpackage_classes = discover_method_classes(module_name)
+                discovered_classes.extend(subpackage_classes)
+
             # Iterate over classes defined in the module
             for name, obj in inspect.getmembers(module, inspect.isclass):
                 # Ensure the class is defined in this package and is a subclass of Method or AuxiliaryMethod.
                 if ((issubclass(obj, Method) or issubclass(obj, AuxiliaryMethod)) 
                     and obj.__module__.startswith(package_name)
-                    and obj is not AuxiliaryMethod):  # Exclude the base AuxiliaryMethod class
+                    and obj is not AuxiliaryMethod  # Exclude the base AuxiliaryMethod class
+                    and obj is not Method):  # Exclude the base Method class
                     discovered_classes.append(obj)
+        except Exception as e:
+            print(f"Could not import module/package {module_name}: {e}")
+            continue
     return discovered_classes
 
 
@@ -110,8 +119,9 @@ def generate_docs_for_method(cls, timeseries_type, template_path, output_dir):
     template.globals['hasattr'] = hasattr
 
     # Render the template with the metadata and provided timeseries type.
+    file_name = getattr(cls, "name", cls.__name__.lower())
     rendered = template.render(
-        method_name=cls.__name__,
+        method_name=file_name,
         cls=cls,  # Pass the class object to access its attributes
         description=metadata["description"],
         required_keys=metadata["required_keys"],
@@ -122,7 +132,7 @@ def generate_docs_for_method(cls, timeseries_type, template_path, output_dir):
     )
 
     # Save the rendered content to a file in the output directory.
-    output_file = os.path.join(output_dir, f"{cls.__name__.lower()}.rst")
+    output_file = os.path.join(output_dir, f"{file_name}.rst")
     with open(output_file, "w", encoding="utf-8") as f:
         f.write(rendered)
     # print(f"Documentation for {cls.__name__} written to {output_file}")
@@ -146,11 +156,14 @@ def generate_docs_for_all_methods(method_classes, template_path, base_output_dir
                 os.remove(file_path)
 
     for cls in method_classes:
-        # Check if this is an auxiliary method
-        if issubclass(cls, AuxiliaryMethod):
+        # Get the module path to check if it's in the auxiliary directory
+        module_path = cls.__module__.split('.')
+
+        # Check if this is an auxiliary method either by inheritance or by module path
+        is_auxiliary = issubclass(cls, AuxiliaryMethod) or "auxiliary" in module_path
+        if is_auxiliary:
             # For auxiliary methods, determine the subtype from the module path
-            module_path = cls.__module__.split('.')
-            if len(module_path) >= 4 and module_path[-2] in ['internal', 'solar']:
+            if "auxiliary" in module_path and len(module_path) >= 4:
                 # Extract the subtype (e.g., 'internal', 'solar')
                 subtype = module_path[-2]
                 # Place in auxiliary/subtype directory
@@ -163,10 +176,24 @@ def generate_docs_for_all_methods(method_classes, template_path, base_output_dir
                 os.makedirs(out_dir, exist_ok=True)
                 generate_docs_for_method(cls, "auxiliary", template_path, out_dir)
         else:
-            # For regular methods, use the 'types' attribute or fallback to "HVAC"
-            supported_types = getattr(cls, "types", None)
+            # Check if the class has a types attribute
+            has_types = hasattr(cls, "types")
+
+            # Get the types attribute if it exists
+            if has_types:
+                supported_types = cls.types
+            else:
+                supported_types = getattr(cls, "types", None)
+
             if supported_types is None:
-                supported_types = ["HVAC"]  # Fallback if not specified
+                # Determine type from module path instead of defaulting to HVAC
+                module_path = cls.__module__.split('.')
+                if len(module_path) >= 3 and module_path[2] in VALID_TYPES:
+                    # Use the module directory name as the type
+                    supported_types = [module_path[2].upper()]
+                else:
+                    # If we can't determine a specific type, use an empty list to avoid categorization
+                    supported_types = []
 
             for timeseries_type in supported_types:
                 # Determine the output folder based on the timeseries type.
@@ -185,7 +212,7 @@ def generate_index_for_folder(folder_path):
     # Special handling for the auxiliary directory
     if folder_name.lower() == "auxiliary":
         # Create a custom index file that only includes links to subdirectories
-        title = "AUXILIARY Methods"
+        title = "Auxiliary methods"
         underline = "=" * len(title)
         content_lines = [
             title,
@@ -221,7 +248,7 @@ def generate_index_for_folder(folder_path):
         return
 
     # Create a title from the folder name (e.g., "hvac" -> "HVAC Methods")
-    title = f"{folder_name.upper()} Methods"
+    title = f"{folder_name.camel()} methods"
     underline = "=" * len(title)
     # Build the content with a toctree directive
     content_lines = [
@@ -314,9 +341,26 @@ def generate_indexes(base_dir):
 
 
 if __name__ == "__main__":
-    # Automatically discover all method classes in the package.
-    method_classes = discover_method_classes("entise.methods")
-    # Generate documentation for each method in the appropriate folder(s).
-    generate_docs_for_all_methods(method_classes, TEMPLATE_PATH, BASE_OUTPUT_DIR)
-    # Generate an index.rst in each subfolder under BASE_OUTPUT_DIR.
-    generate_indexes(BASE_OUTPUT_DIR)
+    try:
+        # Automatically discover all method classes in the package.
+        print("Discovering method classes...")
+        method_classes = discover_method_classes("entise.methods")
+        print(f"Discovered {len(method_classes)} method classes")
+
+        # Print discovered classes for debugging
+        for cls in method_classes:
+            print(f"Found class: {cls.__name__} in module {cls.__module__}")
+
+        # Generate documentation for each method in the appropriate folder(s).
+        print("Generating documentation...")
+        generate_docs_for_all_methods(method_classes, TEMPLATE_PATH, BASE_OUTPUT_DIR)
+
+        # Generate an index.rst in each subfolder under BASE_OUTPUT_DIR.
+        print("Generating indexes...")
+        generate_indexes(BASE_OUTPUT_DIR)
+
+        print("Documentation generation completed successfully!")
+    except Exception as e:
+        import traceback
+        print(f"Error during documentation generation: {e}")
+        traceback.print_exc()

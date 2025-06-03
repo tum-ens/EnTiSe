@@ -12,7 +12,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Added
 - Added a simple RC model for HVAC time series (`#12`, `!6`)
 - Added simpler functionality for dependent methods (`#18`, `!12`)
-- Basic documentation of the package (`#13`, `!8`)
+- Added basic documentation of the package (`#13`, `!8`)
+- Added a dhw method based on the method by Jordan et. al. in DHWCalc (`#16`, `!15`)
+- Added a PV generation method based on pvlib (`#29`, `!22`)
 
 ### Changed
 - Restructured entire architecture towards a pipeline- and strategy-based approach to make methods more flexible (`#18`, `!12`)

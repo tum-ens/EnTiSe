@@ -14,9 +14,10 @@ EnTiSe Documentation
 It provides a flexible and extensible platform for creating realistic time series for:
 
 * **HVAC** (Heating, Ventilation, and Air Conditioning)
-* **Electricity** consumption and generation
-* **Mobility** patterns and energy demand
-* **Occupancy** profiles for buildings
+* **DHW** (Drinking Hot-Water)
+* **Electricity** consumption and generation (under development)
+* **Mobility** patterns and energy demand (under development)
+* **Occupancy** profiles for buildings (under development)
 
 EnTiSe is designed to support a wide range of research applications in the energy domain:
 

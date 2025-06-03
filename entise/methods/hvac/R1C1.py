@@ -6,21 +6,21 @@ from entise.core.base import Method
 from entise.constants import Columns as C, Objects as O, Keys as K, Types
 from entise.methods.auxiliary.solar.selector import SolarGains
 from entise.methods.auxiliary.internal.selector import InternalGains
+from entise.methods.hvac.defaults import (
+    DEFAULT_ACTIVE_COOLING,
+    DEFAULT_ACTIVE_HEATING,
+    DEFAULT_ACTIVE_SOLAR_GAINS,
+    DEFAULT_ACTIVE_INTERNAL_GAINS,
+    DEFAULT_POWER_HEATING,
+    DEFAULT_POWER_COOLING,
+    DEFAULT_TEMP_INIT,
+    DEFAULT_TEMP_MAX,
+    DEFAULT_TEMP_MIN,
+    DEFAULT_THERMAL_INERTIA,
+    DEFAULT_VENTILATION
+)
 
 logger = logging.getLogger(__name__)
-
-# Default values for optional keys
-DEFAULT_ACTIVE_COOLING = True
-DEFAULT_ACTIVE_HEATING = True
-DEFAULT_ACTIVE_SOLAR_GAINS = True
-DEFAULT_ACTIVE_INTERNAL_GAINS = True
-DEFAULT_POWER_HEATING = np.inf
-DEFAULT_POWER_COOLING = np.inf
-DEFAULT_TEMP_INIT = 22
-DEFAULT_TEMP_MAX = 24
-DEFAULT_TEMP_MIN = 20
-DEFAULT_THERMAL_INERTIA = 0
-DEFAULT_VENTILATION = 0
 
 
 class R1C1(Method):
@@ -66,20 +66,81 @@ class R1C1(Method):
             f'{C.LOAD}_{Types.COOLING}': 'cooling load',
     }
 
-    def generate(self, obj, data, ts_type):
+    def generate(self, 
+                obj: dict = None, 
+                data: dict = None, 
+                ts_type: str = Types.HVAC,
+                *, 
+                capacitance: float = None,
+                resistance: float = None,
+                weather: pd.DataFrame = None,
+                power_heating: float = None,
+                power_cooling: float = None,
+                active_heating: bool = None,
+                active_cooling: bool = None,
+                ventilation: float = None,
+                temp_init: float = None,
+                temp_min: float = None,
+                temp_max: float = None,
+                gains_internal: pd.DataFrame = None,
+                gains_solar: pd.DataFrame = None):
+        """Generate HVAC time series based on input parameters and weather data.
 
-        obj, data = get_input_data(obj, data)
+        This method implements the abstract generate method from the Method base class.
+        It processes the input parameters, calculates the indoor temperature and energy
+        demand time series, and returns both the time series and summary statistics.
+
+        Args:
+            obj (dict, optional): Dictionary containing building parameters. Defaults to None.
+            data (dict, optional): Dictionary containing input data. Defaults to None.
+            ts_type (str, optional): Time series type to generate. Defaults to Types.HVAC.
+            capacitance (float, optional): Thermal capacitance in J/K. Defaults to None.
+            resistance (float, optional): Thermal resistance in K/W. Defaults to None.
+            weather (pd.DataFrame, optional): Weather data with outdoor temperature. Defaults to None.
+            power_heating (float, optional): Maximum heating power in W. Defaults to None.
+            power_cooling (float, optional): Maximum cooling power in W. Defaults to None.
+            active_heating (bool, optional): Whether heating is active. Defaults to None.
+            active_cooling (bool, optional): Whether cooling is active. Defaults to None.
+            ventilation (float, optional): Ventilation rate in W/K. Defaults to None.
+            temp_init (float, optional): Initial indoor temperature in °C. Defaults to None.
+            temp_min (float, optional): Minimum indoor temperature in °C. Defaults to None.
+            temp_max (float, optional): Maximum indoor temperature in °C. Defaults to None.
+            gains_internal (pd.DataFrame, optional): Internal heat gains in W. Defaults to None.
+            gains_solar (pd.DataFrame, optional): Solar heat gains in W. Defaults to None.
+
+        Returns:
+            dict: Dictionary containing:
+                - "summary" (dict): Summary statistics including total heating and
+                  cooling demand, and maximum heating and cooling loads.
+                - "timeseries" (pd.DataFrame): Time series of indoor temperature,
+                  heating load, and cooling load with timestamps as index.
+
+        Raises:
+            Exception: If required data is missing or invalid.
+        """
+        # Process keyword arguments
+        processed_obj, processed_data = self._process_kwargs(
+            obj, data, 
+            capacitance=capacitance, resistance=resistance, weather=weather,
+            power_heating=power_heating, power_cooling=power_cooling,
+            active_heating=active_heating, active_cooling=active_cooling,
+            ventilation=ventilation, temp_init=temp_init, temp_min=temp_min, temp_max=temp_max,
+            gains_internal=gains_internal, gains_solar=gains_solar
+        )
+
+        # Continue with existing implementation
+        processed_obj, processed_data = get_input_data(processed_obj, processed_data, ts_type)
 
         # Precompute auxiliary data
-        data[O.GAINS_SOLAR] = SolarGains().generate(obj, data)
-        data[O.GAINS_INTERNAL] = InternalGains().generate(obj, data)
+        processed_data[O.GAINS_SOLAR] = SolarGains().generate(processed_obj, processed_data)
+        processed_data[O.GAINS_INTERNAL] = InternalGains().generate(processed_obj, processed_data)
 
         # Compute temperature and energy demand
-        temp_in, p_heat, p_cool = calculate_timeseries(obj, data)
+        temp_in, p_heat, p_cool = calculate_timeseries(processed_obj, processed_data)
 
         logger.debug(f"[HVAC R1C1] {ts_type}: max heating {p_heat.max()}, cooling {p_cool.max()}")
 
-        timestep = data[O.WEATHER][C.DATETIME].diff().dt.total_seconds().dropna().mode()[0]
+        timestep = processed_data[O.WEATHER][C.DATETIME].diff().dt.total_seconds().dropna().mode()[0]
         summary = {
             f"{C.DEMAND}_{Types.HEATING}": int(round(p_heat.sum() * timestep / 3600)),
             f'{O.LOAD_MAX}_{Types.HEATING}': int(max(p_heat)),
@@ -99,30 +160,51 @@ class R1C1(Method):
             "timeseries": df
         }
 
-def get_input_data(obj: dict, data: dict) -> tuple[dict, dict]:
+def get_input_data(obj: dict, data: dict, method_type: str = Types.HVAC) -> tuple[dict, dict]:
+    """Process and validate input data for HVAC calculation.
+
+    This function extracts required and optional parameters from the input dictionaries,
+    applies default values where needed, performs data validation, and prepares the
+    data for HVAC calculation.
+
+    Args:
+        obj (dict): Dictionary containing building parameters such as thermal properties
+            and temperature setpoints.
+        data (dict): Dictionary containing input data such as weather information.
+        method_type (str, optional): Method type to use for prefixing. Defaults to Types.HVAC.
+
+    Returns:
+        tuple: A tuple containing:
+            - obj_out (dict): Processed object parameters with defaults applied.
+            - data_out (dict): Processed data with required format for calculation.
+
+    Notes:
+        - Parameters can be specified with method-specific prefixes (e.g., "hvac:temp_min")
+          which will take precedence over generic parameters (e.g., "temp_min").
+    """
     obj_out = {
-        O.ID: obj.get(O.ID, None),
-        O.ACTIVE_COOLING: obj.get(O.ACTIVE_COOLING, DEFAULT_ACTIVE_COOLING),
-        O.ACTIVE_HEATING: obj.get(O.ACTIVE_HEATING, DEFAULT_ACTIVE_HEATING),
-        O.GAINS_INTERNAL: obj.get(O.GAINS_INTERNAL, None),
-        O.GAINS_INTERNAL_COL: obj.get(O.GAINS_INTERNAL_COL, None),
-        O.GAINS_SOLAR: obj.get(O.GAINS_SOLAR, None),
-        O.LAT: obj.get(O.LAT, None),
-        O.LON: obj.get(O.LON, None),
-        O.POWER_COOLING: obj.get(O.POWER_COOLING, DEFAULT_POWER_COOLING),
-        O.POWER_HEATING: obj.get(O.POWER_HEATING, DEFAULT_POWER_HEATING),
-        O.RESISTANCE: obj[O.RESISTANCE],
-        O.CAPACITANCE: obj[O.CAPACITANCE],
-        O.TEMP_INIT: obj.get(O.TEMP_INIT, DEFAULT_TEMP_INIT),
-        O.TEMP_MAX: obj.get(O.TEMP_MAX, DEFAULT_TEMP_MAX),
-        O.TEMP_MIN: obj.get(O.TEMP_MIN, DEFAULT_TEMP_MIN),
-        O.VENTILATION: obj.get(O.VENTILATION, DEFAULT_VENTILATION),
+        O.ID: Method.get_with_backup(obj, O.ID),
+        O.ACTIVE_COOLING: Method.get_with_method_backup(obj, O.ACTIVE_COOLING, method_type, DEFAULT_ACTIVE_COOLING),
+        O.ACTIVE_HEATING: Method.get_with_method_backup(obj, O.ACTIVE_HEATING, method_type, DEFAULT_ACTIVE_HEATING),
+        O.GAINS_INTERNAL: Method.get_with_method_backup(obj, O.GAINS_INTERNAL, method_type),
+        O.GAINS_INTERNAL_COL: Method.get_with_method_backup(obj, O.GAINS_INTERNAL_COL, method_type),
+        O.GAINS_SOLAR: Method.get_with_method_backup(obj, O.GAINS_SOLAR, method_type),
+        O.LAT: Method.get_with_method_backup(obj, O.LAT, method_type),
+        O.LON: Method.get_with_method_backup(obj, O.LON, method_type),
+        O.POWER_COOLING: Method.get_with_method_backup(obj, O.POWER_COOLING, method_type, DEFAULT_POWER_COOLING),
+        O.POWER_HEATING: Method.get_with_method_backup(obj, O.POWER_HEATING, method_type, DEFAULT_POWER_HEATING),
+        O.RESISTANCE: Method.get_with_method_backup(obj, O.RESISTANCE, method_type),
+        O.CAPACITANCE: Method.get_with_method_backup(obj, O.CAPACITANCE, method_type),
+        O.TEMP_INIT: Method.get_with_method_backup(obj, O.TEMP_INIT, method_type, DEFAULT_TEMP_INIT),
+        O.TEMP_MAX: Method.get_with_method_backup(obj, O.TEMP_MAX, method_type, DEFAULT_TEMP_MAX),
+        O.TEMP_MIN: Method.get_with_method_backup(obj, O.TEMP_MIN, method_type, DEFAULT_TEMP_MIN),
+        O.VENTILATION: Method.get_with_method_backup(obj, O.VENTILATION, method_type, DEFAULT_VENTILATION),
     }
-    internal_key = obj.get(O.GAINS_INTERNAL)
-    internal_gains = data.get(internal_key) if isinstance(internal_key, str) else None
+    internal_key = Method.get_with_method_backup(obj, O.GAINS_INTERNAL, method_type)
+    internal_gains = Method.get_with_backup(data, internal_key) if isinstance(internal_key, str) else None
     data_out = {
-        O.WEATHER: data.get(O.WEATHER, None),
-        O.WINDOWS: data.get(O.WINDOWS, None),
+        O.WEATHER: Method.get_with_backup(data, O.WEATHER),
+        O.WINDOWS: Method.get_with_backup(data, O.WINDOWS),
         internal_key: internal_gains,
     }
 
@@ -141,6 +223,41 @@ def get_input_data(obj: dict, data: dict) -> tuple[dict, dict]:
 
 
 def calculate_timeseries(obj: dict, data: dict) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Calculate HVAC time series using the R1C1 model.
+
+    This function simulates the thermal behavior of a building using a simple
+    one-resistance, one-capacitance (R1C1) model. It calculates the indoor temperature
+    and the heating and cooling power required to maintain comfort conditions.
+
+    Args:
+        obj (dict): Dictionary containing processed building parameters such as:
+            - temp_init: Initial indoor temperature in °C
+            - resistance: Thermal resistance in K/W
+            - capacitance: Thermal capacitance in J/K
+            - ventilation: Ventilation rate in W/K
+            - temp_min: Minimum indoor temperature setpoint in °C
+            - temp_max: Maximum indoor temperature setpoint in °C
+            - active_cooling: Whether cooling is active (bool)
+            - active_heating: Whether heating is active (bool)
+            - power_cooling: Maximum cooling power in W
+            - power_heating: Maximum heating power in W
+        data (dict): Dictionary containing processed data such as:
+            - weather: DataFrame with outdoor temperature data
+            - gains_solar: Solar heat gains in W
+            - gains_internal: Internal heat gains in W
+
+    Returns:
+        tuple: A tuple containing:
+            - temp_in (np.ndarray): Time series of indoor temperature in °C
+            - p_heat (np.ndarray): Time series of heating power in W
+            - p_cool (np.ndarray): Time series of cooling power in W
+
+    Notes:
+        - The function simulates the building's thermal behavior time step by time step
+        - At each time step, it calculates the net heat transfer, the required heating
+          and cooling power, and the resulting indoor temperature
+        - The simulation accounts for thermal inertia, heat gains, and heat losses
+    """
     # Get objects
     temp_init = obj[O.TEMP_INIT]
     thermal_resistance = obj[O.RESISTANCE]
@@ -189,9 +306,22 @@ def calculate_timeseries(obj: dict, data: dict) -> tuple[np.ndarray, np.ndarray,
 
 
 def calc_net_heat_transfer(temp_prev, temp_out, thermal_resistance, ventilation, solar_gains, internal_gains):
-    """
-    Calculate the net passive heat transfer between the indoor space and its environment.
-    A positive value indicates a net gain (heat entering) and a negative value indicates a net loss (heat leaving).
+    """Calculate the net passive heat transfer between the indoor space and its environment.
+
+    This function computes the total heat flow into or out of the building,
+    considering conduction through the envelope, ventilation, solar gains, and internal gains.
+
+    Args:
+        temp_prev (float): Previous indoor temperature in °C
+        temp_out (float): Outdoor temperature in °C
+        thermal_resistance (float): Thermal resistance of the building envelope in K/W
+        ventilation (float): Ventilation heat transfer coefficient in W/K
+        solar_gains (float): Solar heat gains in W
+        internal_gains (float): Internal heat gains in W
+
+    Returns:
+        float: Net heat transfer in W. Positive values indicate net heat gain,
+               negative values indicate net heat loss.
     """
     conduction_loss = (temp_out - temp_prev) / thermal_resistance
     ventilation_loss = ventilation * (temp_out - temp_prev)
@@ -201,8 +331,24 @@ def calc_net_heat_transfer(temp_prev, temp_out, thermal_resistance, ventilation,
 
 def calc_heating_power(active, net_heat_transfer, temp_prev, temp_min, thermal_capacitance, heating_power,
                        timestep):
-    """
-    Calculate required heating power to bring indoor temperature to temp_min, considering heat gains and losses.
+    """Calculate required heating power to maintain minimum indoor temperature.
+
+    This function computes the heating power needed to bring or maintain the indoor
+    temperature at the minimum setpoint, considering the current temperature,
+    thermal capacitance, and net heat transfer.
+
+    Args:
+        active (bool): Whether heating is active
+        net_heat_transfer (float): Net heat transfer in W
+        temp_prev (float): Previous indoor temperature in °C
+        temp_min (float): Minimum indoor temperature setpoint in °C
+        thermal_capacitance (float): Thermal capacitance of the building in J/K
+        heating_power (float): Maximum available heating power in W
+        timestep (float): Simulation timestep in seconds
+
+    Returns:
+        float: Required heating power in W, limited by the maximum available power.
+               Returns 0 if heating is not active or not needed.
     """
     if not active:
         return 0
@@ -214,8 +360,24 @@ def calc_heating_power(active, net_heat_transfer, temp_prev, temp_min, thermal_c
 
 def calc_cooling_power(active, net_heat_transfer, temp_prev, temp_max, thermal_capacitance, cooling_power,
                        timestep):
-    """
-    Calculate required cooling power to bring indoor temperature to temp_max, considering heat gains and losses.
+    """Calculate required cooling power to maintain maximum indoor temperature.
+
+    This function computes the cooling power needed to bring or maintain the indoor
+    temperature at the maximum setpoint, considering the current temperature,
+    thermal capacitance, and net heat transfer.
+
+    Args:
+        active (bool): Whether cooling is active
+        net_heat_transfer (float): Net heat transfer in W
+        temp_prev (float): Previous indoor temperature in °C
+        temp_max (float): Maximum indoor temperature setpoint in °C
+        thermal_capacitance (float): Thermal capacitance of the building in J/K
+        cooling_power (float): Maximum available cooling power in W
+        timestep (float): Simulation timestep in seconds
+
+    Returns:
+        float: Required cooling power in W, limited by the maximum available power.
+               Returns 0 if cooling is not active or not needed.
     """
     if not active:
         return 0
@@ -226,8 +388,22 @@ def calc_cooling_power(active, net_heat_transfer, temp_prev, temp_max, thermal_c
 
 
 def calc_temp_in(temp_in_prev, net_heat_transfer, heating_power, cooling_power, thermal_capacitance, timestep):
-    """
-    Calculate the new indoor temperature based on energy balance.
+    """Calculate the new indoor temperature based on energy balance.
+
+    This function computes the new indoor temperature by applying the energy balance
+    equation, considering the previous temperature, net heat transfer, heating and
+    cooling power, and the building's thermal capacitance.
+
+    Args:
+        temp_in_prev (float): Previous indoor temperature in °C
+        net_heat_transfer (float): Net heat transfer in W
+        heating_power (float): Applied heating power in W
+        cooling_power (float): Applied cooling power in W
+        thermal_capacitance (float): Thermal capacitance of the building in J/K
+        timestep (float): Simulation timestep in seconds
+
+    Returns:
+        float: New indoor temperature in °C
     """
 
     temp_in_new = (temp_in_prev
@@ -237,4 +413,15 @@ def calc_temp_in(temp_in_prev, net_heat_transfer, heating_power, cooling_power, 
     return _ensure_scalar(temp_in_new)
 
 def _ensure_scalar(x):
+    """Convert numpy array with single value to scalar.
+
+    This helper function ensures that a value is returned as a scalar,
+    even if it's a numpy array with a single element.
+
+    Args:
+        x: Value to convert, which may be a numpy array or a scalar
+
+    Returns:
+        Scalar value
+    """
     return x.item() if isinstance(x, np.ndarray) else x
