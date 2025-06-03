@@ -11,7 +11,9 @@ class Objects:
     ACTIVE_GAINS_INTERNAL = f"{ACTIVE}_gains_internal"  # Activate internal gains?
     ACTIVE_GAINS_SOLAR = f"{ACTIVE}_gains_solar"  # Activate solar gains?
     ACTIVE_HEATING = f"{ACTIVE}_heating"  # Activate heating?
+    ALTITUDE = "altitude"  # Altitude (m)
     AREA = "area"  # Area (m2)
+    AZIMUTH = "azimuth"  # Azimuth (degrees; 0/360 = North)
     CAPACITANCE = "capacitance"  # Capacitance (J/K)
     COLUMN = "column"
     DEMAND = "demand"
@@ -20,6 +22,7 @@ class Objects:
     GAINS_INTERNAL_COL = f'{GAINS_INTERNAL}_{COLUMN}'  # column in which the internal gains are (if dataframe is provided)
     GAINS_INTERNAL_PER_PERSON = f'{GAINS_INTERNAL}_per_person'  # Internal gains per person (W)
     GAINS_SOLAR = "gains_solar"  # Solar gains (W)
+    GEN_MAX = "maximum_generation"  # Maximum generation (W)
     INHABITANTS = "inhabitants"  # Number of inhabitants
     LAT = "latitude"  # Latitude (degrees)
     LOAD = "load"
@@ -28,8 +31,11 @@ class Objects:
     LON = "longitude"  # Longitude (degrees)
     OCCUPATION = "occupation"  # Occupancy (for timeseries files)
     ORIENTATION = "orientation"  # Orientation (degrees; 180 = south)
-    POWER_COOLING = "power_cooling"  # Power cooling (W)
-    POWER_HEATING = "power_heating"  # Power heating (W)
+    POWER = "power"  # Power (W)
+    POWER_COOLING = f"{POWER}_cooling"  # Power cooling (W)
+    POWER_HEATING = f"{POWER}_heating"  # Power heating (W)
+    PV_ARRAYS = "pv_arrays"  # PV array configuration (dict)
+    PV_INVERTER = "pv_inverter"  # PV inverter configuration (dict)
     RESISTANCE = "resistance"  # Resistance (K/W)
     TEMP_INIT = "temp_init"  # Initial temperature (C)
     TEMP_MAX = "temp_max"  # Maximum temperature (C)

@@ -8,10 +8,13 @@ class Columns:
     AREA = "area"  # Area of the object (m²)
     DATETIME = "datetime"  # Timestamps
     DEMAND = "demand"  # e.g. heating or cooling demand (Wh)
+    FLH = "full_load_hours"  # full load hours (h; [0, 8760])
     GAIN = "gain"  # Gain (W)
+    GENERATION = "generation"  # e.g. pv, wind (Wh)
     LOAD = "load"  # Load values (e.g., electricity load) (W)
     OCCUPATION = "occupation"  # Occupancy data
     ORIENTATION = "orientation"  # Orientation (degrees; 180 = south)
+    POWER = "power"  # power (W)
     SHADING = "shading"  # Shading [0, 1]
     SOLAR_DHI = "solar_dhi"  # Diffuse horizontal irradiance (W/m2)
     SOLAR_DNI = "solar_dni"  # Direct normal irradiance (W/m2)
