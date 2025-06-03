@@ -18,11 +18,14 @@ class Columns:
     EVENT = "event"  # event
     FLOW_RATE = "flow_rate"  # l/s
     FLOW_RATE_SIGMA = f"{FLOW_RATE}_sigma"
+    FLH = "full_load_hours"  # full load hours (h; [0, 8760])
     GAIN = "gain"  # Gain (W)
+    GENERATION = "generation"  # e.g. pv, wind (Wh)
     LOAD = "load"  # Load values (e.g., electricity load) (W)
     MONTH = "month"
     OCCUPATION = "occupation"  # Occupancy data
     ORIENTATION = "orientation"  # Orientation (degrees; 180 = south)
+    POWER = "power"  # power (W)
     PROBABILITY = "probability"  # probability (of event; [0, 1])
     PROBABILITY_DAY = f"{PROBABILITY}_day"  # Probabilty of event per day [0, inf)
     SHADING = "shading"  # Shading [0, 1]

@@ -12,3 +12,4 @@ different aspect of the library, from basic usage to more complex scenarios. You
 
    examples/dhw_probabilistic/runme
    examples/hvac_rc/runme
+   examples/pv_pvlib/runme

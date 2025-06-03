@@ -11,7 +11,9 @@ class Objects:
     ACTIVE_GAINS_INTERNAL = f"{ACTIVE}_gains_internal"  # Activate internal gains?
     ACTIVE_GAINS_SOLAR = f"{ACTIVE}_gains_solar"  # Activate solar gains?
     ACTIVE_HEATING = f"{ACTIVE}_heating"  # Activate heating?
+    ALTITUDE = "altitude"  # Altitude (m)
     AREA = "area"  # Area (m2)
+    AZIMUTH = "azimuth"  # Azimuth (degrees; 0/360 = North)
     CAPACITANCE = "capacitance"  # Capacitance (J/K)
     COLUMN = "column"
     DATETIMES = "datetimes"
@@ -25,6 +27,7 @@ class Objects:
     GAINS_INTERNAL_COL = f'{GAINS_INTERNAL}_{COLUMN}'  # column in which the internal gains are (if dataframe is provided)
     GAINS_INTERNAL_PER_PERSON = f'{GAINS_INTERNAL}_per_person'  # Internal gains per person (W)
     GAINS_SOLAR = "gains_solar"  # Solar gains (W)
+    GEN_MAX = "maximum_generation"  # Maximum generation (W)
     HOUSEHOLD_TYPE = "household_type"  # Type of household
     HOLIDAYS_LOCATION = "holidays_location"  # Location from which to get the holidays from (e.g. BY,DE for Bavaria, Germany)
     INHABITANTS = "inhabitants"  # Number of inhabitants
@@ -36,8 +39,11 @@ class Objects:
     OCCUPATION = "occupation"  # Occupancy (for timeseries files)
     OCCUPANTS = "occupants"  # Number of occupants
     ORIENTATION = "orientation"  # Orientation (degrees; 180 = south)
-    POWER_COOLING = "power_cooling"  # Power cooling (W)
-    POWER_HEATING = "power_heating"  # Power heating (W)
+    POWER = "power"  # Power (W)
+    POWER_COOLING = f"{POWER}_cooling"  # Power cooling (W)
+    POWER_HEATING = f"{POWER}_heating"  # Power heating (W)
+    PV_ARRAYS = "pv_arrays"  # PV array configuration (dict)
+    PV_INVERTER = "pv_inverter"  # PV inverter configuration (dict)
     RESISTANCE = "resistance"  # Resistance (K/W)
     SEASONAL_PEAK_DAY = "seasonal_peak_day"  # Day of year with peak demand
     SEASONAL_VARIATION = "seasonal_variation"  # Seasonal variation factor

@@ -1,6 +1,7 @@
 from abc import ABC, ABCMeta, abstractmethod
 import logging
-from typing import List, Dict, Any, Type
+import math
+from typing import List, Dict, Any, Type, Optional, Tuple
 
 import pandas as pd
 
@@ -77,6 +78,80 @@ class Method(ABC, metaclass=MethodMeta):
         )
 
         return relevant_objs
+
+    def _process_kwargs(self, obj=None, data=None, **kwargs) -> Tuple[dict, dict]:
+        """Process keyword arguments into obj and data dictionaries.
+
+        Args:
+            obj (dict, optional): Initial object dictionary. Defaults to None.
+            data (dict, optional): Initial data dictionary. Defaults to None.
+            **kwargs: Keyword arguments to process.
+
+        Returns:
+            Tuple[dict, dict]: Processed obj and data dictionaries.
+        """
+        local_obj = {} if obj is None else obj.copy()
+        local_data = {} if data is None else data.copy()
+
+        # Get all possible keys for this method
+        all_obj_keys = set(self.required_keys + self.optional_keys)
+        all_data_keys = set(self.required_timeseries + self.optional_timeseries)
+
+        for param_name, value in kwargs.items():
+            if value is None:
+                continue
+
+            # Check if the parameter name is in the required or optional keys
+            if param_name in all_obj_keys:
+                local_obj[param_name] = value
+            elif param_name in all_data_keys:
+                local_data[param_name] = value
+
+        return local_obj, local_data
+
+    @staticmethod
+    def get_with_backup(obj, key, backup=None):
+        """Get a value from a dictionary with a backup value if not found or None.
+
+        Args:
+            obj (dict): Dictionary to get value from
+            key (str): Key to look for
+            backup: Default value if key doesn't exist or value is None/NaN
+
+        Returns:
+            The value from the dictionary, or the backup value if not found
+        """
+        value = obj.get(key, backup)
+        if value is None or (isinstance(value, float) and math.isnan(value)):
+            return backup
+        return value
+
+    @classmethod
+    def get_with_method_backup(cls, obj, key, method_type, backup=None):
+        """Get a value from a dictionary, checking for method-specific key first.
+
+        Args:
+            obj (dict): Dictionary to get value from
+            key (str): Base key to look for
+            method_type (str): Method type to use for prefixing
+            backup: Default value if neither method-specific nor base key exists
+
+        Returns:
+            The value from the dictionary, or the backup value if not found
+
+        Example:
+            # Will check for "pv:altitude" first, then "altitude"
+            altitude = cls.get_with_method_backup(obj, "altitude", "pv", backup=None)
+        """
+        # First try method-specific key (e.g., "pv:altitude")
+        method_key = f"{method_type}{SEP}{key}"
+        value = cls.get_with_backup(obj, method_key)
+
+        # If not found, try the base key (e.g., "altitude")
+        if value is None:
+            value = cls.get_with_backup(obj, key, backup)
+
+        return value
 
     @classmethod
     def get_requirements(cls) -> dict:
