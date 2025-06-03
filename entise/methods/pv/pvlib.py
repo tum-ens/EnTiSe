@@ -24,7 +24,6 @@ from pvlib import pvsystem
 
 from entise.core.base import Method
 from entise.constants import Columns as C, Objects as O, Types
-import entise.methods.utils as utils
 
 warnings.filterwarnings('ignore')
 logger = logging.getLogger(__name__)
@@ -86,7 +85,20 @@ class PVLib(Method):
             f'{C.GENERATION}_{Types.PV}': 'PV generation',
     }
 
-    def generate(self, obj, data, ts_type: str = Types.PV):
+    def generate(self, 
+                obj: dict = None, 
+                data: dict = None, 
+                ts_type: str = Types.PV,
+                *, 
+                latitude: float = None,
+                longitude: float = None,
+                weather: pd.DataFrame = None,
+                power: float = None,
+                azimuth: float = None,
+                tilt: float = None,
+                altitude: float = None,
+                pv_arrays: dict = None,
+                pv_inverter: dict = None):
         """Generate PV power time series based on input parameters and weather data.
 
         This method implements the abstract generate method from the Method base class.
@@ -94,13 +106,18 @@ class PVLib(Method):
         and returns both the time series and summary statistics.
 
         Args:
-            obj (dict): Dictionary containing PV system parameters such as location,
-                orientation, and power rating. Must include the required keys defined
-                in the class attribute required_keys.
-            data (dict): Dictionary containing input data such as weather information.
-                Must include the required time series defined in the class attribute
-                required_timeseries.
+            obj (dict, optional): Dictionary containing PV system parameters. Defaults to None.
+            data (dict, optional): Dictionary containing input data. Defaults to None.
             ts_type (str, optional): Time series type to generate. Defaults to Types.PV.
+            latitude (float, optional): Geographic latitude in degrees. Defaults to None.
+            longitude (float, optional): Geographic longitude in degrees. Defaults to None.
+            weather (pd.DataFrame, optional): Weather data with solar radiation. Defaults to None.
+            power (float, optional): System power rating in watts. Defaults to None.
+            azimuth (float, optional): Panel azimuth angle in degrees (0=North, 90=East, 180=South, 270=West). Defaults to None.
+            tilt (float, optional): Panel tilt angle in degrees (0=horizontal, 90=vertical). Defaults to None.
+            altitude (float, optional): Site altitude in meters. Defaults to None.
+            pv_arrays (dict, optional): PV array configuration parameters. Defaults to None.
+            pv_inverter (dict, optional): PV inverter configuration parameters. Defaults to None.
 
         Returns:
             dict: Dictionary containing:
@@ -114,23 +131,35 @@ class PVLib(Method):
 
         Example:
             >>> pvlib = PVLib()
+            >>> # Using explicit parameters
+            >>> result = pvlib.generate(latitude=48.1, longitude=11.6, power=5000, weather=weather_df)
+            >>> # Or using dictionaries
             >>> obj = {"latitude": 48.1, "longitude": 11.6, "power": 5000}
             >>> data = {"weather": weather_df}  # DataFrame with solar radiation data
-            >>> result = pvlib.generate(obj, data)
+            >>> result = pvlib.generate(obj=obj, data=data)
             >>> summary = result["summary"]
             >>> timeseries = result["timeseries"]
         """
-        obj, data = get_input_data(obj, data)
+        # Process keyword arguments
+        processed_obj, processed_data = self._process_kwargs(
+            obj, data, 
+            latitude=latitude, longitude=longitude, weather=weather,
+            power=power, azimuth=azimuth, tilt=tilt, altitude=altitude,
+            pv_arrays=pv_arrays, pv_inverter=pv_inverter
+        )
 
-        ts = calculate_timeseries(obj, data)
+        # Continue with existing implementation
+        processed_obj, processed_data = get_input_data(processed_obj, processed_data, ts_type)
+
+        ts = calculate_timeseries(processed_obj, processed_data)
 
         logger.debug(f"[PV pvlib]: Generating {ts_type} data")
 
-        timestep = data[O.WEATHER][C.DATETIME].diff().dt.total_seconds().dropna().mode()[0]
+        timestep = processed_data[O.WEATHER][C.DATETIME].diff().dt.total_seconds().dropna().mode()[0]
         summary = {
             f'{C.GENERATION}_{Types.PV}': (ts.sum() * timestep / 3600).round().astype(int),
             f'{O.GEN_MAX}_{Types.PV}': ts.max().round().astype(int),
-            f'{C.FLH}_{Types.PV}': (ts.sum() * timestep / 3600 / obj[O.POWER]).round().astype(int),
+            f'{C.FLH}_{Types.PV}': (ts.sum() * timestep / 3600 / processed_obj[O.POWER]).round().astype(int),
         }
 
         ts = ts.rename(columns={'p_mp': f'{C.POWER}_{Types.PV}'})
@@ -140,7 +169,7 @@ class PVLib(Method):
             "timeseries": ts,
         }
 
-def get_input_data(obj, data):
+def get_input_data(obj, data, method_type=Types.PV):
     """Process and validate input data for PV generation calculation.
 
     This function extracts required and optional parameters from the input dictionaries,
@@ -151,6 +180,7 @@ def get_input_data(obj, data):
         obj (dict): Dictionary containing PV system parameters such as location,
             orientation, and power rating.
         data (dict): Dictionary containing input data such as weather information.
+        method_type (str, optional): Method type to use for prefixing. Defaults to Types.PV.
 
     Returns:
         tuple: A tuple containing:
@@ -161,25 +191,27 @@ def get_input_data(obj, data):
         Exception: If required weather data is missing.
 
     Notes:
+        - Parameters can be specified with method-specific prefixes (e.g., "pv:altitude")
+          which will take precedence over generic parameters (e.g., "altitude").
         - Missing altitude values are automatically looked up based on latitude/longitude.
         - Weather data columns are renamed to match pvlib requirements.
         - Azimuth and tilt values are validated to be within normal ranges.
     """
     obj_out = {
-        O.ID: utils.get_with_backup(obj, O.ID),
-        O.ALTITUDE: utils.get_with_backup(obj, O.ALTITUDE),
-        O.AZIMUTH: utils.get_with_backup(obj, O.AZIMUTH, AZIMUTH),
-        O.LAT: utils.get_with_backup(obj, O.LAT),
-        O.LON: utils.get_with_backup(obj, O.LON),
-        O.POWER: utils.get_with_backup(obj, O.POWER, POWER),
-        O.PV_ARRAYS: utils.get_with_backup(obj, O.PV_ARRAYS),
-        O.PV_INVERTER: utils.get_with_backup(obj, O.PV_INVERTER),
-        O.TILT: utils.get_with_backup(obj, O.TILT, TILT),
+        O.ID: Method.get_with_backup(obj, O.ID),
+        O.ALTITUDE: Method.get_with_method_backup(obj, O.ALTITUDE, method_type),
+        O.AZIMUTH: Method.get_with_method_backup(obj, O.AZIMUTH, method_type, AZIMUTH),
+        O.LAT: Method.get_with_method_backup(obj, O.LAT, method_type),
+        O.LON: Method.get_with_method_backup(obj, O.LON, method_type),
+        O.POWER: Method.get_with_method_backup(obj, O.POWER, method_type, POWER),
+        O.PV_ARRAYS: Method.get_with_method_backup(obj, O.PV_ARRAYS, method_type),
+        O.PV_INVERTER: Method.get_with_method_backup(obj, O.PV_INVERTER, method_type),
+        O.TILT: Method.get_with_method_backup(obj, O.TILT, method_type, TILT),
     }
     data_out = {
-        O.WEATHER: utils.get_with_backup(data, O.WEATHER),
-        O.PV_ARRAYS: utils.get_with_backup(data, obj_out[O.PV_ARRAYS], PV_ARRAYS),
-        O.PV_INVERTER: utils.get_with_backup(data, O.PV_INVERTER, PV_INVERTER),
+        O.WEATHER: Method.get_with_backup(data, O.WEATHER),
+        O.PV_ARRAYS: Method.get_with_backup(data, obj_out[O.PV_ARRAYS], PV_ARRAYS),
+        O.PV_INVERTER: Method.get_with_backup(data, O.PV_INVERTER, PV_INVERTER),
     }
 
     # Fill missing data
