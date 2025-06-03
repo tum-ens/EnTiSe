@@ -1,0 +1,4 @@
+id,dhw,datetimes,dwelling_size,temp_cold,temp_hot,holidays_location
+1,JordanVajen,weather,100,10,60,PT
+2,JordanVajen,weather,150,10,60,"B,AR"
+3,JordanVajen,weather,120,10,60,

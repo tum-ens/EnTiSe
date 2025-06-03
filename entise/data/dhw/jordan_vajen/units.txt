@@ -1,0 +1,9 @@
+day: [0, 6] (0: Monday, 6: Sunday)
+time: hh:mm
+event: str
+probability: 1
+duration: s
+flow_rate: l/s
+sigma_duratin: s
+sigma_flow_rate: l/s
+probability_day: 1

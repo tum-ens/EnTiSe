@@ -1,0 +1,6 @@
+household_type,liters_per_day,sigma
+single_adult,50,10
+couple_no_children,80,16
+family_with_children,120,24
+elderly_couple,70,14
+shared_accommodation,100,20
