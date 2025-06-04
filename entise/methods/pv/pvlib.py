@@ -22,10 +22,12 @@ import pandas as pd
 import pvlib
 from pvlib import pvsystem
 
+from entise.constants import Columns as C
+from entise.constants import Objects as O
+from entise.constants import Types
 from entise.core.base import Method
-from entise.constants import Columns as C, Objects as O, Types
 
-warnings.filterwarnings('ignore')
+warnings.filterwarnings("ignore")
 logger = logging.getLogger(__name__)
 
 # Default values for optional keys
@@ -33,10 +35,11 @@ POWER = 1  # W
 AZIMUTH = 0  # º
 TILT = 0  # º
 PV_ARRAYS = dict(
-        module_parameters=dict(pdc0=1, gamma_pdc=-0.004),
-        temperature_model_parameters=dict(a=-3.56, b=-0.075, deltaT=3)
-    )
+    module_parameters=dict(pdc0=1, gamma_pdc=-0.004),
+    temperature_model_parameters=dict(a=-3.56, b=-0.075, deltaT=3),
+)
 PV_INVERTER = dict(pdc0=3)
+
 
 class PVLib(Method):
     """Implements a PV generation method based on the pvlib package.
@@ -62,14 +65,15 @@ class PVLib(Method):
     Example:
         >>> from entise.methods.pv.pvlib import PVLib
         >>> from entise.core.generator import TimeSeriesGenerator
-        >>> 
+        >>>
         >>> # Create a generator and add objects
         >>> gen = TimeSeriesGenerator()
         >>> gen.add_objects(objects_df)  # DataFrame with PV system parameters
-        >>> 
+        >>>
         >>> # Generate time series
         >>> summary, timeseries = gen.generate(data)  # data contains weather information
     """
+
     types = [Types.PV]
     name = "pvlib"
     required_keys = [O.LAT, O.LON, O.WEATHER]
@@ -77,28 +81,30 @@ class PVLib(Method):
     required_timeseries = [O.WEATHER]
     optional_timeseries = [O.PV_ARRAYS]
     output_summary = {
-            f'{C.GENERATION}_{Types.PV}': 'total PV generation',
-            f'{O.GEN_MAX}_{Types.PV}': 'maximum PV generation',
-            f'{C.FLH}_{Types.PV}': 'full load hours',
+        f"{C.GENERATION}_{Types.PV}": "total PV generation",
+        f"{O.GEN_MAX}_{Types.PV}": "maximum PV generation",
+        f"{C.FLH}_{Types.PV}": "full load hours",
     }
     output_timeseries = {
-            f'{C.GENERATION}_{Types.PV}': 'PV generation',
+        f"{C.GENERATION}_{Types.PV}": "PV generation",
     }
 
-    def generate(self, 
-                obj: dict = None, 
-                data: dict = None, 
-                ts_type: str = Types.PV,
-                *, 
-                latitude: float = None,
-                longitude: float = None,
-                weather: pd.DataFrame = None,
-                power: float = None,
-                azimuth: float = None,
-                tilt: float = None,
-                altitude: float = None,
-                pv_arrays: dict = None,
-                pv_inverter: dict = None):
+    def generate(
+        self,
+        obj: dict = None,
+        data: dict = None,
+        ts_type: str = Types.PV,
+        *,
+        latitude: float = None,
+        longitude: float = None,
+        weather: pd.DataFrame = None,
+        power: float = None,
+        azimuth: float = None,
+        tilt: float = None,
+        altitude: float = None,
+        pv_arrays: dict = None,
+        pv_inverter: dict = None,
+    ):
         """Generate PV power time series based on input parameters and weather data.
 
         This method implements the abstract generate method from the Method base class.
@@ -113,7 +119,8 @@ class PVLib(Method):
             longitude (float, optional): Geographic longitude in degrees. Defaults to None.
             weather (pd.DataFrame, optional): Weather data with solar radiation. Defaults to None.
             power (float, optional): System power rating in watts. Defaults to None.
-            azimuth (float, optional): Panel azimuth angle in degrees (0=North, 90=East, 180=South, 270=West). Defaults to None.
+            azimuth (float, optional): Panel azimuth angle in degrees (0=North, 90=East, 180=South, 270=West).
+                                        Defaults to None.
             tilt (float, optional): Panel tilt angle in degrees (0=horizontal, 90=vertical). Defaults to None.
             altitude (float, optional): Site altitude in meters. Defaults to None.
             pv_arrays (dict, optional): PV array configuration parameters. Defaults to None.
@@ -142,10 +149,17 @@ class PVLib(Method):
         """
         # Process keyword arguments
         processed_obj, processed_data = self._process_kwargs(
-            obj, data, 
-            latitude=latitude, longitude=longitude, weather=weather,
-            power=power, azimuth=azimuth, tilt=tilt, altitude=altitude,
-            pv_arrays=pv_arrays, pv_inverter=pv_inverter
+            obj,
+            data,
+            latitude=latitude,
+            longitude=longitude,
+            weather=weather,
+            power=power,
+            azimuth=azimuth,
+            tilt=tilt,
+            altitude=altitude,
+            pv_arrays=pv_arrays,
+            pv_inverter=pv_inverter,
         )
 
         # Continue with existing implementation
@@ -157,17 +171,18 @@ class PVLib(Method):
 
         timestep = processed_data[O.WEATHER][C.DATETIME].diff().dt.total_seconds().dropna().mode()[0]
         summary = {
-            f'{C.GENERATION}_{Types.PV}': (ts.sum() * timestep / 3600).round().astype(int),
-            f'{O.GEN_MAX}_{Types.PV}': ts.max().round().astype(int),
-            f'{C.FLH}_{Types.PV}': (ts.sum() * timestep / 3600 / processed_obj[O.POWER]).round().astype(int),
+            f"{C.GENERATION}_{Types.PV}": (ts.sum() * timestep / 3600).round().astype(int),
+            f"{O.GEN_MAX}_{Types.PV}": ts.max().round().astype(int),
+            f"{C.FLH}_{Types.PV}": (ts.sum() * timestep / 3600 / processed_obj[O.POWER]).round().astype(int),
         }
 
-        ts = ts.rename(columns={'p_mp': f'{C.POWER}_{Types.PV}'})
+        ts = ts.rename(columns={"p_mp": f"{C.POWER}_{Types.PV}"})
 
         return {
             "summary": summary,
             "timeseries": ts,
         }
+
 
 def get_input_data(obj, data, method_type=Types.PV):
     """Process and validate input data for PV generation calculation.
@@ -220,16 +235,21 @@ def get_input_data(obj, data, method_type=Types.PV):
 
     if data_out[O.WEATHER] is not None:
         weather = data_out[O.WEATHER].copy()
-        weather.rename(columns={f'{C.SOLAR_GHI}': 'ghi',
-                               f'{C.SOLAR_DNI}': 'dni',
-                               f'{C.SOLAR_DHI}': 'dhi'},
-                       inplace=True, errors='raise')
+        weather.rename(
+            columns={
+                f"{C.SOLAR_GHI}": "ghi",
+                f"{C.SOLAR_DNI}": "dni",
+                f"{C.SOLAR_DHI}": "dhi",
+            },
+            inplace=True,
+            errors="raise",
+        )
         weather[C.DATETIME] = pd.to_datetime(weather[C.DATETIME], utc=False)
         weather.index = pd.to_datetime(weather[C.DATETIME], utc=True)
         data_out[O.WEATHER] = weather
     else:
-        logger.error(f"[PV pvlib]: No weather data")
-        raise Exception(f'{O.WEATHER} not available')
+        logger.error("[PV pvlib]: No weather data")
+        raise Exception(f"{O.WEATHER} not available")
 
     # Sanity checks
     if not 0 <= obj_out[O.AZIMUTH] <= 360:
@@ -238,6 +258,7 @@ def get_input_data(obj, data, method_type=Types.PV):
         logger.warning(f"Tilt value {obj_out[O.TILT]} outside normal range [0-90]")
 
     return obj_out, data_out
+
 
 def calculate_timeseries(obj, data):
     """Calculate PV generation time series using the pvlib package.
@@ -280,14 +301,40 @@ def calculate_timeseries(obj, data):
     pv_arrays = data[O.PV_ARRAYS]
     pv_inverter = data[O.PV_INVERTER]
 
-    tz = df_weather[C.DATETIME].iloc[0].tz
-    df_weather.index = df_weather.index.tz_convert(tz)
-    loc = pvlib.location.Location(latitude=lat, longitude=lon, altitude=altitude, tz=tz)
+    # Extract timezone information from the weather data
+    tz = df_weather[C.DATETIME].iloc[0]
+    tz_offset = tz.tz
+    df_weather.index = df_weather.index.tz_convert(tz_offset)
+
+    # Convert UTC offset to Etc/GMT format
+    # This is needed as off pvlib==0.12.0 as it introduces breaking changes
+    tz_str = str(tz_offset)
+    if tz_str.startswith("UTC"):
+        # Extract the offset value and sign
+        offset_str = tz_str.replace("UTC", "")
+        if offset_str:  # If there's an offset (not just UTC)
+            sign = offset_str[0]  # Get + or -
+            # Reverse the sign for Etc/GMT format
+            new_sign = "-" if sign == "+" else "+"
+            # Extract hours from the offset (remove minutes)
+            hours = offset_str[1:3]
+            # Create the Etc/GMT timezone string with reversed sign
+            iana_tz = f"Etc/GMT{new_sign}{int(hours)}"
+        else:
+            # Plain UTC with no offset
+            iana_tz = "Etc/GMT"
+    else:
+        # If it's already an IANA timezone, use it as is
+        iana_tz = tz_str
+
+    logger.info(f"Original timezone: {tz_offset}, converted to IANA: {iana_tz}")
+
+    loc = pvlib.location.Location(latitude=lat, longitude=lon, altitude=altitude, tz=iana_tz)
 
     # Create the pv system
     array = pvsystem.Array(pvsystem.FixedMount(surface_tilt=tilt, surface_azimuth=azimuth), **pv_arrays)
     system = pvsystem.PVSystem(arrays=array, inverter_parameters=pv_inverter)
-    mc = pvlib.modelchain.ModelChain(system, loc, aoi_model='physical', spectral_model='no_loss')
+    mc = pvlib.modelchain.ModelChain(system, loc, aoi_model="physical", spectral_model="no_loss")
 
     mc.run_model(df_weather)
 
