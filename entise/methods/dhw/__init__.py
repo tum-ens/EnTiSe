@@ -4,11 +4,8 @@ DHW (Domestic Hot Water) methods for time series generation.
 This package contains methods for generating domestic hot water demand time series.
 """
 
-# Import the Jordan & Vajen method
+# Import and expose the JordanVajen class
 from entise.methods.dhw.jordan_vajen import JordanVajen
 
-
-__all__ = [
-    # Methods
-    'JordanVajen',
-]
+# Expose the classes
+__all__ = ['JordanVajen']

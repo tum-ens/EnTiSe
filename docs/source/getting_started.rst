@@ -11,12 +11,22 @@ Prerequisites
 Before getting started, ensure you have:
 
 - Python 3.8 or higher installed.
-- EnTiSe installed. If not, refer to the `Installation` guide.
+- EnTiSe installed. If not, refer to the :ref:`installation` guide.
 
 Quickstart Example
 ------------------
 
-Here’s a simple example to help you get started with EnTiSe quickly.
+EnTiSe was designed to allow users to generate time series quickly for multiple objects.
+Therefore, the tool focuses on batch processing so that users do not have to deal with aspects such as
+multiprocessing but can focus on defining the time series they need. However, the tool also allows to use
+the methods directly if they need more control. Below you find an example for both ways to get you started quickly.
+
+Batch Processing
+~~~~~~~~~~~~~~~~
+
+In batch processing you define all the parameters for all time series types beforehand and then create them all at once.
+This is a simple example for one object and one time series type but you can extend it to thousands and millions of
+time series.
 
 1. **Import the Required Components**
 
@@ -83,7 +93,7 @@ The `summary` will contain summary metrics, and `timeseries` will hold the gener
     print("\nTimeseries Data:")
     print(df)
 
-### Expected Output:
+Expected Output:
 
 .. code-block:: text
 
@@ -97,6 +107,70 @@ The `summary` will contain summary metrics, and `timeseries` will hold the gener
     2025-01-01 01:00:00+00:00                3.0             3000.0              20.0
     2025-01-01 02:00:00+00:00                3.0             3000.0              20.0
     ...                                       ...               ...               ...
+
+Direct Method Access
+~~~~~~~~~~~~~~~~~~~~
+
+In addition to using the TimeSeriesGenerator for batch processing, you can also directly import and use methods:
+
+.. code-block:: python
+
+    # Import a specific method
+    from entise.methods.pv import PVLib
+
+    # Create an instance
+    pvlib = PVLib()
+
+    # Method 1: Using dictionaries
+    obj = {
+        "id": "pv_system_1",
+        "latitude": 48.1,
+        "longitude": 11.6,
+        "power": 5000,  # 5 kW system
+        "azimuth": 180,  # South-facing
+        "tilt": 30,
+    }
+    data = {
+        "weather": weather_df,  # DataFrame with solar radiation data
+    }
+    result = pvlib.generate(obj, data)
+
+    # Method 2: Using named parameters directly
+    result = pvlib.generate(
+        latitude=48.1,
+        longitude=11.6,
+        power=5000,
+        azimuth=180,
+        tilt=30,
+        weather=weather_df
+    )
+
+    # Method 3: Combining both approaches
+    obj = {"latitude": 48.1, "longitude": 11.6}
+    data = {"weather": weather_df}
+    result = pvlib.generate(
+        obj=obj,
+        data=data,
+        power=5000,  # This overrides any "power" value in obj
+        azimuth=180,
+        tilt=30
+    )
+
+    # Access results
+    summary = result["summary"]
+    timeseries = result["timeseries"]
+
+    print("Summary Metrics:")
+    print(summary)
+
+    print("\nTimeseries Data:")
+    print(timeseries)
+
+This approach is useful when you want to:
+
+1. Work with a single method directly
+2. Have more control over the generation process
+3. Integrate EnTiSe methods into your own workflows
 
 Understanding the Workflow
 --------------------------
@@ -113,7 +187,7 @@ Here’s a breakdown of how EnTiSe processes your data:
 Available Methods
 -----------------
 
-For a list of available methods for HVAC, Electricity, Mobility, and Occupancy, refer to the :ref:`methods` section in this documentation.
+For a list of available methods, refer to the :ref:`methods` section in this documentation.
 
 Next Steps
 ----------

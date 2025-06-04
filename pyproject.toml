@@ -1,0 +1,79 @@
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[project]
+name = "entise"
+dynamic = ["version"]
+description = "A tool for generating time series data related to energy systems and building operations"
+readme = "README.rst"
+authors = [
+    {name = "Markus Doepfert", email = "markus.doepfert@tum.de"}
+]
+license = {text = "MIT"}
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering",
+]
+keywords = ["energy", "time series", "simulation"]
+dependencies = [
+    "chardet>=5.0.0",
+    "holidays>=0.50",
+    "joblib>=1.0.0",
+    "matplotlib>=3.1.0",
+    "numpy>=2.0.0",
+    "pandas>=2.0.0",
+    "pvlib>=0.12.0",
+    "tqdm>=4.0.0",
+]
+requires-python = ">=3.10,<3.14"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3.4",
+    "pytest-cov>=6.0.0",
+    "pytest-mock>=3.14.0",
+    "ruff>=0.11.12",
+    "mypy>=1.16.0",
+    "pre-commit>=4.2.0",
+    "uv>=0.7.8",
+]
+docs = [
+    "sphinx",
+    "sphinx-rtd-theme",
+]
+
+[project.urls]
+"Homepage" = "https://gitlab.lrz.de/tum-ens/need/entise"
+"Bug Tracker" = "https://gitlab.lrz.de/tum-ens/need/entise/-/issues"
+"Documentation" = "https://entise.readthedocs.io"
+
+[tool.setuptools]
+packages = ["entise"]
+
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.build.targets.wheel]
+packages = ["entise"]
+
+[tool.ruff]
+lint.select = ["E", "F", "B", "I"]
+lint.ignore = []
+line-length = 120
+target-version = "py312"
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"
+
+[tool.ruff.lint.isort]
+known-first-party = ["entise"]

@@ -1,9 +1,10 @@
 
-from typing import Dict, Type
+from typing import Dict, Type, List, Optional
 from entise.core.base import Method, method_registry
 import importlib
 import pkgutil
-import entise.methods
+import os
+import sys
 
 
 def register(cls: Type[Method], strategy_name: str = None):
@@ -31,9 +32,18 @@ def get_methods_by_type(ts_type: str):
     ]
 
 
-def import_all_methods():
-    for _, modname, _ in pkgutil.walk_packages(entise.methods.__path__, entise.methods.__name__ + "."):
+def import_all_methods(path: Optional[List[str]] = None, package_name: Optional[str] = None):
+    """Import all method modules from the specified path.
+
+    Args:
+        path: The path to search for modules. Must be provided.
+        package_name: The package name to use as a prefix. Must be provided.
+    """
+    if path is None or package_name is None:
+        raise ValueError("Both path and package_name must be provided to avoid circular imports.")
+
+    for _, modname, _ in pkgutil.walk_packages(path, package_name + "."):
         importlib.import_module(modname)
 
-# Automatically import all methods on startup
-import_all_methods()
+# The import_all_methods() function is called explicitly in entise/methods/__init__.py
+# to avoid circular imports
