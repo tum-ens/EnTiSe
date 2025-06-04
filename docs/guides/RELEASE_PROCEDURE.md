@@ -25,24 +25,24 @@ It always has the format `YYYY-MM-DD`, e.g. `1992-11-07`.
 - 📝 **Version Entry**: Format the new version entry as follows:
     ```
     ## [0.1.0] - 2022-01-01
-  
+
     ### Added
     - New feature
     - Another new feature
-  
+
     ### Changed
     - Change to existing feature
-  
+
     ### Fixed
     - Bug fix
     ```
-  
+
 ### 2. Create a `Draft GitLab Release` Issue
 - 🐙 **Template**: Use the `📝Release_Checklist` template for the issue.
 - 🐙 **Issue**: Create a new issue in the repository with the title `Release - Minor Version - 0.1.0`.
 - 🐙 **Description**: Fill in the details of the release, including the name, Git tag, release manager, and date.
 - 🐙 **Workflow Checklist**: Check off the steps in the workflow checklist for the release.
-  
+
 ### 3. Update Version in Code
 - 📝 **File**: Locate the version variable in the code (in the template it can be found in [VERSION](VERSION)).
 - 💻 **Update**: Change the version number to the new release version following SemVer.
@@ -62,7 +62,7 @@ It always has the format `YYYY-MM-DD`, e.g. `1992-11-07`.
     ```bash
     git push --set-upstream origin release-1.5.0
     ```
-  
+
 ### 5. Finalize and Merge
 - 🐙 **Merge Request**: In GitLab, open a merge request (MR) from `release-1.5.0` into `main`.
 - 🐙 **Review**: Assign reviewers to the MR and ensure all tests pass.
@@ -79,7 +79,7 @@ It always has the format `YYYY-MM-DD`, e.g. `1992-11-07`.
     git tag -a v1.5.0 -m "Release 1.5.0"
     git push origin v1.5.0
     ```
-  
+
 ### 7. Create a GitLab Release (Optional)
 - 🐙 **GitLab Release Page**: Go to the GitLab project’s Releases section and create a new release linked to the v1.5.0 tag.
 - 📝 **Release Notes**: Add release notes using information from the changelog.
@@ -145,4 +145,3 @@ git push
 - **Versioning**: Always increment the version correctly using `bump2version` before creating the final release.
 - **Publishing Reminder**: Ensure your PyPI credentials are correctly set up in GitLab CI/CD or local `.pypirc` configuration for seamless uploads.
 - **Final Check**: If issues arise post-release, refer to the [GitLab CI/CD guide](https://docs.gitlab.com/ee/development/cicd/) and [PyPI documentation](https://packaging.python.org/en/latest/) for troubleshooting.
-

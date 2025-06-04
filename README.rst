@@ -5,7 +5,7 @@ EnTiSe
 
 A simple tool for generating time series data related to energy systems and building operations.
 
-.. .. list-table::
+.. list-table::
    :widths: auto
 
    * - License
@@ -27,12 +27,12 @@ A simple tool for generating time series data related to energy systems and buil
     :backlinks: top
 
 Introduction
-============
+=============
 **EnTiSe** (En-ergy Ti-me Se-ries) is a Python package designed to generate realistic time series data for various energy systems and building operations.
 It provides a flexible, pipeline- and strategy-based approach to create time series for different applications including HVAC, domestic hot water, electricity, mobility, and occupancy patterns.
 
 Key Features
-------------
+-------------
 - Multiple time series types including DHW, HVAC, PV, and more in the works.
 
 - Flexible pipeline- and strategy-based architecture for customizable time series generation.
@@ -43,17 +43,17 @@ Key Features
 
 
 Getting Started
-===============
+================
 To get started, follow these steps:
 
 Requirements
-------------
+-------------
 - `Python <https://www.python.org/>`_ (3.10 or newer)
 - `Git <https://git-scm.com/>`_ for version control (optional, only for development)
 
 
 Installation
-------------
+-------------
 EnTiSe can be installed directly from PyPI:
 
 .. code-block:: bash
@@ -84,7 +84,7 @@ Or clone the repository and install in development mode:
 Now you're ready to use EnTiSe! Check the examples directory for usage examples.
 
 Repository Structure
-====================
+=====================
 
 - **entise/**: Main project code organized in a Python package.
 
@@ -97,15 +97,15 @@ Repository Structure
 - **examples/**: Example scripts demonstrating usage of the package.
 
 Usage Guidelines
-================
+=================
 
 Basic Usage
------------
+------------
 
 EnTiSe provides two flexible ways to generate time series data:
 
 Batch Processing
-~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~
 
 For generating multiple time series at once:
 
@@ -137,7 +137,7 @@ For generating multiple time series at once:
    summary, df = gen.generate(data)
 
 Direct Method Access
-~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~
 
 For working with individual methods directly:
 
@@ -163,7 +163,7 @@ For working with individual methods directly:
 For more detailed examples, check the `examples` directory.
 
 Supported or Planned Time Series Types
----------------------------
+---------------------------------------
 EnTiSe supports generating time series for the following types:
 
 Integrated:
@@ -185,32 +185,32 @@ Planned:
 - Wind energy
 
 Documentation
-=============
+==============
 
 Please see the `documentation <https://entise.readthedocs.io>`_ for further information.
 
 
 Contribution and Code Quality
-=============================
+==============================
 Everyone is invited to develop this repository.
 Please follow the workflow described in the `CONTRIBUTING.md <CONTRIBUTING.md>`_.
 
 Coding Standards
-----------------
+-----------------
 This repository follows consistent coding styles. Refer to `CONTRIBUTING.md <CONTRIBUTING.md>`_ for detailed standards.
 
 Changelog
----------
+----------
 The changelog is maintained in the `CHANGELOG.md <CHANGELOG.md>`_ file.
 It lists all changes made to the repository.
 Follow instructions there to document any updates.
 
 License and Citation
-====================
+=====================
 | The code of this repository is licensed under the **MIT License** (MIT).
 | See `LICENSE <LICENSE>`_ for rights and obligations.
 | See `CITATION.cff <CITATION.cff>`_ for citation of this repository.
-| Copyright: `EnTiSe <https://gitlab.lrz.de/tum-ens/need/entise>`_ © `TU Munich - ENS <https://www.epe.ed.tum.de/en/ens/homepage/>`_ | `MIT <LICENSE>`_
+| Copyright: `EnTiSe <https://gitlab.lrz.de/tum-ens/need/entise>`_ (c) `TU Munich - ENS <https://www.epe.ed.tum.de/en/ens/homepage/>`_ | `MIT <LICENSE>`_
 
 
 .. |badge_license| image:: https://img.shields.io/badge/license-MIT-blue
