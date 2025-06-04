@@ -29,11 +29,13 @@ It provides a flexible, pipeline- and strategy-based approach to create time ser
 
 Key Features
 ------------
-- Multiple time series types including DHW, HVAC, and more in the works.
+- Multiple time series types including DHW, HVAC, PV, and more in the works.
 
 - Flexible pipeline- and strategy-based architecture for customizable time series generation.
 
 - Support for dependent methods to create related time series.
+
+- Two access patterns: batch processing via TimeSeriesGenerator or direct method imports for individual control.
 
 
 Getting Started
@@ -95,34 +97,63 @@ Usage Guidelines
 Basic Usage
 -----------
 
-EnTiSe provides a flexible API for generating various types of time series data. Here's a basic example of how to use it:
+EnTiSe provides two flexible ways to generate time series data:
+
+Batch Processing
+~~~~~~~~~~~~~~~
+
+For generating multiple time series at once:
 
 .. code-block:: python
 
-   from entise.core.generator import TimeSeriesGenerator as TSG
+   from entise.core.generator import TimeSeriesGenerator
 
    # Initialize the generator
-    gen = TimeSeriesGenerator()
+   gen = TimeSeriesGenerator()
 
-    # Add objects (e.g., buildings)
-    gen.add_objects({
-        "id": "building1",
-        "hvac": "1R1C",
-        "resistance": 2.0,
-        "capacitance": 1e5,
-        "temp_min": 20.0,
-        "temp_max": 24.0,
-    })
+   # Add objects (e.g., buildings)
+   gen.add_objects({
+       "id": "building1",
+       "hvac": "1R1C",
+       "resistance": 2.0,
+       "capacitance": 1e5,
+       "temp_min": 20.0,
+       "temp_max": 24.0,
+   })
 
-    # Prepare input data (e.g., weather)
-    data = {
-        "weather": pd.DataFrame({
-            "temp_out": [0.0] * 24,
-        }, index=pd.date_range("2025-01-01", periods=24, freq="h"))
-    }
+   # Prepare input data (e.g., weather)
+   data = {
+       "weather": pd.DataFrame({
+           "temp_out": [0.0] * 24,
+       }, index=pd.date_range("2025-01-01", periods=24, freq="h"))
+   }
 
-    # Generate time series
-    summary, df = gen.generate(data)
+   # Generate time series
+   summary, df = gen.generate(data)
+
+Direct Method Access
+~~~~~~~~~~~~~~~~~~~
+
+For working with individual methods directly:
+
+.. code-block:: python
+
+   from entise.methods.pv import PVLib
+
+   # Create an instance
+   pvlib = PVLib()
+
+   # Generate time series
+   result = pvlib.generate(
+       latitude=48.1,
+       longitude=11.6,
+       power=5000,
+       weather=weather_df
+   )
+
+   # Access results
+   summary = result["summary"]
+   timeseries = result["timeseries"]
 
 For more detailed examples, check the `examples` directory.
 
@@ -130,20 +161,20 @@ Supported or Planned Time Series Types
 ---------------------------
 EnTiSe supports generating time series for the following types:
 
-Integrated
+Integrated:
 
 - Domestic Hot Water (DHW)
 - HVAC (Heating, Ventilation, and Air Conditioning)
 - Occupancy data
+- Solar Photovoltaic (PV)
 
-Planned
+Planned:
 
 - Concentrated Solar Power (CSP)
 - Electricity demand or supply
 - Geothermal energy
 - Hydroelectric power
 - Mobility (transportation-related data)
-- Solar Photovoltaic (PV)
 - Tidal energy
 - Wave energy
 - Wind energy
