@@ -34,13 +34,9 @@ It provides a flexible, pipeline- and strategy-based approach to create time ser
 Key Features
 -------------
 - Multiple time series types including DHW, HVAC, PV, and more in the works.
-
 - Flexible pipeline- and strategy-based architecture for customizable time series generation.
-
 - Support for dependent methods to create related time series.
-
 - Two access patterns: batch processing via TimeSeriesGenerator or direct method imports for individual control.
-
 
 Getting Started
 ================
@@ -50,7 +46,6 @@ Requirements
 -------------
 - `Python <https://www.python.org/>`_ (3.10 or newer)
 - `Git <https://git-scm.com/>`_ for version control (optional, only for development)
-
 
 Installation
 -------------
@@ -105,7 +100,7 @@ Basic Usage
 EnTiSe provides two flexible ways to generate time series data:
 
 Batch Processing
-~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 For generating multiple time series at once:
 
@@ -137,7 +132,7 @@ For generating multiple time series at once:
    summary, df = gen.generate(data)
 
 Direct Method Access
-~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 For working with individual methods directly:
 
@@ -186,9 +181,7 @@ Planned:
 
 Documentation
 ==============
-
 Please see the `documentation <https://entise.readthedocs.io>`_ for further information.
-
 
 Contribution and Code Quality
 ==============================
