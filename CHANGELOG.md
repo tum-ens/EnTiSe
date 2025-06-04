@@ -9,6 +9,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ---
 
 ## [Unreleased]
+
+
+## [0.2.0] New architecture, methods and packaging - 2025-06-04
 ### Added
 - Added a simple RC model for HVAC time series (`#12`, `!6`)
 - Added simpler functionality for dependent methods (`#18`, `!12`)
