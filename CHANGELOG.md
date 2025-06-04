@@ -1,7 +1,7 @@
 
 # Changelog
 
-All notable changes to this project will be documented in this file. 
+All notable changes to this project will be documented in this file.
 See below for the format and guidelines for updating the changelog.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
@@ -16,9 +16,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Added a dhw method based on the method by Jordan et. al. in DHWCalc (`#16`, `!15`)
 - Added a PV generation method based on pvlib (`#29`, `!22`)
 - Added direct access methods to provide two ways for interacting with the tool (batch & singular) (`#31`, `!26`)
+- Converted the project into a proper Python package with modern tooling (`#32`, `!27`)
+- Added support for automatic versioning using git tags with hatch-vcs (`#32`, `!27`)
+- Added CI/CD configurations for both GitHub and GitLab (`#32`, `!27`)
+- Added support for Python 3.10-3.13 (`#32`, `!27`)
 
 ### Changed
 - Restructured entire architecture towards a pipeline- and strategy-based approach to make methods more flexible (`#18`, `!12`)
+- Replaced setuptools with hatchling for modern build system (`#32`, `!27`)
+- Replaced flake8, black, and isort with ruff for faster linting and formatting (`#32`, `!27`)
+- Replaced pip with uv for faster dependency management (`#32`, `!27`)
+- Updated pvlib to version 0.12.0 with different (IANA-based) timezone handling (`#32`, `!27`)
+- Updated Python version requirement to 3.10 or newer (`#32`, `!27`)
 
 ## [0.1.0] Initial Release - 2024-11-04
 ### Added

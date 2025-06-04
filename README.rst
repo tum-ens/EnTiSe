@@ -10,6 +10,10 @@ A simple tool for generating time series data related to energy systems and buil
 
    * - License
      - |badge_license|
+   * - Package
+     - |badge_pypi| |badge_python|
+   * - Build Status
+     - |badge_github_actions| |badge_gitlab_ci|
    * - Documentation
      - |badge_documentation|
    * - Development
@@ -24,7 +28,7 @@ A simple tool for generating time series data related to energy systems and buil
 
 Introduction
 ============
-**EnTiSe** (**En**ergy **Ti**me **Se**ries) is a Python package designed to generate realistic time series data for various energy systems and building operations.
+**EnTiSe** (En-ergy Ti-me Se-ries) is a Python package designed to generate realistic time series data for various energy systems and building operations.
 It provides a flexible, pipeline- and strategy-based approach to create time series for different applications including HVAC, domestic hot water, electricity, mobility, and occupancy patterns.
 
 Key Features
@@ -44,39 +48,40 @@ To get started, follow these steps:
 
 Requirements
 ------------
-- `Python <https://www.python.org/>`_
-- `Git <https://git-scm.com/>`_ for version control
+- `Python <https://www.python.org/>`_ (3.10 or newer)
+- `Git <https://git-scm.com/>`_ for version control (optional, only for development)
 
 
 Installation
 ------------
-#. Clone the repository to your local machine:
+EnTiSe can be installed directly from PyPI:
 
-   .. code-block:: bash
+.. code-block:: bash
 
-      git clone https://github.com/tum-ens/entise.git
+   pip install entise
 
-#. Set up the virtual environment:
+For faster installation, you can use `uv <https://github.com/astral-sh/uv>`_:
 
-   .. code-block:: bash
+.. code-block:: bash
 
-      python -m venv venv
-      # For Windows
-      venv\Scripts\activate
+   pip install uv
+   uv pip install entise
 
-      # For Linux/MacOS
-      source venv/bin/activate
+For development or the latest features, you can install directly from the repository:
 
+.. code-block:: bash
 
-#. Install dependencies:
+   pip install git+https://github.com/tum-ens/need/entise.git
 
-   .. code-block:: bash
+Or clone the repository and install in development mode:
 
-      pip install -r requirements.txt
+.. code-block:: bash
+
+   git clone https://github.com/tum-ens/need/entise.git
+   cd entise
+   pip install -e ".[dev]"
 
 Now you're ready to use EnTiSe! Check the examples directory for usage examples.
-
-EnTiSe is currently still under development but will be made available as package soon.
 
 Repository Structure
 ====================
@@ -241,3 +246,19 @@ License and Citation
 .. |badge_pr_closes| image:: https://img.shields.io/badge/merge_requests-closed-green
     :target: https://gitlab.lrz.de/tum-ens/need/entise/-/merge_requests
     :alt: closed merge requests
+
+.. |badge_pypi| image:: https://img.shields.io/pypi/v/entise
+    :target: https://pypi.org/project/entise/
+    :alt: PyPI
+
+.. |badge_python| image:: https://img.shields.io/pypi/pyversions/entise
+    :target: https://pypi.org/project/entise/
+    :alt: Python Version
+
+.. |badge_github_actions| image:: https://github.com/tum-ens/need/entise/actions/workflows/python-package.yml/badge.svg
+    :target: https://github.com/tum-ens/need/entise/actions/workflows/python-package.yml
+    :alt: GitHub Actions
+
+.. |badge_gitlab_ci| image:: https://gitlab.lrz.de/tum-ens/need/entise/badges/main/pipeline.svg
+    :target: https://gitlab.lrz.de/tum-ens/need/entise/-/pipelines
+    :alt: GitLab CI
