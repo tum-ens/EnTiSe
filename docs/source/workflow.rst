@@ -117,6 +117,69 @@ Once processing is complete, you can access and export your results:
     # Export to Feather (fast binary format)
     df.to_feather("output/timeseries.feather")
 
+Alternative Workflow: Direct Method Access
+------------------------------------------
+
+In addition to the batch processing workflow with TimeSeriesGenerator, EnTiSe also supports a direct method access workflow:
+
+1. **Import Method**:
+
+   .. code-block:: python
+
+      from entise.methods.pv import PVLib
+      from entise.methods.hvac import R1C1
+
+2. **Create Method Instance**:
+
+   .. code-block:: python
+
+      pvlib = PVLib()
+      rc_model = R1C1()
+
+3. **Define Parameters and Data**:
+
+   .. code-block:: python
+
+      obj = {
+          "id": "system_1",
+          "latitude": 48.1,
+          "longitude": 11.6,
+      }
+
+      data = {
+          "weather": weather_df,
+      }
+
+4. **Generate Timeseries**:
+
+   .. code-block:: python
+
+      # Using dictionaries
+      result = pvlib.generate(obj, data)
+
+      # Using named parameters directly
+      result = pvlib.generate(
+          latitude=48.1,
+          longitude=11.6,
+          weather=weather_df
+      )
+
+      # Combining both approaches
+      result = pvlib.generate(
+          obj=obj,  # Use values from obj dictionary
+          weather=weather_df,  # Provide weather data directly
+          power=6000  # Override any "power" value in obj
+      )
+
+      summary = result["summary"]
+      timeseries = result["timeseries"]
+
+This approach gives you more direct control over the generation process and is useful for:
+
+- Working with individual methods
+- Integrating EnTiSe methods into custom workflows
+- Debugging and testing specific methods
+
 Visual Overview
 ---------------
 

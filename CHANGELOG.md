@@ -15,13 +15,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Added basic documentation of the package (`#13`, `!8`)
 - Added a dhw method based on the method by Jordan et. al. in DHWCalc (`#16`, `!15`)
 - Added a PV generation method based on pvlib (`#29`, `!22`)
+- Added direct access methods to provide two ways for interacting with the tool (batch & singular) (`#31`, `!26`)
 
 ### Changed
 - Restructured entire architecture towards a pipeline- and strategy-based approach to make methods more flexible (`#18`, `!12`)
 
-## [0.1.0] Initial Release - Hello ENS-Repo-Template - 2024-11-04
+## [0.1.0] Initial Release - 2024-11-04
 ### Added
-- Initial setup of the project
+- Initial setup of the project with initial architecture (no methods added yet)
 
 ---
 
@@ -35,7 +36,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Fixed
 - Explanation of bugs or issues that have been resolved.
-  
+
 ### Deprecated
 - Note any features that are marked for future removal.
 
@@ -72,4 +73,3 @@ This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html):
 3. **Link Issues or MRs**: Where possible, reference related issues or merge requests for easy tracking.
 4. **Date Each Release**: Add the release date in `YYYY-MM-DD` format for each version.
 5. **Organize Unreleased Changes**: Document ongoing changes under the `[Unreleased]` section, which can be merged into the next release version.
-
