@@ -24,13 +24,17 @@ classifiers = [
 ]
 keywords = ["energy", "time series", "simulation"]
 dependencies = [
+    "cattrs",
     "chardet>=5.0.0",
     "holidays>=0.50",
     "joblib>=1.0.0",
     "matplotlib>=3.1.0",
     "numpy>=2.0.0",
+    "openmeteo-requests",
     "pandas>=2.0.0",
     "pvlib>=0.12.0",
+    "requests-cache",
+    "retry-requests",
     "tqdm>=4.0.0",
 ]
 requires-python = ">=3.10,<3.14"

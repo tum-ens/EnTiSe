@@ -10,7 +10,7 @@
 EnTiSe Documentation
 ====================
 
-**EnTiSe** (Energy Time Series) is a Python framework for generating synthetic time series data for energy systems research. 
+**EnTiSe** (Energy Time Series) is a Python framework for generating synthetic time series data for energy systems research.
 It provides a flexible and extensible platform for creating realistic time series for:
 
 * **HVAC** (Heating, Ventilation, and Air Conditioning)
@@ -80,6 +80,7 @@ Documentation Contents
    getting_started
    workflow
    methods/index
+   services/index
    examples
    api/index
 
