@@ -1,15 +1,17 @@
 import datetime as dt
-import pandas as pd
+
 import numpy as np
+import pandas as pd
 
 
 class Columns:
     """Column names used in timeseries data."""
+
     ID = "id"  # Object ID
     AREA = "area"  # Area of the object (m²)
     DATE = "date"  # Date
     DATETIME = "datetime"  # Timestamps
-    DAY = "day" # day
+    DAY = "day"  # day
     DAY_OF_WEEK = f"{DAY}_of_week"  # Day of the week (0-6; 6: Sunday)
     DAY_CALENDAR = f"{DAY}_calendar"  # Calendar day
     DEMAND = "demand"  # e.g. heating or cooling demand (Wh)
@@ -28,10 +30,12 @@ class Columns:
     POWER = "power"  # power (W)
     PROBABILITY = "probability"  # probability (of event; [0, 1])
     PROBABILITY_DAY = f"{PROBABILITY}_day"  # Probabilty of event per day [0, inf)
+    ROUGHNESS_LENGTH = "roughness_length"  # Roughness length
     SHADING = "shading"  # Shading [0, 1]
     SOLAR_DHI = "solar_dhi"  # Diffuse horizontal irradiance (W/m2)
     SOLAR_DNI = "solar_dni"  # Direct normal irradiance (W/m2)
     SOLAR_GHI = "solar_ghi"  # Global horizontal irradiance (W/m2)
+    SURFACE_PRESSURE = "surface_pressure"  # Surface pressure
     TEMP_IN = "temp_in"  # Indoor temperature (ºC)
     TEMP_OUT = "temp_out"  # Outdoor temperature (ºC)
     TEMP_WATER_COLD = "temp_water_cold"  # Cold water temperature (ºC)

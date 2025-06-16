@@ -5,6 +5,7 @@ class Objects:
     """Keys used for identifying objects and their attributes.
     Sorted alphabetically for easy reference (except for ID).
     """
+
     ID = "id"  # Unique identifier for an object
     ACTIVE = "active"
     ACTIVE_COOLING = f"{ACTIVE}_cooling"  # Activate cooling?
@@ -24,12 +25,17 @@ class Objects:
     DWELLING_SIZE = "dwelling_size"  # Size of dwelling (m2)
     FILE = "filename"  # File
     GAINS_INTERNAL = "gains_internal"  # Internal gains (W)
-    GAINS_INTERNAL_COL = f'{GAINS_INTERNAL}_{COLUMN}'  # column in which the internal gains are (if dataframe is provided)
-    GAINS_INTERNAL_PER_PERSON = f'{GAINS_INTERNAL}_per_person'  # Internal gains per person (W)
+    GAINS_INTERNAL_COL = (
+        f"{GAINS_INTERNAL}_{COLUMN}"  # column in which the internal gains are (if dataframe is provided)
+    )
+    GAINS_INTERNAL_PER_PERSON = f"{GAINS_INTERNAL}_per_person"  # Internal gains per person (W)
     GAINS_SOLAR = "gains_solar"  # Solar gains (W)
     GEN_MAX = "maximum_generation"  # Maximum generation (W)
     HOUSEHOLD_TYPE = "household_type"  # Type of household
-    HOLIDAYS_LOCATION = "holidays_location"  # Location from which to get the holidays from (e.g. BY,DE for Bavaria, Germany)
+    HOLIDAYS_LOCATION = (
+        "holidays_location"  # Location from which to get the holidays from (e.g. BY,DE for Bavaria, Germany)
+    )
+    HUB_HEIGHT = "hub_height"  # Hub height (wind)
     INHABITANTS = "inhabitants"  # Number of inhabitants
     LAT = "latitude"  # Latitude (degrees)
     LOAD = "load"
@@ -58,9 +64,11 @@ class Objects:
     THERMAL_INERTIA = "thermal_inertia"  # Thermal inertia [0, 1]
     TILT = "tilt"  # Tilt (degrees; 0 = horizontal)
     TRANSMITTANCE = "transmittance"  # Transmittance (W/m2/K)
+    TURBINE_TYPE = "turbine_type"  # Turbine type (wind)
     VENTILATION = "ventilation"  # Ventilation losses (W/K)
     VERBOSE = "verbose"  # Verbose
     WEATHER = "weather"  # Weather data
+    WIND_MODEL = "wind_model"  # Model chain (wind)
     WINDOWS = "windows"  # Windows
     DTYPES = {
         ID: object,
@@ -107,4 +115,4 @@ class Objects:
         VERBOSE: bool,
         WEATHER: str,
         WINDOWS: str,
-        }
+    }
