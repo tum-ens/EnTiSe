@@ -1,0 +1,20 @@
+{
+  "heat_pump_parameters": {
+    "hp_source": "ASHP",
+    "a": 0.005,
+    "b": -0.09,
+    "c": 6.08
+  },
+  "heat_sink_parameters": {
+    "heating": {
+      "hp_sink": "radiator",
+      "temp_sink": 40,
+      "gradient": -1.0
+  },
+    "dhw": {
+      "hp_sink": "water",
+      "temp_sink": 50,
+      "gradient": 0
+    }
+  }
+}

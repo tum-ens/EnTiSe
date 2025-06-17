@@ -1,0 +1,9 @@
+id,hp,weather,hp_source,hp_sink,temp_sink,gradient_sink,temp_water,correction_factor,hp_system
+367791,ruhnau,weather,air,radiator,50,-1,50,,
+31991680,ruhnau,weather,soil,floor,30,-0.5,55,,
+31991682,ruhnau,weather,water,radiator,35,-1,60,,
+31991685,ruhnau,weather,,floor,25,-0.5,,,
+31991686,ruhnau,weather,air,floor,35,,,,
+31991688,ruhnau,weather,soil,radiator,,,,,
+31991690,ruhnau,weather,water,floor,,,,,
+31991691,ruhnau,weather,,,,,,0.95,system
