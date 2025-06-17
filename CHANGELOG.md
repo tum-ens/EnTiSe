@@ -11,6 +11,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 ### Added
 - Added a weather service to download weather data directly (`#33`,`!31`)
+- Added heat pump COP time series generation method based on Ruhnau et al. (`#37`,`!34`)
 
 
 ## [0.2.0] New architecture, methods and packaging - 2025-06-04
