@@ -1,17 +1,20 @@
 import datetime as dt
-import pandas as pd
+
 import numpy as np
+import pandas as pd
 
 
 class Columns:
     """Column names used in timeseries data."""
+
     ID = "id"  # Object ID
     AREA = "area"  # Area of the object (m²)
     DATE = "date"  # Date
     DATETIME = "datetime"  # Timestamps
-    DAY = "day" # day
+    DAY = "day"  # day
     DAY_OF_WEEK = f"{DAY}_of_week"  # Day of the week (0-6; 6: Sunday)
     DAY_CALENDAR = f"{DAY}_calendar"  # Calendar day
+    COP = "cop"  # Coefficient of Performance
     DEMAND = "demand"  # e.g. heating or cooling demand (Wh)
     DURATION = "duration"  # (s)
     DURATION_SIGMA = f"{DURATION}_sigma"
@@ -32,10 +35,14 @@ class Columns:
     SOLAR_DHI = "solar_dhi"  # Diffuse horizontal irradiance (W/m2)
     SOLAR_DNI = "solar_dni"  # Direct normal irradiance (W/m2)
     SOLAR_GHI = "solar_ghi"  # Global horizontal irradiance (W/m2)
+    TEMP = "temperature"  #  Temperature (ºC)
     TEMP_IN = "temp_in"  # Indoor temperature (ºC)
     TEMP_OUT = "temp_out"  # Outdoor temperature (ºC)
-    TEMP_WATER_COLD = "temp_water_cold"  # Cold water temperature (ºC)
-    TEMP_WATER_HOT = "temp_water_hot"  # Hot water temperature (ºC)
+    TEMP_SOIL = "soil_temperature"  # Soil temperature (ºC)
+    TEMP_WATER = "temp_water"  # Water temperature (ºC)
+    TEMP_WATER_COLD = f"{TEMP_WATER}_cold"  # Cold water temperature (ºC)
+    TEMP_WATER_GROUND = "groundwater_temperature"  # Groundwater temperature (ºC)
+    TEMP_WATER_HOT = f"{TEMP_WATER}_hot"  # Hot water temperature (ºC)
     TILT = "tilt"  # Tilt (degrees; 0 = horizontal)
     TIME = "time"  # time of day
     TRANSMITTANCE = "transmittance"  # Transmittance (W/m2/K)
@@ -47,6 +54,7 @@ class Columns:
         DAY: int,
         DAY_OF_WEEK: int,
         DAY_CALENDAR: int,
+        COP: float | int | np.number,
         DEMAND: float | int | np.number,
         DURATION: float | int | np.number,
         DURATION_SIGMA: float | int | np.number,
@@ -66,6 +74,7 @@ class Columns:
         SOLAR_GHI: float | int | np.number,
         TEMP_IN: float | int | np.number,
         TEMP_OUT: float | int | np.number,
+        TEMP_WATER: float | int | np.number,
         TEMP_WATER_COLD: float | int | np.number,
         TEMP_WATER_HOT: float | int | np.number,
         TILT: float | int | np.number,
