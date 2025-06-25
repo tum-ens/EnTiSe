@@ -9,6 +9,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ---
 
 ## [Unreleased]
+
+## [0.2.1] Hotfix - 2025-06-25
 ### Fixed
 - Fixed exposure of methods which was taken out by the githooks (`#38`, `!35`)
 
