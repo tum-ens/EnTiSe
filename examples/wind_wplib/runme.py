@@ -177,10 +177,39 @@ for i, obj_id in enumerate(df):
     )  # Raw data as scatter
     axes[i].plot(bin_centers, power_curve.values, "r-", linewidth=2)  # Average curve
 
-    # Add vertical lines for typical cut-in, rated, and cut-out speeds
-    axes[i].axvline(x=3, color="green", linestyle="--", alpha=0.7, label="Cut-in speed")
-    axes[i].axvline(x=12, color="orange", linestyle="--", alpha=0.7, label="Rated speed")
-    axes[i].axvline(x=25, color="red", linestyle="--", alpha=0.7, label="Cut-out speed")
+    # Add vertical lines for cut-in, rated, and cut-out speeds based on power curve data
+    # Find cut-in speed (last value where power is zero)
+    power_values = list(power_curve.values)
+    bin_centers_list = bin_centers
+
+    # Find the last bin where power is close to zero (cut-in speed)
+    cut_in_indices = [i for i, p in enumerate(power_values) if p < power * 0.01]
+    cut_in_speed = bin_centers_list[cut_in_indices[-1]] if cut_in_indices else bin_centers_list[0]
+
+    # Find the first bin where power reaches its maximum (rated speed)
+    max_power = max(power_values)
+    rated_indices = [i for i, p in enumerate(power_values) if p >= max_power * 0.99]
+    rated_speed = bin_centers_list[rated_indices[0]] if rated_indices else bin_centers_list[-1]
+
+    # Find the cut-out speed (where power drops significantly after reaching maximum)
+    # First check if there are any points where power drops to near zero after reaching maximum
+    if rated_indices:
+        post_max_indices = [i for i in range(len(power_values)) if i > rated_indices[0]]
+        cut_out_indices = [i for i in post_max_indices if power_values[i] < max_power * 0.01]
+    else:
+        # If there are no rated indices, there can't be any cut-out indices
+        cut_out_indices = []
+
+    if cut_out_indices:
+        # If power drops to near zero after reaching maximum, use that as cut-out speed
+        cut_out_speed = bin_centers_list[cut_out_indices[0]]
+    else:
+        # Otherwise, use the last bin center
+        cut_out_speed = bin_centers_list[-1]
+
+    axes[i].axvline(x=cut_in_speed, color="green", linestyle="--", alpha=0.7, label="Cut-in speed")
+    axes[i].axvline(x=rated_speed, color="orange", linestyle="--", alpha=0.7, label="Rated speed")
+    axes[i].axvline(x=cut_out_speed, color="red", linestyle="--", alpha=0.7, label="Cut-out speed")
 
     axes[i].set_title(f"Turbine: {turbine_type}, Power: {power/1e6:.1f}MW")
     axes[i].set_xlabel("Wind Speed (m/s)")
