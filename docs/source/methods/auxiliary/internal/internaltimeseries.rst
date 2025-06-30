@@ -1,8 +1,8 @@
-InternalTimeSeries
+internaltimeseries
 =========================
 
 
-**Method Key:** ``InternalTimeSeries``
+**Method Key:** ``internaltimeseries``
 
 .. note::
    This is the class name. For auxiliary methods, the key is determined by the selector class.
@@ -26,10 +26,10 @@ Required Keys
 
    * - Key
      - Type
-   
+
    * - ``gains_internal_column``
      - ``str``
-   
+
 
 
 
@@ -114,5 +114,3 @@ Methods
                raise Warning(f'Neither explicit (column name) or implicit (column id) are specified.'
                              f'Given input column: {col}')
            return pd.DataFrame({O.GAINS_INTERNAL: internal_gains}, index=internal_gains.index)
-
-

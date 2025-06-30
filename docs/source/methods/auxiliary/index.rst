@@ -1,4 +1,4 @@
-AUXILIARY Methods
+Auxiliary methods
 =================
 
 .. toctree::

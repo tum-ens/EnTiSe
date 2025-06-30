@@ -1,12 +1,13 @@
-import os
-import inspect
-from jinja2 import Template
-import pkgutil
 import importlib
 import inspect
+import os
+import pkgutil
+
+from jinja2 import Template
+
+from entise.constants import VALID_TYPES
 from entise.core.base import Method
 from entise.core.base_auxiliary import AuxiliaryMethod
-from entise.constants import VALID_TYPES
 
 TEMPLATE_PATH = "./_templates/method.rst"
 BASE_OUTPUT_DIR = "./methods"  # Base folder for output
@@ -28,7 +29,7 @@ def discover_method_classes(package_name):
     package_path = package.__path__
 
     # Walk through all modules in the package
-    for _, module_name, is_pkg in pkgutil.walk_packages(package_path, prefix=package.__name__ + '.'):
+    for _, module_name, is_pkg in pkgutil.walk_packages(package_path, prefix=package.__name__ + "."):
         try:
             # Import the module or package
             module = importlib.import_module(module_name)
@@ -40,12 +41,14 @@ def discover_method_classes(package_name):
                 discovered_classes.extend(subpackage_classes)
 
             # Iterate over classes defined in the module
-            for name, obj in inspect.getmembers(module, inspect.isclass):
+            for _, obj in inspect.getmembers(module, inspect.isclass):
                 # Ensure the class is defined in this package and is a subclass of Method or AuxiliaryMethod.
-                if ((issubclass(obj, Method) or issubclass(obj, AuxiliaryMethod)) 
+                if (
+                    (issubclass(obj, Method) or issubclass(obj, AuxiliaryMethod))
                     and obj.__module__.startswith(package_name)
                     and obj is not AuxiliaryMethod  # Exclude the base AuxiliaryMethod class
-                    and obj is not Method):  # Exclude the base Method class
+                    and obj is not Method
+                ):  # Exclude the base Method class
                     discovered_classes.append(obj)
         except Exception as e:
             print(f"Could not import module/package {module_name}: {e}")
@@ -74,22 +77,20 @@ def extract_method_metadata(cls):
     dependencies = getattr(cls, "dependencies", [])
     docstring = inspect.getdoc(cls) or ""
 
-    # Extract method docstrings and source code for each function in the class, excluding dunder, private, and inherited methods
+    # Extract method docstrings and source code for each function in the class, excluding dunder, private,
+    # and inherited methods
     methods = {}
     for name, meth in inspect.getmembers(cls, predicate=inspect.isfunction):
         # Skip dunder methods (methods starting with __) and private methods (methods starting with _)
-        if not name.startswith('__') and not name.startswith('_'):
+        if not name.startswith("__") and not name.startswith("_"):
             # Check if the method is defined in this class (not inherited)
-            if meth.__qualname__.split('.')[0] == cls.__name__:
+            if meth.__qualname__.split(".")[0] == cls.__name__:
                 docstring = inspect.getdoc(meth) or ""
                 try:
                     source_code = inspect.getsource(meth)
                 except (IOError, TypeError):
                     source_code = "# Source code not available"
-                methods[name] = {
-                    "docstring": docstring,
-                    "source_code": source_code
-                }
+                methods[name] = {"docstring": docstring, "source_code": source_code}
     return {
         "description": docstring,
         "required_keys": required_keys,
@@ -116,7 +117,7 @@ def generate_docs_for_method(cls, timeseries_type, template_path, output_dir):
         template = Template(f.read())
 
     # Add 'hasattr' to the template's globals so it's available during rendering.
-    template.globals['hasattr'] = hasattr
+    template.globals["hasattr"] = hasattr
 
     # Render the template with the metadata and provided timeseries type.
     file_name = getattr(cls, "name", cls.__name__.lower())
@@ -152,12 +153,12 @@ def generate_docs_for_all_methods(method_classes, template_path, base_output_dir
     if os.path.exists(auxiliary_dir):
         for file in os.listdir(auxiliary_dir):
             file_path = os.path.join(auxiliary_dir, file)
-            if os.path.isfile(file_path) and file.endswith('.rst') and file != 'index.rst':
+            if os.path.isfile(file_path) and file.endswith(".rst") and file != "index.rst":
                 os.remove(file_path)
 
     for cls in method_classes:
         # Get the module path to check if it's in the auxiliary directory
-        module_path = cls.__module__.split('.')
+        module_path = cls.__module__.split(".")
 
         # Check if this is an auxiliary method either by inheritance or by module path
         is_auxiliary = issubclass(cls, AuxiliaryMethod) or "auxiliary" in module_path
@@ -187,7 +188,7 @@ def generate_docs_for_all_methods(method_classes, template_path, base_output_dir
 
             if supported_types is None:
                 # Determine type from module path instead of defaulting to HVAC
-                module_path = cls.__module__.split('.')
+                module_path = cls.__module__.split(".")
                 if len(module_path) >= 3 and module_path[2] in VALID_TYPES:
                     # Use the module directory name as the type
                     supported_types = [module_path[2].upper()]
@@ -239,16 +240,23 @@ def generate_index_for_folder(folder_path):
 
     # For other directories, use the original logic
     # List all .rst files in the folder, excluding index.rst
-    rst_files = sorted([
-        f for f in os.listdir(folder_path)
-        if f.endswith(".rst") and f.lower() != "index.rst"
-    ])
+    rst_files = sorted([f for f in os.listdir(folder_path) if f.endswith(".rst") and f.lower() != "index.rst"])
 
     if not rst_files:
         return
 
     # Create a title from the folder name (e.g., "hvac" -> "HVAC Methods")
-    title = f"{folder_name.camel()} methods"
+    if folder_name.upper() in ["PV", "HVAC", "DHW"]:
+        formatted_name = folder_name.upper()
+    else:
+        # Otherwise, capitalize the first letter of each word
+        formatted_name = folder_name.title()
+
+        # Special case for multi-word folder names with underscores
+        if "_" in formatted_name:
+            formatted_name = formatted_name.replace("_", " ").title()
+
+    title = f"{formatted_name} Methods"
     underline = "=" * len(title)
     # Build the content with a toctree directive
     content_lines = [
@@ -362,5 +370,6 @@ if __name__ == "__main__":
         print("Documentation generation completed successfully!")
     except Exception as e:
         import traceback
+
         print(f"Error during documentation generation: {e}")
         traceback.print_exc()

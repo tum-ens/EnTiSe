@@ -1,8 +1,8 @@
-SolarGainsInactive
+solargainsinactive
 =========================
 
 
-**Method Key:** ``SolarGainsInactive``
+**Method Key:** ``solargainsinactive``
 
 .. note::
    This is the class name. For auxiliary methods, the key is determined by the selector class.
@@ -115,5 +115,3 @@ Methods
                weather DataFrame's index.
            """
            return pd.DataFrame({O.GAINS_SOLAR: np.zeros(len(weather), dtype=np.float32)}, index=weather.index)
-
-

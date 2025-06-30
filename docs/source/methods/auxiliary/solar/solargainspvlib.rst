@@ -1,8 +1,8 @@
-SolarGainsPVLib
+solargainspvlib
 =========================
 
 
-**Method Key:** ``SolarGainsPVLib``
+**Method Key:** ``solargainspvlib``
 
 .. note::
    This is the class name. For auxiliary methods, the key is determined by the selector class.
@@ -39,16 +39,16 @@ Required Keys
 
    * - Key
      - Type
-   
+
    * - ``id``
      - ``str``
-   
+
    * - ``latitude``
      - ``str``
-   
+
    * - ``longitude``
      - ``str``
-   
+
 
 
 
@@ -174,5 +174,3 @@ Methods
                # Accumulate the gains
                total_solar_gains += window_gains.to_numpy(dtype=np.float32)
            return pd.DataFrame({O.GAINS_SOLAR: total_solar_gains}, index=weather.index)
-
-
