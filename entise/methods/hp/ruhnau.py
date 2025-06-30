@@ -233,6 +233,7 @@ class Ruhnau(Method):
         weather = self.get_with_backup(obj, O.WEATHER, None)
         if weather is None:
             logger.warning("No weather provided")
+            raise ValueError("Weather data is required but not provided")
         weather = self.get_with_backup(data, weather)
         data_out[O.WEATHER] = self._process_weather_data(weather)
 
