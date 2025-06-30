@@ -27,7 +27,6 @@ class Objects:
     FILE = "filename"  # File
     GAINS_INTERNAL = "gains_internal"  # Internal gains (W)
     GAINS_INTERNAL_COL = f"{GAINS_INTERNAL}_{COLUMN}"  # column in which the internal gains are (dataframe provided)
-
     GAINS_INTERNAL_PER_PERSON = f"{GAINS_INTERNAL}_per_person"  # Internal gains per person (W)
     GAINS_SOLAR = "gains_solar"  # Solar gains (W)
     GEN_MAX = "maximum_generation"  # Maximum generation (W)
@@ -37,6 +36,7 @@ class Objects:
     HP_SINK = "hp_sink"  # Heat pump sink type (floor, radiator, water)
     HP_SOURCE = "hp_source"  # Heat pump source type (air, soil, water)
     HP_SYSTEM = "hp_system"  # HP system configuration
+    HUB_HEIGHT = "hub_height"  # Hub height (wind)
     INHABITANTS = "inhabitants"  # Number of inhabitants
     LAT = "latitude"  # Latitude (degrees)
     LOAD = "load"
@@ -67,9 +67,11 @@ class Objects:
     THERMAL_INERTIA = "thermal_inertia"  # Thermal inertia [0, 1]
     TILT = "tilt"  # Tilt (degrees; 0 = horizontal)
     TRANSMITTANCE = "transmittance"  # Transmittance (W/m2/K)
+    TURBINE_TYPE = "turbine_type"  # Turbine type (wind)
     VENTILATION = "ventilation"  # Ventilation losses (W/K)
     VERBOSE = "verbose"  # Verbose
     WEATHER = "weather"  # Weather data
+    WIND_MODEL = "wind_model"  # Model chain (wind)
     WINDOWS = "windows"  # Windows
     DTYPES = {
         ID: object,

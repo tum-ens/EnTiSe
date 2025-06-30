@@ -31,10 +31,12 @@ class Columns:
     POWER = "power"  # power (W)
     PROBABILITY = "probability"  # probability (of event; [0, 1])
     PROBABILITY_DAY = f"{PROBABILITY}_day"  # Probabilty of event per day [0, inf)
+    ROUGHNESS_LENGTH = "roughness_length"  # Roughness length
     SHADING = "shading"  # Shading [0, 1]
     SOLAR_DHI = "solar_dhi"  # Diffuse horizontal irradiance (W/m2)
     SOLAR_DNI = "solar_dni"  # Direct normal irradiance (W/m2)
     SOLAR_GHI = "solar_ghi"  # Global horizontal irradiance (W/m2)
+    SURFACE_PRESSURE = "surface_pressure"  # Surface pressure
     TEMP = "temperature"  #  Temperature (ºC)
     TEMP_IN = "temp_in"  # Indoor temperature (ºC)
     TEMP_OUT = "temp_out"  # Outdoor temperature (ºC)
