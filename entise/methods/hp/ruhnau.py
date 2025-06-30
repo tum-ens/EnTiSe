@@ -11,10 +11,11 @@ based on temperature differences.
 """
 
 import logging
+import re
 
-import numpy as np
 import pandas as pd
 
+import entise.methods.hp.defaults as defs
 from entise.constants import Columns as C
 from entise.constants import Objects as O
 from entise.constants import Types
@@ -22,48 +23,39 @@ from entise.core.base import Method
 
 logger = logging.getLogger(__name__)
 
-# Define heat pump source types
-HP_AIR = "ASHP"  # Air Source Heat Pump
-HP_SOIL = "GSHP"  # Ground Source Heat Pump
-HP_WATER = "WSHP"  # Water Source Heat Pump
-SOURCES = [HP_AIR, HP_SOIL, HP_WATER]
-
 # Define default heat pump parameters for each technology
 HP_SYSTEM = {
-    HP_AIR: {
+    defs.HP_AIR: {
         "a": 0.0005,
         "b": -0.09,
         "c": 6.08,
     },
-    HP_SOIL: {
+    defs.HP_SOIL: {
         "a": 0.0012,
         "b": -0.21,
         "c": 10.29,
     },
-    HP_WATER: {
+    defs.HP_WATER: {
         "a": 0.0012,
         "b": -0.20,
         "c": 9.97,
     },
 }
 
-# Define heat sink types
-FLOOR = "floor"
-RADIATOR = "radiator"
-WATER = "water"
-
 # Define default temperature parameters for each sink type
-SINKS = {
-    FLOOR: {O.TEMP_SINK: 30, O.GRADIENT_SINK: -0.5},
-    RADIATOR: {O.TEMP_SINK: 40, O.GRADIENT_SINK: -1.0},
-    WATER: {O.TEMP_SINK: 50, O.GRADIENT_SINK: 0},
+DEFAULT_SINKS = {
+    defs.FLOOR: {O.TEMP_SINK: 30, O.GRADIENT_SINK: -0.5},
+    defs.RADIATOR: {O.TEMP_SINK: 40, O.GRADIENT_SINK: -1.0},
+    defs.WATER: {O.TEMP_SINK: 50, O.GRADIENT_SINK: 0},
 }
-
-# Temperature column names
-SOURCE_MAP = {HP_AIR: C.TEMP, HP_SOIL: C.TEMP_SOIL, HP_WATER: C.TEMP_WATER_GROUND}
 
 # Default correction factor
 DEFAULT_CORRECTION_FACTOR = 0.85
+
+# Strings
+HP_PARAMS = "heat_pump_parameters"
+HEAT_PARAMS = "heating_parameters"
+DHW_PARAMS = "dhw_parameters"
 
 
 class Ruhnau(Method):
@@ -123,6 +115,7 @@ class Ruhnau(Method):
         gradient_sink: float = None,
         temp_water: float = None,
         correction_factor: float = None,
+        hp_system: dict = None,
         cop_coefficients: dict = None,
     ):
         """Generate heat pump COP time series for both heating and DHW.
@@ -138,7 +131,8 @@ class Ruhnau(Method):
             gradient_sink (float, optional): Gradient setting for heating
             temp_water (float, optional): Temperature setting for DHW
             correction_factor (float, optional): Efficiency correction factor
-            cop_coefficients (dict, optional): Custom coefficients for COP calculation
+            hp_system (dict, optional): System configuration for heat pump
+            cop_coefficients (dict, optional): Custom coefficients for COP calculation (a, b, c)
 
         Returns:
             dict: Dictionary with summary statistics and COP time series for both heating and DHW
@@ -160,15 +154,13 @@ class Ruhnau(Method):
         )
 
         # Get input data with validation
-        processed_obj, processed_data, custom_coefficients = self._get_input_data(
-            processed_obj, processed_data, cop_coefficients
-        )
+        processed_obj, processed_data = self._get_input_data(processed_obj, processed_data)
 
         # Calculate heating COP time series
-        heating_cop_series = self._calculate_heating_cop_series(processed_obj, processed_data, custom_coefficients)
+        heating_cop_series = _calculate_heating_cop_series(processed_obj, processed_data)
 
         # Calculate DHW COP time series
-        dhw_cop_series = self._calculate_dhw_cop_series(processed_obj, processed_data, custom_coefficients)
+        dhw_cop_series = _calculate_dhw_cop_series(processed_obj, processed_data)
 
         # Prepare output
         summary = {
@@ -190,13 +182,12 @@ class Ruhnau(Method):
             "timeseries": timeseries,
         }
 
-    def _get_input_data(self, obj, data, custom_coefficients=None):
+    def _get_input_data(self, obj, data):
         """Process and validate input parameters.
 
         Args:
             obj (dict): Dictionary with heat pump parameters
             data (dict): Dictionary with input data
-            custom_coefficients (dict, optional): Custom coefficients for COP calculation
 
         Returns:
             tuple: Processed object, data, and custom coefficients
@@ -204,345 +195,213 @@ class Ruhnau(Method):
         Raises:
             ValueError: If required parameters are missing or invalid
         """
-        # Get weather data
-        weather_df = self.get_with_backup(data, O.WEATHER)
-        if weather_df is None:
-            raise ValueError("Weather data is required but not provided")
+        obj_out = {}
+        obj_out[HP_PARAMS] = {}
+        obj_out[HEAT_PARAMS] = {}
+        obj_out[DHW_PARAMS] = {}
+        data_out = {}
 
-        # Ensure weather data has the right format
-        weather_df = self._prepare_weather_data(weather_df)
-        data[O.WEATHER] = weather_df
+        # Get system parameters either from obj df or specifications
+        hp_system = self.get_with_backup(obj, O.HP_SYSTEM, None)
+        if isinstance(hp_system, str):
+            params = self.get_with_backup(data, hp_system)
+            obj_out[HP_PARAMS] = params[HP_PARAMS]
+            obj_out[HEAT_PARAMS] = params[HEAT_PARAMS]
+            obj_out[DHW_PARAMS] = params[DHW_PARAMS]
+        else:
+            hp_source = self.get_with_backup(obj, O.HP_SOURCE, defs.DEFAULT_HP)
+            obj_out[HP_PARAMS][O.HP_SOURCE] = hp_source
+            obj_out[HP_PARAMS]["coeffs"] = HP_SYSTEM[hp_source]
+            hp_sink = self.get_with_backup(obj, O.HP_SINK, defs.DEFAULT_HEAT)
+            obj_out[HEAT_PARAMS][O.HP_SINK] = hp_sink
+            obj_out[HEAT_PARAMS][O.TEMP_SINK] = self.get_with_backup(
+                obj, O.TEMP_SINK, DEFAULT_SINKS[hp_sink][O.TEMP_SINK]
+            )
+            obj_out[HEAT_PARAMS][O.GRADIENT_SINK] = self.get_with_backup(
+                obj, O.GRADIENT_SINK, DEFAULT_SINKS[hp_sink][O.GRADIENT_SINK]
+            )
+            dhw_sink = defs.WATER
+            obj_out[DHW_PARAMS][O.HP_SINK] = dhw_sink
+            obj_out[DHW_PARAMS][O.TEMP_SINK] = self.get_with_backup(
+                obj, O.TEMP_WATER, DEFAULT_SINKS[dhw_sink][O.TEMP_SINK]
+            )
+            obj_out[DHW_PARAMS][O.GRADIENT_SINK] = DEFAULT_SINKS[dhw_sink][O.GRADIENT_SINK]
 
-        # Check if a system configuration is provided
-        hp_system = self.get_with_backup(obj, O.HP_SYSTEM)
+        obj_out[O.CORRECTION_FACTOR] = self.get_with_backup(obj, O.CORRECTION_FACTOR, DEFAULT_CORRECTION_FACTOR)
 
-        # Process heat pump parameters
-        hp_source = self.get_with_backup(obj, O.HP_SOURCE)
-        hp_sink = self.get_with_backup(obj, O.HP_SINK)
-        hp_temp = self.get_with_backup(obj, O.TEMP_SINK)
-        gradient_sink = self.get_with_backup(obj, O.GRADIENT_SINK)
-        temp_water = self.get_with_backup(obj, O.TEMP_WATER)
-        correction_factor = self.get_with_backup(obj, O.CORRECTION_FACTOR, DEFAULT_CORRECTION_FACTOR)
+        # Process weather data
+        weather = self.get_with_backup(obj, O.WEATHER, None)
+        if weather is None:
+            logger.warning("No weather provided")
+        weather = self.get_with_backup(data, weather)
+        data_out[O.WEATHER] = self._process_weather_data(weather)
 
-        # If a system configuration is provided, use it to set the heat pump parameters
-        if hp_system is not None:
-            try:
-                # If hp_system is a string, assume it's a predefined system
-                if isinstance(hp_system, str) and hp_system == "system":
-                    # Use the default HP_SYSTEM parameters
-                    logger.info("Using predefined system configuration")
-                    # No need to do anything, as we'll use the HP_SYSTEM constant
-                elif isinstance(hp_system, dict):
-                    # Use the provided system configuration
-                    logger.info("Using provided system configuration")
-                    if "heat_pump_parameters" in hp_system:
-                        params = hp_system["heat_pump_parameters"]
-                        hp_source = params.get("hp_source", hp_source)
-                        # If coefficients are provided, use them as custom coefficients
-                        if all(k in params for k in ["a", "b", "c"]):
-                            custom_coefficients = {"a": params.get("a"), "b": params.get("b"), "c": params.get("c")}
+        return obj_out, data_out
 
-                    if "heat_sink_parameters" in hp_system:
-                        sink_params = hp_system["heat_sink_parameters"]
-                        if "heating" in sink_params:
-                            heating = sink_params["heating"]
-                            hp_sink = heating.get("hp_sink", hp_sink)
-                            hp_temp = heating.get("temp_sink", hp_temp)
-                            gradient_sink = heating.get("gradient", gradient_sink)
-
-                        if "dhw" in sink_params:
-                            dhw = sink_params["dhw"]
-                            temp_water = dhw.get("temp_sink", temp_water)
-                else:
-                    logger.warning(f"Unknown system configuration format: {hp_system}")
-            except Exception as e:
-                logger.error(f"Error processing system configuration: {e}")
-
-        # If temp_water is not provided, use a default value from SINKS
-        if temp_water is None:
-            temp_water = SINKS[WATER][O.TEMP_SINK]
-            logger.warning(f"DHW temperature not provided, using default value of {temp_water}°C")
-
-        # If gradient_sink is not provided, use the default value from SINKS
-        if gradient_sink is None and hp_sink is not None:
-            gradient_sink = SINKS[hp_sink][O.GRADIENT_SINK]
-            logger.info(f"Gradient not provided, using default value of {gradient_sink} for {hp_sink}")
-
-        # Validate parameters if custom coefficients are not provided
-        if custom_coefficients is None:
-            if hp_source is not None and hp_source not in SOURCES:
-                raise ValueError(f"Invalid heat pump source: {hp_source}. Must be one of {SOURCES}")
-
-            if hp_sink is not None and hp_sink not in SINKS:
-                raise ValueError(f"Invalid heat sink: {hp_sink}. Must be one of {list(SINKS.keys())}")
-
-            # Check if the temperature is valid for the selected sink
-            if hp_sink is not None and hp_temp is not None:
-                valid_temps = SINKS[hp_sink]["temp_0"]
-                if hp_temp not in valid_temps:
-                    logger.warning(
-                        f"Temperature {hp_temp} not in standard values {valid_temps} for {hp_sink}. "
-                        f"Using the closest value."
-                    )
-                    hp_temp = min(valid_temps, key=lambda x: abs(x - hp_temp))
-
-        # Update object with processed values
-        obj[O.HP_SOURCE] = hp_source
-        obj[O.HP_SINK] = hp_sink
-        obj[O.TEMP_SINK] = hp_temp
-        obj[O.GRADIENT_SINK] = gradient_sink
-        obj[O.TEMP_WATER] = temp_water
-        obj[O.CORRECTION_FACTOR] = correction_factor
-
-        return obj, data, custom_coefficients
-
-    def _prepare_weather_data(self, weather_df):
+    def _process_weather_data(self, df):
         """Prepare weather data for COP calculation.
 
         Args:
-            weather_df (pd.DataFrame): Weather data
+            df (pd.DataFrame): Weather data
 
         Returns:
             pd.DataFrame: Processed weather data with required temperature columns
         """
-        # Make a copy to avoid modifying the original
-        weather_df = weather_df.copy()
-
         # Ensure datetime index
-        if "datetime" in weather_df.columns:
-            weather_df.index = pd.to_datetime(weather_df["datetime"])
+        if C.DATETIME in df.columns:
+            df.index = pd.to_datetime(df[C.DATETIME])
         else:
-            weather_df.index = pd.to_datetime(weather_df.index)
+            df.index = pd.to_datetime(df.index)
 
-        # Map temperature column names if they exist with different names
-        column_mapping = {}
+        # Strip altitude information and rename columns
+        column_names = {col: re.sub(r"_(c)?m$", "", col) for col in df.columns}
+        df.rename(columns=column_names, inplace=True)
 
-        # Check for air temperature column
-        if C.TEMP not in weather_df.columns:
-            if "temperature" in weather_df.columns:
-                column_mapping["temperature"] = C.TEMP
-                logger.info("Using 'temperature' column as air temperature")
-            else:
-                # If no air temperature column, add a placeholder (this will likely cause errors later)
-                logger.warning("No air temperature column found in weather data")
-                weather_df[C.TEMP] = np.nan
+        # Add missing temperature columns
+        df = self._add_missing_temperature_columns(df)
 
-        # Check for soil temperature column
-        if C.TEMP_SOIL not in weather_df.columns:
-            if "soil_temperature" in weather_df.columns:
-                column_mapping["soil_temperature"] = C.TEMP_SOIL
-                logger.info("Using 'soil_temperature' column as soil temperature")
-            else:
-                # Calculate soil temperature from air temperature
-                logger.info("Calculating soil temperature from air temperature")
-                air_temp_col = C.TEMP if C.TEMP in weather_df.columns else "temperature"
-                weather_df["rolling_temp"] = weather_df[air_temp_col].rolling(window=24, min_periods=1).mean()
-                weather_df[C.TEMP_SOIL] = weather_df["rolling_temp"].apply(self._calc_soil_temp)
-                weather_df.drop(columns=["rolling_temp"], inplace=True)
+        return df
 
-        # Check for groundwater temperature column
-        if C.TEMP_WATER_GROUND not in weather_df.columns:
-            if "groundwater_temperature" in weather_df.columns:
-                column_mapping["groundwater_temperature"] = C.TEMP_WATER_GROUND
-                logger.info("Using 'groundwater_temperature' column as groundwater temperature")
-            else:
-                # Set default groundwater temperature
-                logger.info("Setting default groundwater temperature to 10°C")
-                weather_df[C.TEMP_WATER_GROUND] = 10
-
-        # Rename columns if needed
-        if column_mapping:
-            weather_df.rename(columns=column_mapping, inplace=True)
-
-        return weather_df
-
-    def _calc_soil_temp(self, t_avg_d):
-        """Calculate soil temperature based on average air temperature.
-
-        Based on "WP Monitor" Feldmessung von Wärmepumpenanlagen, Frauenhofer ISE, 2014.
+    @staticmethod
+    def _add_missing_temperature_columns(df):
+        """Add missing temperature columns to the DataFrame.
 
         Args:
-            t_avg_d (float): Average air temperature
+            df (pd.DataFrame): DataFrame to process
 
         Returns:
-            float: Calculated soil temperature
+            pd.DataFrame: DataFrame with missing temperature columns added
         """
-        t_soil = -0.0003 * t_avg_d**3 + 0.0086 * t_avg_d**2 + 0.3047 * t_avg_d + 5.0647
-        return t_soil
+        # Check if the air temperature column is missing
+        if C.TEMP not in df.columns:
+            logger.warning("No air temperature column found in weather data")
+            raise Warning(f"No air temperature column '{C.TEMP}' found in weather data")
 
-    def _calculate_heating_cop_series(self, obj, data, custom_coefficients=None):
-        """Calculate heating COP time series based on temperature differences.
+        # Add soil temperature column if missing
+        if C.TEMP_SOIL not in df.columns:
+            logger.info("Calculating soil temperature from air temperature")
+            df["rolling_temp"] = df[C.TEMP].rolling(window=24, min_periods=1).mean()
+            df[C.TEMP_SOIL] = df["rolling_temp"].apply(_calc_soil_temp)
+            df.drop(columns=["rolling_temp"], inplace=True)
 
-        Args:
-            obj (dict): Dictionary with heat pump parameters
-            data (dict): Dictionary with input data
-            custom_coefficients (dict, optional): Custom coefficients for COP calculation
+        # Add groundwater temperature column if missing
+        if C.TEMP_WATER_GROUND not in df.columns:
+            logger.info("Setting default groundwater temperature to 10°C")
+            df[C.TEMP_WATER_GROUND] = 10
 
-        Returns:
-            pd.Series: Heating COP time series
-        """
-        weather_df = data[O.WEATHER]
-        hp_source = obj[O.HP_SOURCE]
-        hp_sink = obj[O.HP_SINK]
-        hp_temp = obj[O.TEMP_SINK]
-        gradient_sink = obj[O.GRADIENT_SINK]
-        correction_factor = obj[O.CORRECTION_FACTOR]
+        return df
 
-        if custom_coefficients is not None:
-            # Use custom coefficients for COP calculation
-            return self._calculate_cop_with_custom_coefficients(weather_df, custom_coefficients, correction_factor)
-        elif hp_source is not None and hp_sink is not None and hp_temp is not None:
-            # Use standard model with heat pump type and sink
-            return self._calculate_cop_with_standard_model(
-                weather_df, hp_source, hp_sink, hp_temp, correction_factor, gradient_sink
-            )
-        else:
-            # If parameters are missing, use default values
-            logger.warning("Missing parameters for heating COP calculation, using default values")
-            return self._calculate_cop_with_standard_model(
-                weather_df,
-                HP_AIR,  # Default to air source
-                RADIATOR,  # Default to radiator
-                40,  # Default to 40°C
-                correction_factor,
-            )
 
-    def _calculate_dhw_cop_series(self, obj, data, custom_coefficients=None):
-        """Calculate DHW COP time series based on temperature differences.
+def _calc_soil_temp(t_avg):
+    """Calculate soil temperature based on average air temperature.
 
-        Args:
-            obj (dict): Dictionary with heat pump parameters
-            data (dict): Dictionary with input data
-            custom_coefficients (dict, optional): Custom coefficients for COP calculation
+    Based on "WP Monitor" Feldmessung von Wärmepumpenanlagen, Frauenhofer ISE, 2014.
 
-        Returns:
-            pd.Series: DHW COP time series
-        """
-        weather_df = data[O.WEATHER]
-        hp_source = obj[O.HP_SOURCE]
-        temp_water = obj[O.TEMP_WATER]
-        correction_factor = obj[O.CORRECTION_FACTOR]
-        # For DHW, we use the gradient from SINKS[WATER]
-        gradient_sink = SINKS[WATER][O.GRADIENT_SINK]
+    Args:
+        t_avg (float): Average air temperature
 
-        if custom_coefficients is not None:
-            # Use custom coefficients for COP calculation
-            return self._calculate_cop_with_custom_coefficients(weather_df, custom_coefficients, correction_factor)
-        elif hp_source is not None and temp_water is not None:
-            # Use standard model with heat pump type and water as sink
-            return self._calculate_cop_with_standard_model(
-                weather_df,
-                hp_source,
-                WATER,  # Always use 'water' as sink type for DHW
-                temp_water,
-                correction_factor,
-                gradient_sink,
-            )
-        else:
-            # If parameters are missing, use default values
-            logger.warning("Missing parameters for DHW COP calculation, using default values")
-            return self._calculate_cop_with_standard_model(
-                weather_df,
-                HP_AIR,  # Default to air source
-                WATER,  # Always use 'water' as sink type for DHW
-                50,  # Default to 50°C
-                correction_factor,
-                gradient_sink,
-            )
+    Returns:
+        float: Calculated soil temperature
+    """
+    t_soil = -0.0003 * t_avg**3 + 0.0086 * t_avg**2 + 0.3047 * t_avg + 5.0647
+    return t_soil
 
-    def _calculate_cop_with_standard_model(
-        self, weather_df, hp_source, hp_sink, hp_temp, correction_factor, gradient_sink=None
-    ):
-        """Calculate COP using the standard model based on heat pump type and sink.
 
-        Args:
-            weather_df (pd.DataFrame): Weather data
-            hp_source (str): Heat pump source type
-            hp_sink (str): Heat sink type
-            hp_temp (float): Temperature setting
-            correction_factor (float): Efficiency correction factor
-            gradient_sink (float, optional): Gradient for sink temperature calculation.
-                If None, uses the default gradient from SINKS.
+def _calculate_heating_cop_series(obj, data):
+    """Calculate heating COP time series based on temperature differences.
 
-        Returns:
-            pd.Series: COP time series
-        """
-        # Use provided gradient or get default from SINKS
-        if gradient_sink is None:
-            gradient_sink = SINKS[hp_sink][O.GRADIENT_SINK]
+    Args:
+        obj (dict): Dictionary with heat pump parameters
+        data (dict): Dictionary with input data
 
-        # Calculate sink temperature based on ambient temperature
-        sink_temp = hp_temp + gradient_sink * weather_df[C.TEMP]
+    Returns:
+        pd.Series: Heating COP time series
+    """
+    weather_df = data[O.WEATHER]
+    hp_source = obj[HP_PARAMS][O.HP_SOURCE]
+    hp_coeffs = obj[HP_PARAMS]["coeffs"]
+    temp_sink = obj[HEAT_PARAMS][O.TEMP_SINK]
+    gradient_sink = obj[HEAT_PARAMS][O.GRADIENT_SINK]
+    correction_factor = obj[O.CORRECTION_FACTOR]
+    return _calculate_cop(weather_df, hp_source, hp_coeffs, temp_sink, gradient_sink, correction_factor)
 
-        # Calculate temperature difference
-        delta_t = sink_temp - weather_df[SOURCE_MAP[hp_source]]
 
-        # Apply temperature offset for ground and water source heat pumps
-        if hp_source in [HP_SOIL, HP_WATER]:
-            delta_t -= 5
+def _calculate_dhw_cop_series(obj, data):
+    """Calculate DHW COP time series based on temperature differences.
 
-        # Apply COP formula based on heat pump type
-        cop_values = self._apply_cop_formula(hp_source, delta_t, custom_coeffs=None)
+    Args:
+        obj (dict): Dictionary with heat pump parameters
+        data (dict): Dictionary with input data
 
-        # Apply correction factor
-        cop_values = cop_values * correction_factor
+    Returns:
+        pd.Series: DHW COP time series
+    """
+    weather_df = data[O.WEATHER]
+    hp_source = obj[HP_PARAMS][O.HP_SOURCE]
+    hp_coeffs = obj[HP_PARAMS]["coeffs"]
+    temp_sink = obj[DHW_PARAMS][O.TEMP_SINK]
+    gradient_sink = obj[DHW_PARAMS][O.GRADIENT_SINK]
+    correction_factor = obj[O.CORRECTION_FACTOR]
+    return _calculate_cop(weather_df, hp_source, hp_coeffs, temp_sink, gradient_sink, correction_factor)
 
-        return cop_values
 
-    def _calculate_cop_with_custom_coefficients(self, weather_df, coefficients, correction_factor):
-        """Calculate COP using custom coefficients.
+def _calculate_cop(
+    weather_df,
+    hp_source,
+    coeffs,
+    temp_sink,
+    gradient_sink,
+    correction_factor,
+    temp_offset_types: list = (defs.HP_SOIL, defs.HP_WATER),
+    temp_offset: float = 5,
+):
+    """Calculate COP time series based on temperature differences.
 
-        This function is a wrapper around _apply_cop_formula that handles the extraction
-        of temperature data from the weather DataFrame and applies the correction factor
-        to the resulting COP values.
+    Args:
+        weather_df (pd.DataFrame): Weather data containing temperature information
+        hp_source (str): Heat pump source type
+        coeffs (dict): Coefficients for the COP formula
+        temp_sink (float): Temperature setting for the heat sink
+        gradient_sink (float): Gradient for sink temperature calculation
+        correction_factor (float): Efficiency correction factor
+        temp_offset_types (list, optional): Heat pump source types that need temperature offset
+        temp_offset (float, optional): Temperature offset value
 
-        Args:
-            weather_df (pd.DataFrame): Weather data containing temperature information
-            coefficients (dict): Custom coefficients for the quadratic formula.
-                Should contain keys 'a', 'b', and 'c'.
-            correction_factor (float): Efficiency correction factor to apply to the COP values
+    Returns:
+        pd.Series: COP time series
+    """
+    # Calculate sink temperature
+    sink_temp = temp_sink + gradient_sink * weather_df[C.TEMP]
 
-        Returns:
-            pd.Series: COP time series calculated with custom coefficients and correction factor
-        """
-        # Use air temperature as default
-        temp_diff = weather_df[C.TEMP]
+    # Calculate temperature difference
+    delta_t = sink_temp - weather_df[defs.SOURCE_MAP[hp_source]]
 
-        # Apply COP formula using the _apply_cop_formula method with custom coefficients
-        cop_values = self._apply_cop_formula(None, temp_diff, custom_coeffs=coefficients)
+    # Apply temperature offset for ground and water source heat pumps
+    if hp_source in temp_offset_types:
+        delta_t -= temp_offset
 
-        # Apply correction factor
-        cop_values = cop_values * correction_factor
+    # Apply COP formula and correction factor
+    cop_values = _apply_cop_formula(delta_t, coeffs) * correction_factor
 
-        return cop_values
+    return cop_values
 
-    def _apply_cop_formula(self, hp_source, delta_t, custom_coeffs=None):
-        """Apply the appropriate COP formula based on heat pump type or custom coefficients.
 
-        This function calculates COP values using a quadratic formula of the form:
-        COP = c + b * delta_t + a * delta_t^2
+def _apply_cop_formula(delta_t, coeffs):
+    """Apply the quadratic COP formula with the provided coefficients.
 
-        The coefficients (a, b, c) are either taken from the predefined HP_SYSTEM dictionary
-        based on the heat pump source type, or from the provided custom_coeffs dictionary.
+    Args:
+        delta_t (pd.Series): Temperature difference series
+        coeffs (dict): Coefficients for the quadratic formula with keys 'a', 'b', and 'c'
 
-        Args:
-            hp_source (str): Heat pump source type (used if custom_coeffs is None)
-            delta_t (pd.Series): Temperature difference series
-            custom_coeffs (dict, optional): Custom coefficients for the quadratic formula.
-                Should contain keys 'a', 'b', and 'c'. If provided, hp_source is ignored.
+    Returns:
+        pd.Series: COP values calculated using the quadratic formula
 
-        Returns:
-            pd.Series: COP values calculated using the quadratic formula
-        """
-        if custom_coeffs is not None:
-            # Use custom coefficients
-            a = custom_coeffs.get("a", 0.0005)
-            b = custom_coeffs.get("b", -0.09)
-            c = custom_coeffs.get("c", 6.08)
-            return c + b * delta_t + a * delta_t**2
-        elif hp_source in HP_SYSTEM:
-            # Use predefined coefficients for the heat pump source
-            coeffs = HP_SYSTEM[hp_source]
-            return coeffs["c"] + coeffs["b"] * delta_t + coeffs["a"] * delta_t**2
-        else:
-            raise ValueError(f"Unknown heat pump source: {hp_source}")
+    Raises:
+        KeyError: If coeffs is missing any of the required keys
+    """
+    # Ensure all required keys are present
+    if not all(key in coeffs for key in ["a", "b", "c"]):
+        raise KeyError("Coefficients must contain keys 'a', 'b', and 'c'")
+
+    # Apply quadratic formula: c + b*x + a*x²
+    return coeffs["c"] + coeffs["b"] * delta_t + coeffs["a"] * delta_t**2
