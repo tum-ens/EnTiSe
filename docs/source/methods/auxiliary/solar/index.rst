@@ -1,4 +1,4 @@
-SOLAR Methods
+Solar Methods
 =============
 
 .. toctree::

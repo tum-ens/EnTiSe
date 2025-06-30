@@ -1,8 +1,8 @@
-Csp Methods
-===========
+PV Methods
+==========
 
 .. toctree::
    :maxdepth: 1
 
    file.rst
-   fileloader.rst
+   pvlib.rst

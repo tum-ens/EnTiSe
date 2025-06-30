@@ -1,8 +1,8 @@
-InternalInactive
+internalinactive
 =========================
 
 
-**Method Key:** ``InternalInactive``
+**Method Key:** ``internalinactive``
 
 .. note::
    This is the class name. For auxiliary methods, the key is determined by the selector class.
@@ -70,5 +70,3 @@ Methods
 
          def run(self, weather):
            return pd.DataFrame({O.GAINS_INTERNAL: np.zeros(len(weather), dtype=np.float32)}, index=weather.index)
-
-
