@@ -11,3 +11,4 @@ except ImportError:
     __version__ = "unknown"
 
 # Import and expose the methods module
+import entise.methods

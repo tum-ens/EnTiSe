@@ -145,6 +145,7 @@ for i, obj_id in enumerate(df):
     axes[i].set_title(f"ID {obj_id}, Source: {hp_source}, Sink: {hp_sink}")
     axes[i].set_xlabel("Time")
     axes[i].set_ylabel("COP")
+    axes[i].set_ylim(0, 12)
     axes[i].legend()
     axes[i].grid(True)
 
@@ -262,6 +263,7 @@ for i, obj_id in enumerate(df):
     axes[i].set_title(f"ID {obj_id}, Source: {hp_source}, Sink: {hp_sink}")
     axes[i].set_xlabel("Hour of Day")
     axes[i].set_ylabel("Average COP")
+    axes[i].set_ylim(0, 10)
     axes[i].legend()
     axes[i].grid(True)
     axes[i].set_xticks(range(0, 24, 4))  # Show fewer ticks for readability
@@ -355,6 +357,7 @@ for i, obj_id in enumerate(df):
     axes[i].set_title(f"ID {obj_id}, Source: {hp_source}, Sink: {hp_sink}")
     axes[i].set_xlabel("Temperature (°C)")
     axes[i].set_ylabel("COP")
+    axes[i].set_ylim(0, 12)
     axes[i].legend()
     axes[i].grid(True)
 
