@@ -3,12 +3,16 @@ import logging
 import numpy as np
 import pandas as pd
 
+from entise.constants import Constants as Const
 from entise.constants import Objects as O
 from entise.core.base_auxiliary import AuxiliaryMethod
 
 log = logging.getLogger(__name__)
 
-DEFAULT_VENTILATION = 60
+DEFAULT_VENTILATION = 65  # only for constant calculation (W/K)
+DEFAULT_VENTILATION_FACTOR = 0.5  # 1/h
+AIR_DENSITY = 1.2  # kg/m³
+HEAT_CAPACITY = 1000  # J/kgK
 
 
 class VentilationInactive(AuxiliaryMethod):
@@ -103,18 +107,23 @@ class VentilationTimeSeries(AuxiliaryMethod):
         ventilation_ts = data.get(ventilation_key)
         input_data = {
             O.ID: obj.get(O.ID, None),
+            O.AREA: obj.get(O.AREA, Const.DEFAULT_AREA.value),
+            O.HEIGHT: obj.get(O.HEIGHT, Const.DEFAULT_HEIGHT.value),
             O.VENTILATION_COL: obj.get(O.VENTILATION_COL, None),
             O.VENTILATION: ventilation_ts,
+            O.VENTILATION_FACTOR: obj.get(O.VENTILATION_FACTOR, DEFAULT_VENTILATION_FACTOR),
         }
         return input_data
 
     def run(self, **kwargs):
         object_id = kwargs[O.ID]
+        area = kwargs[O.AREA]
+        height = kwargs[O.HEIGHT]
         col = kwargs[O.VENTILATION_COL]
         ventilation = kwargs[O.VENTILATION]
         col = col if isinstance(col, str) else str(object_id)
         try:
-            ventilation = ventilation.loc[:, col]
+            ventilation = ventilation.loc[:, col] * area * height * AIR_DENSITY * HEAT_CAPACITY / 3600
         except KeyError as err:
             log.error('Ventilation column "%s" does not exist', col)
             raise Warning(
