@@ -1,6 +1,6 @@
-<!-- .gitlab/merge_requests_templates/Method_Merge_Request.md -->
+<!-- .github/PULL_REQUEST_TEMPLATE/method_change.md -->
 
-## 🔀 Method Change Merge Request
+## 🔀 Method Change Pull Request
 
 ### TL;DR
 Briefly describe the method change (max 5 sentences).
