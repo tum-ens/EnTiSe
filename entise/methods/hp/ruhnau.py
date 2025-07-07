@@ -151,6 +151,7 @@ class Ruhnau(Method):
             gradient_sink=gradient_sink,
             temp_water=temp_water,
             correction_factor=correction_factor,
+            cop_coefficients=cop_coefficients,
         )
 
         # Get input data with validation
@@ -211,7 +212,10 @@ class Ruhnau(Method):
         else:
             hp_source = self.get_with_backup(obj, O.HP_SOURCE, defs.DEFAULT_HP)
             obj_out[HP_PARAMS][O.HP_SOURCE] = hp_source
-            obj_out[HP_PARAMS]["coeffs"] = HP_SYSTEM[hp_source]
+
+            # Check for custom coefficients first
+            cop_coefficients = self.get_with_backup(obj, "cop_coefficients", None)
+            obj_out[HP_PARAMS]["coeffs"] = cop_coefficients if cop_coefficients is not None else HP_SYSTEM[hp_source]
             hp_sink = self.get_with_backup(obj, O.HP_SINK, defs.DEFAULT_HEAT)
             obj_out[HEAT_PARAMS][O.HP_SINK] = hp_sink
             obj_out[HEAT_PARAMS][O.TEMP_SINK] = self.get_with_backup(
