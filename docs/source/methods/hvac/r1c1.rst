@@ -1,0 +1,109 @@
+R1C1
+=========================
+
+
+**Method Key:** ``1R1C``
+
+.. note::
+   This is the key required to call this method when using bulk generation with TimeSeriesGenerator.
+
+
+Description
+-----------
+
+
+
+Requirements
+-------------
+
+Required Keys
+~~~~~~~~~~~~~
+
+
+.. list-table::
+   :widths: auto
+   :header-rows: 1
+
+   * - Key
+     - Type
+   
+   * - ``capacitance``
+     - ``str``
+   
+   * - ``resistance``
+     - ``str``
+   
+   * - ``weather``
+     - ``str``
+   
+
+
+
+Required Timeseries
+~~~~~~~~~~~~~~~~~~~
+
+
+
+**Timeseries Key:** ``weather``
+
+
+
+
+
+
+
+
+
+
+
+
+Dependencies
+-------------
+
+
+- None
+
+
+Methods
+-------
+
+
+**generate**:
+
+
+  .. code-block:: python
+
+         def generate(self, obj, data, ts_type):
+
+           obj, data = get_input_data(obj, data)
+
+           # Precompute auxiliary data
+           data[O.GAINS_SOLAR] = SolarGains().generate(obj, data)
+           data[O.GAINS_INTERNAL] = InternalGains().generate(obj, data)
+
+           # Compute temperature and energy demand
+           temp_in, p_heat, p_cool = calculate_timeseries(obj, data)
+
+           logger.debug(f"[HVAC R1C1] {ts_type}: max heating {p_heat.max()}, cooling {p_cool.max()}")
+
+           timestep = data[O.WEATHER][C.DATETIME].diff().dt.total_seconds().dropna().mode()[0]
+           summary = {
+               f"{C.DEMAND}_{Types.HEATING}": int(round(p_heat.sum() * timestep / 3600)),
+               f'{O.LOAD_MAX}_{Types.HEATING}': int(max(p_heat)),
+               f"{C.DEMAND}_{Types.COOLING}": int(round(p_cool.sum() * timestep / 3600)),
+               f'{O.LOAD_MAX}_{Types.COOLING}': int(max(p_cool)),
+           }
+
+           df = pd.DataFrame({
+               f"{C.TEMP_IN}": temp_in,
+               f"{C.LOAD}_{Types.HEATING}": p_heat,
+               f"{C.LOAD}_{Types.COOLING}": p_cool,
+           }, index= data[O.WEATHER].index)
+           df.index.name = C.DATETIME
+
+           return {
+               "summary": summary,
+               "timeseries": df
+           }
+
+

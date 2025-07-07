@@ -1,8 +1,7 @@
-Hydro Methods
+HYDRO Methods
 =============
 
 .. toctree::
    :maxdepth: 1
 
-   file.rst
    fileloader.rst

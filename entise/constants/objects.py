@@ -17,6 +17,7 @@ class Objects:
     AZIMUTH = "azimuth"  # Azimuth (degrees; 0/360 = North)
     CAPACITANCE = "capacitance"  # Capacitance (J/K)
     COLUMN = "column"
+    CORRECTION_FACTOR = "correction_factor"  # Correction factor for calculations
     DATETIMES = "datetimes"
     DEMAND = "demand"
     DHW_ACTIVITY = "dhw_activity"  # DHW activity filename
@@ -25,17 +26,17 @@ class Objects:
     DWELLING_SIZE = "dwelling_size"  # Size of dwelling (m2)
     FILE = "filename"  # File
     GAINS_INTERNAL = "gains_internal"  # Internal gains (W)
-    GAINS_INTERNAL_COL = (
-        f"{GAINS_INTERNAL}_{COLUMN}"  # column in which the internal gains are (if dataframe is provided)
-    )
+    GAINS_INTERNAL_COL = f"{GAINS_INTERNAL}_{COLUMN}"  # column in which the internal gains are (dataframe provided)
     GAINS_INTERNAL_PER_PERSON = f"{GAINS_INTERNAL}_per_person"  # Internal gains per person (W)
     GAINS_SOLAR = "gains_solar"  # Solar gains (W)
     GEN_MAX = "maximum_generation"  # Maximum generation (W)
+    GRADIENT_SINK = "gradient_sink"  # Gradient of the sink temperature
     HEIGHT = "height"  # Height (m)
     HOUSEHOLD_TYPE = "household_type"  # Type of household
-    HOLIDAYS_LOCATION = (
-        "holidays_location"  # Location from which to get the holidays from (e.g. BY,DE for Bavaria, Germany)
-    )
+    HOLIDAYS_LOCATION = "holidays_location"  # Location from which to get the holidays from (e.g. BY,DE)
+    HP_SINK = "hp_sink"  # Heat pump sink type (floor, radiator, water)
+    HP_SOURCE = "hp_source"  # Heat pump source type (air, soil, water)
+    HP_SYSTEM = "hp_system"  # HP system configuration
     HUB_HEIGHT = "hub_height"  # Hub height (wind)
     INHABITANTS = "inhabitants"  # Number of inhabitants
     LAT = "latitude"  # Latitude (degrees)
@@ -56,12 +57,14 @@ class Objects:
     SEASONAL_VARIATION = "seasonal_variation"  # Seasonal variation factor
     SEED = "seed"  # Seed to ensure reproducibility
     SOURCE = "source"  # Source of data or method
-    TEMP_WATER_COLD = "temp_water_cold"  # Cold water temperature (C)
-    TEMP_WATER_HOT = "temp_water_hot"  # Hot water temperature (C)
-    TEMP_INIT = "temp_init"  # Initial temperature (C)
-    TEMP_MAX = "temp_max"  # Maximum temperature (C)
-    TEMP_MIN = "temp_min"  # Minimum temperature (C)
-    TEMP_SET = "temp_set"  # Set temperature (C)
+    TEMP_WATER = "temp_water"  # Water temperature (ºC)
+    TEMP_WATER_COLD = f"{TEMP_WATER}_cold"  # Cold water temperature (ºC)
+    TEMP_WATER_HOT = f"{TEMP_WATER}_hot"  # Hot water temperature (ºC)
+    TEMP_INIT = "temp_init"  # Initial temperature (ºC)
+    TEMP_MAX = "temp_max"  # Maximum temperature (ºC)
+    TEMP_MIN = "temp_min"  # Minimum temperature (ºC)
+    TEMP_SET = "temp_set"  # Set temperature (ºC)
+    TEMP_SINK = "temp_sink"  # Heat pump sink temperature setting (ºC)
     THERMAL_INERTIA = "thermal_inertia"  # Thermal inertia [0, 1]
     TILT = "tilt"  # Tilt (degrees; 0 = horizontal)
     TRANSMITTANCE = "transmittance"  # Transmittance (W/m2/K)
@@ -80,6 +83,7 @@ class Objects:
         ACTIVE_GAINS_SOLAR: bool,
         AREA: int | float | np.number,
         CAPACITANCE: int | float | np.number,
+        CORRECTION_FACTOR: float | int | np.number,
         DATETIMES: str,
         DEMAND: int | float | np.number,
         DHW_ACTIVITY: str,
@@ -89,8 +93,12 @@ class Objects:
         GAINS_INTERNAL: int | float | np.number | str,
         GAINS_INTERNAL_COL: str,
         GAINS_SOLAR: int | float | np.number | str,
+        GRADIENT_SINK: int | float | np.number,
         HOUSEHOLD_TYPE: str,
         HOLIDAYS_LOCATION: str,
+        HP_SINK: str,
+        HP_SOURCE: str,
+        HP_SYSTEM: str,
         INHABITANTS: int | float | np.number,
         LAT: int | float | np.number,
         LOAD: int | float | np.number,
@@ -106,12 +114,14 @@ class Objects:
         SEASONAL_PEAK_DAY: int,
         SEASONAL_VARIATION: float,
         SOURCE: str,
+        TEMP_WATER: int | float | np.number,
         TEMP_WATER_COLD: int | float | np.number,
         TEMP_WATER_HOT: int | float | np.number,
         TEMP_INIT: int | float | np.number,
         TEMP_MAX: int | float | np.number,
         TEMP_MIN: int | float | np.number,
         TEMP_SET: int | float | np.number,
+        TEMP_SINK: int | float | np.number,
         THERMAL_INERTIA: int | float | np.number,
         TILT: int | float | np.number,
         VENTILATION: int | float | np.number,

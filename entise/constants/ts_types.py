@@ -1,5 +1,6 @@
 class Types:
     """Valid timeseries types."""
+
     BIOMASS = "biomass"  # Biomass energy
     COOLING = "cooling"  # Cooling demand or supply
     CSP = "csp"  # Concentrated Solar Power
@@ -7,6 +8,7 @@ class Types:
     ELECTRICITY = "electricity"  # Electricity demand or supply
     GEOTHERMAL = "geothermal"  # Geothermal energy
     HEATING = "heating"  # Heating demand or supply
+    HP = "hp"  # Heat Pump COP
     HYDRO = "hydro"  # Hydroelectric power
     HVAC = "hvac"  # Heating, Ventilation, and Air Conditioning
     MOBILITY = "mobility"  # Transportation-related data

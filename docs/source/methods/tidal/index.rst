@@ -1,8 +1,7 @@
-Tidal Methods
+TIDAL Methods
 =============
 
 .. toctree::
    :maxdepth: 1
 
-   file.rst
    fileloader.rst

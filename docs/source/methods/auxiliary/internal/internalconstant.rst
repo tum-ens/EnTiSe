@@ -1,8 +1,8 @@
-internalconstant
+InternalConstant
 =========================
 
 
-**Method Key:** ``internalconstant``
+**Method Key:** ``InternalConstant``
 
 .. note::
    This is the class name. For auxiliary methods, the key is determined by the selector class.
@@ -26,10 +26,10 @@ Required Keys
 
    * - Key
      - Type
-
+   
    * - ``gains_internal``
      - ``str``
-
+   
 
 
 
@@ -104,3 +104,5 @@ Methods
                {O.GAINS_INTERNAL: np.full(len(weather), gains_internal, dtype=np.float32)},
                index=weather.index
            )
+
+
