@@ -31,6 +31,7 @@ class Objects:
     GAINS_SOLAR = "gains_solar"  # Solar gains (W)
     GEN_MAX = "maximum_generation"  # Maximum generation (W)
     GRADIENT_SINK = "gradient_sink"  # Gradient of the sink temperature
+    HEIGHT = "height"  # Height (m)
     HOUSEHOLD_TYPE = "household_type"  # Type of household
     HOLIDAYS_LOCATION = "holidays_location"  # Location from which to get the holidays from (e.g. BY,DE)
     HP_SINK = "hp_sink"  # Heat pump sink type (floor, radiator, water)
@@ -69,6 +70,8 @@ class Objects:
     TRANSMITTANCE = "transmittance"  # Transmittance (W/m2/K)
     TURBINE_TYPE = "turbine_type"  # Turbine type (wind)
     VENTILATION = "ventilation"  # Ventilation losses (W/K)
+    VENTILATION_COL = f"{VENTILATION}_{COLUMN}"
+    VENTILATION_FACTOR = f"{VENTILATION}_factor"  # 1/h
     VERBOSE = "verbose"  # Verbose
     WEATHER = "weather"  # Weather data
     WIND_MODEL = "wind_model"  # Model chain (wind)
