@@ -96,20 +96,20 @@ class JordanVajen(Method):
         O.TEMP_WATER_HOT,
     ]
     output_summary = {
-        f"{C.DEMAND}_{Types.DHW}_volume_total": "total hot water demand in liters",
-        f"{C.DEMAND}_{Types.DHW}_volume_avg": "average hot water demand in liters",
-        f"{C.DEMAND}_{Types.DHW}_volume_peak": "peak hot water demand in liters",
-        f"{C.DEMAND}_{Types.DHW}_energy_total": "total energy demand for hot water in Wh",
-        f"{C.DEMAND}_{Types.DHW}_energy_avg": "average energy demand for hot water in Wh",
-        f"{C.DEMAND}_{Types.DHW}_energy_peak": "peak energy demand for hot water in Wh",
-        f"{C.DEMAND}_{Types.DHW}_power_avg": "average power for hot water in W",
-        f"{C.DEMAND}_{Types.DHW}_power_max": "maximum power for hot water in W",
-        f"{C.DEMAND}_{Types.DHW}_power_min": "minimum power for hot water in W",
+        f"{Types.DHW}_volume_total": "total hot water demand in liters",
+        f"{Types.DHW}_volume_avg": "average hot water demand in liters",
+        f"{Types.DHW}_volume_peak": "peak hot water demand in liters",
+        f"{Types.DHW}_energy_total": "total energy demand for hot water in Wh",
+        f"{Types.DHW}_energy_avg": "average energy demand for hot water in Wh",
+        f"{Types.DHW}_energy_peak": "peak energy demand for hot water in Wh",
+        f"{Types.DHW}_power_avg": "average power for hot water in W",
+        f"{Types.DHW}_power_max": "maximum power for hot water in W",
+        f"{Types.DHW}_power_min": "minimum power for hot water in W",
     }
     output_timeseries = {
-        f"{C.LOAD}_{Types.DHW}_volume": "hot water demand in liters",
-        f"{C.LOAD}_{Types.DHW}_energy": "energy demand for hot water in Wh",
-        f"{C.LOAD}_{Types.DHW}_power": "power demand for hot water in W",
+        f"{Types.DHW}_volume": "hot water demand in liters",
+        f"{Types.DHW}_energy": "energy demand for hot water in Wh",
+        f"{Types.DHW}_power": "power demand for hot water in W",
         f"{Types.DHW}_{O.TEMP_WATER_COLD}": "cold water temperature in degrees Celsius",
         f"{Types.DHW}_{O.TEMP_WATER_HOT}": "hot water temperature in degrees Celsius",
     }
@@ -191,11 +191,11 @@ class JordanVajen(Method):
 
         processed_obj, processed_data = get_input_data(processed_obj, processed_data, ts_type)
 
-        ts_volume, ts_energy, ts_power = calculate_timeseries(processed_obj, processed_data)
+        ts_volume, ts_energy, ts_power, water_temp = calculate_timeseries(processed_obj, processed_data)
 
         logger.debug(f"[DHW jordanvajen]: Generating {ts_type} data")
 
-        return format_output(processed_data, ts_volume, ts_energy, ts_power)
+        return format_output(processed_data, ts_volume, ts_energy, ts_power, water_temp)
 
 
 def get_input_data(obj, data, method_type=Types.DHW):
@@ -359,10 +359,10 @@ def calculate_timeseries(obj, data):
     # Calculate power as energy divided by time
     ts_power = ts_energy / time_diff.values
 
-    return ts_volume, ts_energy, ts_power
+    return ts_volume, ts_energy, ts_power, water_temp
 
 
-def format_output(data, ts_volume, ts_energy, ts_power, tank_duration_h: float = 2):
+def format_output(data, ts_volume, ts_energy, ts_power, water_temp, tank_duration_h: float = 2):
     """
     Format and postprocess the DHW demand time series into a structured output
     for reporting and downstream use.
@@ -425,7 +425,7 @@ def format_output(data, ts_volume, ts_energy, ts_power, tank_duration_h: float =
     - This function is tailored to hot water tanks but may generalize to other thermal buffers.
 
     Examples:
-    >>> result = format_output(data, ts_volume, ts_energy, ts_power, tank_duration_h=2.0)
+    >>> result = format_output(data, ts_volume, ts_energy, ts_power, water_temp, tank_duration_h=2.0)
     >>> summary = result["summary"]
     >>> result["timeseries"].columns
     Index(['dhw_volume', 'dhw_energy', 'dhw_power',
@@ -479,6 +479,8 @@ def format_output(data, ts_volume, ts_energy, ts_power, tank_duration_h: float =
             f"{Types.DHW}_power_sma": sma.astype(int),
             f"{Types.DHW}_power_ewma": ewma.astype(int),
             f"{Types.DHW}_power_gaussian": gaussian.astype(int),
+            f"{Types.DHW}_{O.TEMP_WATER_COLD}": water_temp.loc[:, O.TEMP_WATER_COLD],
+            f"{Types.DHW}_{O.TEMP_WATER_HOT}": water_temp.loc[:, O.TEMP_WATER_COLD],
         },
         index=time_index,
     )
