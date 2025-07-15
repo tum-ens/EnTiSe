@@ -110,6 +110,9 @@ class JordanVajen(Method):
         f"{Types.DHW}_volume": "hot water demand in liters",
         f"{Types.DHW}_energy": "energy demand for hot water in Wh",
         f"{Types.DHW}_power": "power demand for hot water in W",
+        f"{Types.DHW}_power_sma": "smoothed power demand using simple moving average",
+        f"{Types.DHW}_power_ewma": "smoothed power demand using exponential weighted moving average",
+        f"{Types.DHW}_power_gaussian": "smoothed power demand using gaussian smoothing",
         f"{Types.DHW}_{O.TEMP_WATER_COLD}": "cold water temperature in degrees Celsius",
         f"{Types.DHW}_{O.TEMP_WATER_HOT}": "hot water temperature in degrees Celsius",
     }
