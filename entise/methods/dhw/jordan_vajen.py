@@ -362,79 +362,97 @@ def calculate_timeseries(obj, data):
     return ts_volume, ts_energy, ts_power
 
 
-def format_output(data, ts_volume, ts_energy, ts_power):
+def format_output(data, ts_volume, ts_energy, ts_power, tank_duration_h: float = 2):
     """
     Format and postprocess the DHW demand time series into a structured output
     for reporting and downstream use.
 
-    This function prepares both:
-    1. A summary of key performance indicators (volume, energy, and power statistics),
-    2. A time series DataFrame with raw and smoothed power demand values using
-       three different smoothing techniques:
-       - SMA (Simple Moving Average)
-       - EWMA (Exponentially Weighted Moving Average)
-       - Gaussian kernel smoothing
+    This function performs the final formatting step of the Jordan & Vajen DHW
+    demand generator. It computes:
+    1. Summary statistics for DHW volume, energy, and power.
+    2. A time series DataFrame containing:
+        - Raw DHW power, energy, and volume
+        - Smoothed DHW power using three realistic smoothing methods:
+            - SMA (Simple Moving Average)
+            - EWMA (Exponentially Weighted Moving Average)
+            - Gaussian smoothing
 
-    These smoothed versions of the raw DHW power profile can be used to approximate
-    the impact of thermal buffering in hot water storage tanks.
+    The smoothing is parameterized by a single physically meaningful value:
+    the storage tank's effective thermal buffering duration in **hours**. Based
+    on this value and the time resolution of the input time series, all internal
+    smoothing parameters (window size, decay rate, kernel width) are derived
+    automatically.
+
+    Smoothing methods applied:
+    1. **SMA (Simple Moving Average)**
+       - Window size = tank_duration / timestep
+       - Centered moving average, symmetric
+       - Approximates blunt buffering effect with fixed delay
+
+    2. **EWMA (Exponential Weighted Moving Average)**
+       - α = Δt / (τ + Δt), where τ = tank_duration
+       - Causal, lagging response
+       - Models reactive systems (e.g., thermostatically controlled tanks)
+
+    3. **Gaussian smoothing**
+       - Symmetric, bell-shaped weight curve
+       - σ = window / 4, window = tank_duration / timestep
+       - Best for anticipatory smoothing or postprocessed ideal tank behavior
+
+    All smoothing methods:
+    - Fill edge NaNs with the original raw signal
+    - Round to integer W to match common DHW device behavior
+    - Are computed only for the power profile (volume and energy remain unchanged)
 
     Args:
-        data (dict): A dictionary containing processed inputs, including:
-            - 'datetimes_index' (pd.DatetimeIndex): The index to be used for the time series output.
-        ts_volume (pd.Series): Time series of hot water demand in liters. Typically shaped using activity profiles.
-        ts_energy (pd.Series): Time series of hot water energy demand in watt-hours (Wh), adjusted by water temperature.
-        ts_power (pd.Series): Time series of instantaneous power demand in watts (W), derived from energy and timestep.
+        data (dict): Input dictionary containing at least:
+            - 'datetimes_index': pd.DatetimeIndex
+        ts_volume (pd.Series): Volume demand time series [liters].
+        ts_energy (pd.Series): Energy demand time series [Wh].
+        ts_power (pd.Series): Power demand time series [W].
+        tank_duration_h (float): Desired smoothing duration in hours (e.g. 2.0 for 2 hours).
 
     Returns:
-        dict:
-            {
-                "summary": dict with total, average, and peak demand metrics,
-                "timeseries": pd.DataFrame with raw and smoothed DHW outputs
-            }
-
-    Internal Smoothing Methods:
-        - create_sma_ts(ts, window=8):
-            Applies a centered simple moving average over 8 samples (~2 hours).
-            Fills edge NaNs with original raw series values.
-
-        - create_ewma_ts(ts, alpha=0.1):
-            Applies causal exponential smoothing with a decay factor α = 0.1,
-            corresponding to a time constant τ ≈ 2 hours. Mimics reactive tank behavior.
-
-        - create_gaussian_ts(ts, window=8, std=2):
-            Applies symmetric Gaussian smoothing with std=2 over an 8-sample window (~2 hours).
-            Mimics anticipatory or postprocessed smoothing as with idealized tanks.
+        dict: {
+            "summary": demand statistics,
+            "timeseries": DataFrame with raw and smoothed DHW demand
+        }
 
     Notes:
-        - All power time series (raw and smoothed) are rounded and converted to integer watts (W).
-        - The smoothing methods are tuned based on typical tank behavior and timestep resolution (15 min).
-        - Missing values from smoothing (at edges) are filled using the original raw signal for physical plausibility.
-        - The volume and energy series remain unaltered.
+    - This function assumes the input time series are at constant resolution (e.g. 15 min).
+    - It automatically infers time step size and scales smoothing accordingly.
+    - Internally rounds and casts all power signals to `int` for consistency with discrete appliance modeling.
+    - This function is tailored to hot water tanks but may generalize to other thermal buffers.
 
-    Example:
-        >>> result = format_output(data, ts_volume, ts_energy, ts_power)
-        >>> result['summary']
-        {
-            'dhw_volume_total': 1350,
-            'dhw_volume_avg': 187.5,
-            ...
-        }
-        >>> result['timeseries'].columns
-        Index(['dhw_volume', 'dhw_energy', 'dhw_power',
-               'dhw_power_sma', 'dhw_power_ewma', 'dhw_power_gaussian'],
-              dtype='object')
-
+    Examples:
+    >>> result = format_output(data, ts_volume, ts_energy, ts_power, tank_duration_h=2.0)
+    >>> summary = result["summary"]
+    >>> result["timeseries"].columns
+    Index(['dhw_volume', 'dhw_energy', 'dhw_power',
+           'dhw_power_sma', 'dhw_power_ewma', 'dhw_power_gaussian'],
+          dtype='object')
     """
 
-    def create_sma_ts(ts: pd.Series, window: int = 8) -> pd.Series:
-        return ts.rolling(window=window, center=True).mean().fillna(ts).round()
+    # Infer time step resolution [hours]
+    time_index = data["datetimes_index"]
+    timestep_h = time_index.diff().dt.total_seconds().median() / 3600
 
-    def create_ewma_ts(ts: pd.Series, alpha: float = 0.1) -> pd.Series:
+    # Convert smoothing duration to number of steps
+    n_steps = max(3, int(round(tank_duration_h / timestep_h)))
+
+    def create_sma_ts(ts: pd.Series) -> pd.Series:
+        return ts.rolling(window=n_steps, center=True).mean().fillna(ts).round()
+
+    def create_ewma_ts(ts: pd.Series) -> pd.Series:
+        # α = Δt / (τ + Δt)  with τ = tank_duration_h
+        alpha = timestep_h / (tank_duration_h + timestep_h)
         return ts.ewm(alpha=alpha, adjust=False).mean().fillna(ts).round()
 
-    def create_gaussian_ts(ts: pd.Series, window: int = 8, std: float = 2) -> pd.Series:
-        return ts.rolling(window=window, win_type="gaussian", center=True).mean(std=std).fillna(ts).round()
+    def create_gaussian_ts(ts: pd.Series) -> pd.Series:
+        sigma = n_steps / 4  # Rule of thumb: window ≈ 4σ → use σ = window / 4
+        return ts.rolling(window=n_steps, win_type="gaussian", center=True).mean(std=sigma).fillna(ts).round()
 
+    # Summary statistics
     summary = {
         f"{Types.DHW}_volume_total": int(ts_volume.sum().round(0)),
         f"{Types.DHW}_volume_avg": float(ts_volume.mean().round(3)),
@@ -447,11 +465,12 @@ def format_output(data, ts_volume, ts_energy, ts_power):
         f"{Types.DHW}_power_min": int(ts_power.min()),
     }
 
-    # Create output timeseries
+    # Apply smoothing
     sma = create_sma_ts(ts_power)
     ewma = create_ewma_ts(ts_power)
     gaussian = create_gaussian_ts(ts_power)
 
+    # Combine all time series into output
     timeseries = pd.DataFrame(
         {
             f"{Types.DHW}_volume": ts_volume,
@@ -461,7 +480,7 @@ def format_output(data, ts_volume, ts_energy, ts_power):
             f"{Types.DHW}_power_ewma": ewma.astype(int),
             f"{Types.DHW}_power_gaussian": gaussian.astype(int),
         },
-        index=data["datetimes_index"],
+        index=time_index,
     )
 
     return {"summary": summary, "timeseries": timeseries}
