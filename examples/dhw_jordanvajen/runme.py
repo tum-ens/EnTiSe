@@ -47,7 +47,7 @@ def plot_dhw_demand(ax, obj_id, df, title):
     obj_data.index = pd.to_datetime(obj_data.index)
 
     # Plot volume
-    ax.plot(obj_data.index, obj_data[f'load_{Types.DHW}_volume'], label='DHW Volume (liters)', color='blue')
+    ax.plot(obj_data.index, obj_data[f'{Types.DHW}_volume'], label='DHW Volume (liters)', color='blue')
     ax.set_ylabel('Volume (liters)')
     ax.set_title(title)
     ax.legend(loc='upper left')
@@ -55,7 +55,7 @@ def plot_dhw_demand(ax, obj_id, df, title):
 
     # Add second y-axis for energy
     ax_energy = ax.twinx()
-    ax_energy.plot(obj_data.index, obj_data[f'load_{Types.DHW}_energy'], label='DHW Energy (W)', color='red', alpha=0.7)
+    ax_energy.plot(obj_data.index, obj_data[f'{Types.DHW}_energy'], label='DHW Energy (W)', color='red', alpha=0.7)
     ax_energy.set_ylabel('Energy (W)')
     ax_energy.legend(loc='upper right')
 
@@ -83,7 +83,7 @@ plt.show()
 # Function to plot daily profile
 def plot_daily_profile(ax, obj_data, title):
     obj_data['hour'] = obj_data.index.hour
-    daily_profile = obj_data.groupby('hour')[f'load_{Types.DHW}_volume'].mean()
+    daily_profile = obj_data.groupby('hour')[f'{Types.DHW}_volume'].mean()
     ax.bar(daily_profile.index, daily_profile.values, color='skyblue', alpha=0.7)
     ax.set_xlabel('Hour of Day')
     ax.set_ylabel('Average DHW Volume (liters)')
@@ -92,7 +92,7 @@ def plot_daily_profile(ax, obj_data, title):
     ax.grid(True, alpha=0.3)
 
     # Calculate yearly total in m3
-    yearly_total = obj_data[f'load_{Types.DHW}_volume'].sum() / 1000  # Convert L to m3
+    yearly_total = obj_data[f'{Types.DHW}_volume'].sum() / 1000  # Convert L to m3
     ax.text(0.95, 0.95, f'Yearly total: {yearly_total:.1f} m³',
             transform=ax.transAxes,
             horizontalalignment='right',
@@ -122,8 +122,8 @@ weekday_data = obj6_data[obj6_data['day_of_week'] < 5]  # Monday-Friday
 weekend_data = obj6_data[obj6_data['day_of_week'] >= 5]  # Saturday-Sunday
 
 # Calculate average profiles
-weekday_profile = weekday_data.groupby('hour')[f'load_{Types.DHW}_volume'].mean()
-weekend_profile = weekend_data.groupby('hour')[f'load_{Types.DHW}_volume'].mean()
+weekday_profile = weekday_data.groupby('hour')[f'{Types.DHW}_volume'].mean()
+weekend_profile = weekend_data.groupby('hour')[f'{Types.DHW}_volume'].mean()
 
 # Plot both profiles
 ax.bar(weekday_profile.index - 0.2, weekday_profile.values, width=0.4, color='blue', alpha=0.7, label='Weekday')
