@@ -1,8 +1,8 @@
 """DHW generation module based on the Jordan & Vajen methodology.
 
-This module implements a domestic hot water (DHW) demand generation method based on 
-Jordan & Vajen (2005): "DHWcalc: PROGRAM TO GENERATE DOMESTIC HOT WATER PROFILES 
-WITH STATISTICAL MEANS FOR USER DEFINED CONDITIONS". The implementation follows the 
+This module implements a domestic hot water (DHW) demand generation method based on
+Jordan & Vajen (2005): "DHWcalc: PROGRAM TO GENERATE DOMESTIC HOT WATER PROFILES
+WITH STATISTICAL MEANS FOR USER DEFINED CONDITIONS". The implementation follows the
 Method pattern established in the project architecture.
 
 The module provides functionality to:
@@ -14,7 +14,7 @@ The module provides functionality to:
 The main class, JordanVajen, inherits from the Method base class and implements the
 required interface for integration with the EnTiSe framework.
 
-Source: Jordan, U., & Vajen, K. (2005). DHWcalc: PROGRAM TO GENERATE DOMESTIC HOT WATER 
+Source: Jordan, U., & Vajen, K. (2005). DHWcalc: PROGRAM TO GENERATE DOMESTIC HOT WATER
 PROFILES WITH STATISTICAL MEANS FOR USER DEFINED CONDITIONS. Universität Marburg.
 URL: https://www.researchgate.net/publication/237651871_DHWcalc_PROGRAM_TO_GENERATE_DOMESTIC_HOT_WATER_PROFILES_WITH_STATISTICAL_MEANS_FOR_USER_DEFINED_CONDITIONS
 """
@@ -25,17 +25,19 @@ import numpy as np
 import pandas as pd
 import scipy.stats as stats
 
+from entise.constants import Columns as C
+from entise.constants import Objects as O
+from entise.constants import Types
 from entise.core.base import Method
-from entise.constants import Columns as C, Objects as O, Types
 from entise.methods.dhw.defaults import (
-    DEFAULT_TEMP_COLD, 
-    DEFAULT_TEMP_HOT, 
+    DEFAULT_SEASONAL_PEAK_DAY,
     DEFAULT_SEASONAL_VARIATION,
-    DEFAULT_SEASONAL_PEAK_DAY
+    DEFAULT_TEMP_COLD,
+    DEFAULT_TEMP_HOT,
 )
 from entise.methods.dhw.jordanvajen.activity import _get_activity_data, _get_demand_data
-from entise.methods.dhw.jordanvajen.temperature import _get_water_temperatures
 from entise.methods.dhw.jordanvajen.calculation import _calculate_timeseries
+from entise.methods.dhw.jordanvajen.temperature import _get_water_temperatures
 
 logger = logging.getLogger(__name__)
 
@@ -64,14 +66,15 @@ class JordanVajen(Method):
     Example:
         >>> from entise.methods.dhw.jordan_vajen import JordanVajen
         >>> from entise.core.generator import TimeSeriesGenerator
-        >>> 
+        >>>
         >>> # Create a generator and add objects
         >>> gen = TimeSeriesGenerator()
         >>> gen.add_objects(objects_df)  # DataFrame with dwelling parameters
-        >>> 
+        >>>
         >>> # Generate time series
         >>> summary, timeseries = gen.generate(data)  # data contains datetime information
     """
+
     types = [Types.DHW]
     name = "jordanvajen"
     required_keys = [O.DATETIMES, O.DWELLING_SIZE]
@@ -93,39 +96,41 @@ class JordanVajen(Method):
         O.TEMP_WATER_HOT,
     ]
     output_summary = {
-        f'{C.DEMAND}_{Types.DHW}_volume_total': 'total hot water demand in liters',
-        f'{C.DEMAND}_{Types.DHW}_volume_avg': 'average hot water demand in liters',
-        f'{C.DEMAND}_{Types.DHW}_volume_peak': 'peak hot water demand in liters',
-        f'{C.DEMAND}_{Types.DHW}_energy_total': 'total energy demand for hot water in Wh',
-        f'{C.DEMAND}_{Types.DHW}_energy_avg': 'average energy demand for hot water in Wh',
-        f'{C.DEMAND}_{Types.DHW}_energy_peak': 'peak energy demand for hot water in Wh',
-        f'{C.DEMAND}_{Types.DHW}_power_avg': 'average power for hot water in W',
-        f'{C.DEMAND}_{Types.DHW}_power_max': 'maximum power for hot water in W',
-        f'{C.DEMAND}_{Types.DHW}_power_min': 'minimum power for hot water in W',
+        f"{C.DEMAND}_{Types.DHW}_volume_total": "total hot water demand in liters",
+        f"{C.DEMAND}_{Types.DHW}_volume_avg": "average hot water demand in liters",
+        f"{C.DEMAND}_{Types.DHW}_volume_peak": "peak hot water demand in liters",
+        f"{C.DEMAND}_{Types.DHW}_energy_total": "total energy demand for hot water in Wh",
+        f"{C.DEMAND}_{Types.DHW}_energy_avg": "average energy demand for hot water in Wh",
+        f"{C.DEMAND}_{Types.DHW}_energy_peak": "peak energy demand for hot water in Wh",
+        f"{C.DEMAND}_{Types.DHW}_power_avg": "average power for hot water in W",
+        f"{C.DEMAND}_{Types.DHW}_power_max": "maximum power for hot water in W",
+        f"{C.DEMAND}_{Types.DHW}_power_min": "minimum power for hot water in W",
     }
     output_timeseries = {
-        f'{C.LOAD}_{Types.DHW}_volume': 'hot water demand in liters',
-        f'{C.LOAD}_{Types.DHW}_energy': 'energy demand for hot water in Wh',
-        f'{C.LOAD}_{Types.DHW}_power': 'power demand for hot water in W',
-        f'{Types.DHW}_{O.TEMP_WATER_COLD}': 'cold water temperature in degrees Celsius',
-        f'{Types.DHW}_{O.TEMP_WATER_HOT}': 'hot water temperature in degrees Celsius',
+        f"{C.LOAD}_{Types.DHW}_volume": "hot water demand in liters",
+        f"{C.LOAD}_{Types.DHW}_energy": "energy demand for hot water in Wh",
+        f"{C.LOAD}_{Types.DHW}_power": "power demand for hot water in W",
+        f"{Types.DHW}_{O.TEMP_WATER_COLD}": "cold water temperature in degrees Celsius",
+        f"{Types.DHW}_{O.TEMP_WATER_HOT}": "hot water temperature in degrees Celsius",
     }
 
-    def generate(self, 
-                obj: dict = None, 
-                data: dict = None, 
-                ts_type: str = Types.DHW,
-                *,
-                datetimes: pd.DataFrame = None,
-                dwelling_size: float = None,
-                dhw_activity: pd.DataFrame = None,
-                dhw_demand_per_size: pd.DataFrame = None,
-                holidays_location: str = None,
-                temp_water_cold: float = None,
-                temp_water_hot: float = None,
-                seasonal_variation: float = None,
-                seasonal_peak_day: int = None,
-                seed: int = None):
+    def generate(
+        self,
+        obj: dict = None,
+        data: dict = None,
+        ts_type: str = Types.DHW,
+        *,
+        datetimes: pd.DataFrame = None,
+        dwelling_size: float = None,
+        dhw_activity: pd.DataFrame = None,
+        dhw_demand_per_size: pd.DataFrame = None,
+        holidays_location: str = None,
+        temp_water_cold: float = None,
+        temp_water_hot: float = None,
+        seasonal_variation: float = None,
+        seasonal_peak_day: int = None,
+        seed: int = None,
+    ):
         """Generate DHW demand time series based on input parameters.
 
         This method implements the abstract generate method from the Method base class.
@@ -170,46 +175,28 @@ class JordanVajen(Method):
         """
         # Process keyword arguments
         processed_obj, processed_data = self._process_kwargs(
-            obj, data,
-            datetimes=datetimes, dwelling_size=dwelling_size,
-            dhw_activity=dhw_activity, dhw_demand_per_size=dhw_demand_per_size,
+            obj,
+            data,
+            datetimes=datetimes,
+            dwelling_size=dwelling_size,
+            dhw_activity=dhw_activity,
+            dhw_demand_per_size=dhw_demand_per_size,
             holidays_location=holidays_location,
-            temp_water_cold=temp_water_cold, temp_water_hot=temp_water_hot,
-            seasonal_variation=seasonal_variation, seasonal_peak_day=seasonal_peak_day,
-            seed=seed
+            temp_water_cold=temp_water_cold,
+            temp_water_hot=temp_water_hot,
+            seasonal_variation=seasonal_variation,
+            seasonal_peak_day=seasonal_peak_day,
+            seed=seed,
         )
 
-        # Continue with existing implementation
         processed_obj, processed_data = get_input_data(processed_obj, processed_data, ts_type)
 
         ts_volume, ts_energy, ts_power = calculate_timeseries(processed_obj, processed_data)
 
         logger.debug(f"[DHW jordanvajen]: Generating {ts_type} data")
 
-        # Create output summary
-        summary = {
-            f'{C.DEMAND}_{Types.DHW}_volume_total': int(ts_volume.sum().round(0)),
-            f'{C.DEMAND}_{Types.DHW}_volume_avg': float(ts_volume.mean().round(3)),
-            f'{C.DEMAND}_{Types.DHW}_volume_peak': float(ts_volume.max().round(3)),
-            f'{C.DEMAND}_{Types.DHW}_energy_total': int(ts_energy.sum()),
-            f'{C.DEMAND}_{Types.DHW}_energy_avg': int(ts_energy.mean().round(0)),
-            f'{C.DEMAND}_{Types.DHW}_energy_peak': int(ts_energy.max()),
-            f'{C.DEMAND}_{Types.DHW}_power_avg': int(ts_power.mean().round(0)),
-            f'{C.DEMAND}_{Types.DHW}_power_max': int(ts_power.max()),
-            f'{C.DEMAND}_{Types.DHW}_power_min': int(ts_power.min()),
-        }
+        return format_output(processed_data, ts_volume, ts_energy, ts_power)
 
-        # Create output timeseries
-        timeseries = pd.DataFrame({
-            f'{C.LOAD}_{Types.DHW}_volume': ts_volume,
-            f'{C.LOAD}_{Types.DHW}_energy': ts_energy,
-            f'{C.LOAD}_{Types.DHW}_power': ts_power,
-        }, index=processed_data['datetimes_index'])
-
-        return {
-            "summary": summary,
-            "timeseries": timeseries
-        }
 
 def get_input_data(obj, data, method_type=Types.DHW):
     """Process and validate input data for DHW demand calculation.
@@ -258,8 +245,12 @@ def get_input_data(obj, data, method_type=Types.DHW):
         O.SEED: Method.get_with_method_backup(obj, O.SEED, method_type),
         O.TEMP_WATER_COLD: Method.get_with_method_backup(obj, O.TEMP_WATER_COLD, method_type, DEFAULT_TEMP_COLD),
         O.TEMP_WATER_HOT: Method.get_with_method_backup(obj, O.TEMP_WATER_HOT, method_type, DEFAULT_TEMP_HOT),
-        O.SEASONAL_VARIATION: Method.get_with_method_backup(obj, O.SEASONAL_VARIATION, method_type, DEFAULT_SEASONAL_VARIATION),
-        O.SEASONAL_PEAK_DAY: Method.get_with_method_backup(obj, O.SEASONAL_PEAK_DAY, method_type, DEFAULT_SEASONAL_PEAK_DAY),
+        O.SEASONAL_VARIATION: Method.get_with_method_backup(
+            obj, O.SEASONAL_VARIATION, method_type, DEFAULT_SEASONAL_VARIATION
+        ),
+        O.SEASONAL_PEAK_DAY: Method.get_with_method_backup(
+            obj, O.SEASONAL_PEAK_DAY, method_type, DEFAULT_SEASONAL_PEAK_DAY
+        ),
         O.HOLIDAYS_LOCATION: Method.get_with_method_backup(obj, O.HOLIDAYS_LOCATION, method_type),
     }
 
@@ -274,24 +265,26 @@ def get_input_data(obj, data, method_type=Types.DHW):
 
     # Validate required data
     if data_out[O.DATETIMES] is None:
-        logger.error(f"[DHW jordanvajen]: No datetime data")
+        logger.error("[DHW jordanvajen]: No datetime data")
         raise KeyError(f"Required data '{obj_out[O.DATETIMES]}' not found in input data")
 
     # Process datetime data
     datetimes = data_out[O.DATETIMES].copy()
-    datetimes[C.DATETIME] = (pd.to_datetime(datetimes[C.DATETIME], utc=True).dt
-                            .tz_convert(pd.to_datetime(datetimes[C.DATETIME].iloc[0]).tz))
+    datetimes[C.DATETIME] = pd.to_datetime(datetimes[C.DATETIME], utc=True).dt.tz_convert(
+        pd.to_datetime(datetimes[C.DATETIME].iloc[0]).tz
+    )
     data_out[O.DATETIMES] = datetimes
-    data_out['datetimes_index'] = datetimes[C.DATETIME]
+    data_out["datetimes_index"] = datetimes[C.DATETIME]
 
     # Get activity data if not provided
     if data_out[O.DHW_ACTIVITY] is None:
-        data_out[O.DHW_ACTIVITY] = _get_activity_data('jordan_vajen')
+        data_out[O.DHW_ACTIVITY] = _get_activity_data("jordan_vajen")
 
     # Create random number generator
-    data_out['rng'] = np.random.default_rng(obj_out[O.SEED])
+    data_out["rng"] = np.random.default_rng(obj_out[O.SEED])
 
     return obj_out, data_out
+
 
 def calculate_timeseries(obj, data):
     """Calculate DHW demand time series using the Jordan & Vajen methodology.
@@ -327,14 +320,14 @@ def calculate_timeseries(obj, data):
     dwelling_size = obj[O.DWELLING_SIZE]
     datetimes = data[O.DATETIMES]
     activity_data = data[O.DHW_ACTIVITY]
-    rng = data['rng']
+    rng = data["rng"]
 
     # Obtain statistical data for yearly demand
-    demand_data = _get_demand_data('jordan_vajen')
-    sizes = demand_data['dwelling_size'].values
+    demand_data = _get_demand_data("jordan_vajen")
+    sizes = demand_data["dwelling_size"].values
     idx = np.abs(sizes - dwelling_size).argmin()
-    m3_per_m2_a = demand_data.iloc[idx]['m3_per_m2_a']
-    sigma = demand_data.iloc[idx]['sigma']
+    m3_per_m2_a = demand_data.iloc[idx]["m3_per_m2_a"]
+    sigma = demand_data.iloc[idx]["sigma"]
 
     # Compute mean & std in litres/day
     mean_daily_l = m3_per_m2_a * dwelling_size * 1e3 / 365
@@ -346,7 +339,7 @@ def calculate_timeseries(obj, data):
     # Build a date index for each simulation day
     start = datetimes[C.DATETIME].iloc[0].normalize()
     end = datetimes[C.DATETIME].iloc[-1].normalize()
-    days = pd.date_range(start, end, freq='D')
+    days = pd.date_range(start, end, freq="D")
 
     # Sample once per day from the truncated normal
     dist = stats.truncnorm(a, b, loc=mean_daily_l, scale=sd_daily_l)
@@ -356,9 +349,7 @@ def calculate_timeseries(obj, data):
     water_temp = _get_water_temperatures(obj, data, datetimes)
 
     # Generate volume and energy time series
-    ts_volume, ts_energy = _calculate_timeseries(
-        datetimes, activity_data, daily_demand_l, water_temp, obj
-    )
+    ts_volume, ts_energy = _calculate_timeseries(datetimes, activity_data, daily_demand_l, water_temp, obj)
 
     # Convert energy into power
     # Calculate time interval in hours
@@ -369,3 +360,108 @@ def calculate_timeseries(obj, data):
     ts_power = ts_energy / time_diff.values
 
     return ts_volume, ts_energy, ts_power
+
+
+def format_output(data, ts_volume, ts_energy, ts_power):
+    """
+    Format and postprocess the DHW demand time series into a structured output
+    for reporting and downstream use.
+
+    This function prepares both:
+    1. A summary of key performance indicators (volume, energy, and power statistics),
+    2. A time series DataFrame with raw and smoothed power demand values using
+       three different smoothing techniques:
+       - SMA (Simple Moving Average)
+       - EWMA (Exponentially Weighted Moving Average)
+       - Gaussian kernel smoothing
+
+    These smoothed versions of the raw DHW power profile can be used to approximate
+    the impact of thermal buffering in hot water storage tanks.
+
+    Args:
+        data (dict): A dictionary containing processed inputs, including:
+            - 'datetimes_index' (pd.DatetimeIndex): The index to be used for the time series output.
+        ts_volume (pd.Series): Time series of hot water demand in liters. Typically shaped using activity profiles.
+        ts_energy (pd.Series): Time series of hot water energy demand in watt-hours (Wh), adjusted by water temperature.
+        ts_power (pd.Series): Time series of instantaneous power demand in watts (W), derived from energy and timestep.
+
+    Returns:
+        dict:
+            {
+                "summary": dict with total, average, and peak demand metrics,
+                "timeseries": pd.DataFrame with raw and smoothed DHW outputs
+            }
+
+    Internal Smoothing Methods:
+        - create_sma_ts(ts, window=8):
+            Applies a centered simple moving average over 8 samples (~2 hours).
+            Fills edge NaNs with original raw series values.
+
+        - create_ewma_ts(ts, alpha=0.1):
+            Applies causal exponential smoothing with a decay factor α = 0.1,
+            corresponding to a time constant τ ≈ 2 hours. Mimics reactive tank behavior.
+
+        - create_gaussian_ts(ts, window=8, std=2):
+            Applies symmetric Gaussian smoothing with std=2 over an 8-sample window (~2 hours).
+            Mimics anticipatory or postprocessed smoothing as with idealized tanks.
+
+    Notes:
+        - All power time series (raw and smoothed) are rounded and converted to integer watts (W).
+        - The smoothing methods are tuned based on typical tank behavior and timestep resolution (15 min).
+        - Missing values from smoothing (at edges) are filled using the original raw signal for physical plausibility.
+        - The volume and energy series remain unaltered.
+
+    Example:
+        >>> result = format_output(data, ts_volume, ts_energy, ts_power)
+        >>> result['summary']
+        {
+            'dhw_volume_total': 1350,
+            'dhw_volume_avg': 187.5,
+            ...
+        }
+        >>> result['timeseries'].columns
+        Index(['dhw_volume', 'dhw_energy', 'dhw_power',
+               'dhw_power_sma', 'dhw_power_ewma', 'dhw_power_gaussian'],
+              dtype='object')
+
+    """
+
+    def create_sma_ts(ts: pd.Series, window: int = 8) -> pd.Series:
+        return ts.rolling(window=window, center=True).mean().fillna(ts).round()
+
+    def create_ewma_ts(ts: pd.Series, alpha: float = 0.1) -> pd.Series:
+        return ts.ewm(alpha=alpha, adjust=False).mean().fillna(ts).round()
+
+    def create_gaussian_ts(ts: pd.Series, window: int = 8, std: float = 2) -> pd.Series:
+        return ts.rolling(window=window, win_type="gaussian", center=True).mean(std=std).fillna(ts).round()
+
+    summary = {
+        f"{Types.DHW}_volume_total": int(ts_volume.sum().round(0)),
+        f"{Types.DHW}_volume_avg": float(ts_volume.mean().round(3)),
+        f"{Types.DHW}_volume_peak": float(ts_volume.max().round(3)),
+        f"{Types.DHW}_energy_total": int(ts_energy.sum()),
+        f"{Types.DHW}_energy_avg": int(ts_energy.mean().round(0)),
+        f"{Types.DHW}_energy_peak": int(ts_energy.max()),
+        f"{Types.DHW}_power_avg": int(ts_power.mean().round(0)),
+        f"{Types.DHW}_power_max": int(ts_power.max()),
+        f"{Types.DHW}_power_min": int(ts_power.min()),
+    }
+
+    # Create output timeseries
+    sma = create_sma_ts(ts_power)
+    ewma = create_ewma_ts(ts_power)
+    gaussian = create_gaussian_ts(ts_power)
+
+    timeseries = pd.DataFrame(
+        {
+            f"{Types.DHW}_volume": ts_volume,
+            f"{Types.DHW}_energy": ts_energy.astype(int),
+            f"{Types.DHW}_power": ts_power.astype(int),
+            f"{Types.DHW}_power_sma": sma.astype(int),
+            f"{Types.DHW}_power_ewma": ewma.astype(int),
+            f"{Types.DHW}_power_gaussian": gaussian.astype(int),
+        },
+        index=data["datetimes_index"],
+    )
+
+    return {"summary": summary, "timeseries": timeseries}
