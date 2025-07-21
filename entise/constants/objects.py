@@ -39,11 +39,11 @@ class Objects:
     HP_SYSTEM = "hp_system"  # HP system configuration
     HUB_HEIGHT = "hub_height"  # Hub height (wind)
     INHABITANTS = "inhabitants"  # Number of inhabitants
-    LAT = "latitude"  # Latitude (degrees)
+    LAT = "latitude"  # Latitude (degree north)
     LOAD = "load"
     LOAD_BASE = f"{LOAD}_base"  # Base load
     LOAD_MAX = f"{LOAD}_max"
-    LON = "longitude"  # Longitude (degrees)
+    LON = "longitude"  # Longitude (degree north)
     OCCUPATION = "occupation"  # Occupancy (for timeseries files)
     OCCUPANTS = "occupants"  # Number of occupants
     ORIENTATION = "orientation"  # Orientation (degrees; 180 = south)
@@ -57,14 +57,15 @@ class Objects:
     SEASONAL_VARIATION = "seasonal_variation"  # Seasonal variation factor
     SEED = "seed"  # Seed to ensure reproducibility
     SOURCE = "source"  # Source of data or method
-    TEMP_WATER = "temp_water"  # Water temperature (ºC)
-    TEMP_WATER_COLD = f"{TEMP_WATER}_cold"  # Cold water temperature (ºC)
-    TEMP_WATER_HOT = f"{TEMP_WATER}_hot"  # Hot water temperature (ºC)
-    TEMP_INIT = "temp_init"  # Initial temperature (ºC)
-    TEMP_MAX = "temp_max"  # Maximum temperature (ºC)
-    TEMP_MIN = "temp_min"  # Minimum temperature (ºC)
-    TEMP_SET = "temp_set"  # Set temperature (ºC)
-    TEMP_SINK = "temp_sink"  # Heat pump sink temperature setting (ºC)
+    TEMP = "temperature"  # Temperature (K)
+    TEMP_WATER = f"water_{TEMP}"  # Water temperature (K)
+    TEMP_WATER_COLD = f"cold_{TEMP_WATER}"  # Cold water temperature (K)
+    TEMP_WATER_HOT = f"hot_{TEMP_WATER}"  # Hot water temperature (K)
+    TEMP_INIT = f"init_{TEMP}"  # Initial temperature (K)
+    TEMP_MAX = f"max_{TEMP}"  # Maximum temperature (K)
+    TEMP_MIN = f"min_{TEMP}"  # Minimum temperature (K)
+    TEMP_SET = f"set_{TEMP}"  # Set temperature (K)
+    TEMP_SINK = f"sink_{TEMP}"  # Heat pump sink temperature setting (K)
     THERMAL_INERTIA = "thermal_inertia"  # Thermal inertia [0, 1]
     TILT = "tilt"  # Tilt (degrees; 0 = horizontal)
     TRANSMITTANCE = "transmittance"  # Transmittance (W/m2/K)
