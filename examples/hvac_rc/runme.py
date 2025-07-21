@@ -11,6 +11,8 @@ import sys
 import matplotlib.pyplot as plt
 import pandas as pd
 
+from entise.constants import Columns as Cols
+
 # Add the project root directory to the Python path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
@@ -33,12 +35,9 @@ print("Loaded data keys:", list(data.keys()))
 gen = TimeSeriesGenerator()
 
 # Define the building ID to process and visualize
-building_id = 31991688  # Select the object you want to simulate
+building_id = 31991690  # Select the object you want to simulate
 
-# Filter objects to only include one object (for debugging)
-objects_filtered = objects[objects["id"] == building_id]
-print(f"Processing only object with ID: {building_id}")
-gen.add_objects(objects_filtered)
+gen.add_objects(objects)
 
 # Generate time series
 summary, df = gen.generate(data, workers=1)
@@ -58,7 +57,7 @@ fig, ax1 = plt.subplots(figsize=(15, 6))
 # Solar radiation plot (GHI) with separate y-axis
 ax2 = ax1.twinx()
 ax2.plot(
-    building_data.index, data["weather"]["solar_ghi"],
+    building_data.index, data["weather"][Cols.SOLAR_GHI],
     label="Solar Radiation (GHI)", color="tab:orange", alpha=0.3
 )
 ax2.set_ylabel("Solar Radiation (W/m²)")
@@ -66,8 +65,8 @@ ax2.legend(loc="upper right")
 ax2.set_ylim(-250, 1000)
 
 # Temperature plot
-ax1.plot(building_data.index, data["weather"]["temp_out"], label="Outdoor Temp", color="tab:cyan", alpha=0.7)
-ax1.plot(building_data.index, building_data["temp_in"], label="Indoor Temp", color="tab:blue")
+ax1.plot(building_data.index, data["weather"][Cols.TEMP_AIR] - 273.15, label="Outdoor Temp", color="tab:cyan", alpha=0.7)
+ax1.plot(building_data.index, building_data[Cols.TEMP_IN] - 273.15, label="Indoor Temp", color="tab:blue")
 ax1.set_ylabel("Temperature (°C)")
 ax1.set_title(f"Building ID: {building_id} - Temperatures and Solar Radiation")
 ax1.legend(loc="upper left")
@@ -109,10 +108,12 @@ plt.show()
 fig, ax1 = plt.subplots(figsize=(15, 6))
 
 # Plot outdoor temperature on left y-axis
-ax1.plot(building_data.index, data["weather"]["temp_out"], label="Outdoor Temp", color="tab:cyan", alpha=0.7)
+air_temp = data["weather"][Cols.TEMP_AIR] - 273.15
+ax1.plot(building_data.index, air_temp
+         , label="Outdoor Temp", color="tab:cyan", alpha=0.7)
 
 ax1.set_ylabel("Outdoor Temp (°C)")
-ax1.set_ylim(data["weather"]["temp_out"].min() - 2, data["weather"]["temp_out"].max() + 2)
+ax1.set_ylim(air_temp.min().round() - 2, air_temp.max().round() + 2)
 
 # Create second y-axis for loads
 ax2 = ax1.twinx()
