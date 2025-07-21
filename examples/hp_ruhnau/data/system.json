@@ -8,12 +8,12 @@
   },
   "heating_parameters": {
     "hp_sink": "radiator",
-    "temp_sink": 40,
+    "sink_temperature": 313.15,
     "gradient_sink": -1.0
   },
   "dhw_parameters": {
     "hp_sink": "water",
-    "temp_sink": 50,
+    "sink_temperature": 323.15,
     "gradient_sink": 0
   }
 }

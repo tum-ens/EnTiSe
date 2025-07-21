@@ -325,9 +325,9 @@ for i, obj_id in enumerate(df):
                     continue
 
     # Get temperature column
-    temp_col = "temperature"
-    if temp_col not in weather_data.columns and "temperature_2m" in weather_data.columns:
-        temp_col = "temperature_2m"
+    temp_col = "air_temperature"
+    if temp_col not in weather_data.columns and "air_temperature_2m" in weather_data.columns:
+        temp_col = "air_temperature_2m"
 
     if temp_col not in weather_data.columns:
         continue
@@ -337,7 +337,11 @@ for i, obj_id in enumerate(df):
     if heating_col in df[obj_id][Types.HP].columns:
         # Merge COP and temperature data
         merged_data = pd.merge(
-            df[obj_id][Types.HP][heating_col], weather_data[temp_col], left_index=True, right_index=True, how="inner"
+            df[obj_id][Types.HP][heating_col],
+            weather_data[temp_col] - 273.15,
+            left_index=True,
+            right_index=True,
+            how="inner",
         )
 
         # Plot scatter plot
@@ -348,7 +352,11 @@ for i, obj_id in enumerate(df):
     if dhw_col in df[obj_id][Types.HP].columns:
         # Merge COP and temperature data
         merged_data = pd.merge(
-            df[obj_id][Types.HP][dhw_col], weather_data[temp_col], left_index=True, right_index=True, how="inner"
+            df[obj_id][Types.HP][dhw_col],
+            weather_data[temp_col] - 273.15,
+            left_index=True,
+            right_index=True,
+            how="inner",
         )
 
         # Plot scatter plot
