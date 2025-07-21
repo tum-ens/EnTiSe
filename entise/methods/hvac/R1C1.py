@@ -7,6 +7,7 @@ from entise.constants import Columns as C
 from entise.constants import Constants as Const
 from entise.constants import Objects as O
 from entise.constants import Types
+from entise.constants import UnitConversion as UnitC
 from entise.core.base import Method
 from entise.methods.auxiliary.internal.selector import InternalGains
 from entise.methods.auxiliary.solar.selector import SolarGains
@@ -250,12 +251,12 @@ def calculate_timeseries(obj: dict, data: dict) -> tuple[np.ndarray, np.ndarray,
 
     Args:
         obj (dict): Dictionary containing processed building parameters such as:
-            - temp_init: Initial indoor temperature in °C
+            - temp_init: Initial indoor temperature in K
             - resistance: Thermal resistance in K/W
             - capacitance: Thermal capacitance in J/K
             - ventilation: Ventilation rate in W/K
-            - temp_min: Minimum indoor temperature setpoint in °C
-            - temp_max: Maximum indoor temperature setpoint in °C
+            - temp_min: Minimum indoor temperature setpoint in K
+            - temp_max: Maximum indoor temperature setpoint in K
             - active_cooling: Whether cooling is active (bool)
             - active_heating: Whether heating is active (bool)
             - power_cooling: Maximum cooling power in W
@@ -267,7 +268,7 @@ def calculate_timeseries(obj: dict, data: dict) -> tuple[np.ndarray, np.ndarray,
 
     Returns:
         tuple: A tuple containing:
-            - temp_in (np.ndarray): Time series of indoor temperature in °C
+            - temp_in (np.ndarray): Time series of indoor temperature in K
             - p_heat (np.ndarray): Time series of heating power in W
             - p_cool (np.ndarray): Time series of cooling power in W
 
@@ -278,11 +279,11 @@ def calculate_timeseries(obj: dict, data: dict) -> tuple[np.ndarray, np.ndarray,
         - The simulation accounts for thermal inertia, heat gains, and heat losses
     """
     # Get objects
-    temp_init = obj[O.TEMP_INIT]
+    temp_init = obj[O.TEMP_INIT] + UnitC.KELVIN2CELSIUS.value
     thermal_resistance = obj[O.RESISTANCE]
     thermal_capacitance = obj[O.CAPACITANCE]
-    temp_min = obj[O.TEMP_MIN]
-    temp_max = obj[O.TEMP_MAX]
+    temp_min = obj[O.TEMP_MIN] + UnitC.KELVIN2CELSIUS.value
+    temp_max = obj[O.TEMP_MAX] + UnitC.KELVIN2CELSIUS.value
     active_cool = obj[O.ACTIVE_COOLING]
     active_heat = obj[O.ACTIVE_HEATING]
     power_cool_max = obj[O.POWER_COOLING]
@@ -292,14 +293,16 @@ def calculate_timeseries(obj: dict, data: dict) -> tuple[np.ndarray, np.ndarray,
     internal_gains = data[O.GAINS_INTERNAL].to_numpy(dtype=np.float32)
     ventilation = data[O.VENTILATION].to_numpy(dtype=np.float32)
     weather = data[O.WEATHER]
-    temp_out = weather[C.TEMP_OUT].to_numpy(dtype=np.float32) if C.TEMP_OUT in weather else None
-    if temp_out is None:
-        raise Exception(f"Missing temperature column: {C.TEMP_OUT}")
+    temp_air = (
+        (weather[C.TEMP_AIR] + UnitC.KELVIN2CELSIUS.value).to_numpy(dtype=np.float32) if C.TEMP_AIR in weather else None
+    )
+    if temp_air is None:
+        raise Exception(f"Missing temperature column: {C.TEMP_AIR}")
 
     timesteps = weather[C.DATETIME].diff().dt.total_seconds().dropna()
     timestep = timesteps.mode()[0]
 
-    n_steps = len(temp_out)
+    n_steps = len(temp_air)
     temp_in = np.zeros(n_steps, dtype=np.float64)
     temp_in[0] = temp_init
     p_heat = np.zeros(n_steps, dtype=np.float64)
@@ -309,7 +312,7 @@ def calculate_timeseries(obj: dict, data: dict) -> tuple[np.ndarray, np.ndarray,
     for t in range(1, n_steps):
         # Calculate the net heat transfer
         net_transfer = calc_net_heat_transfer(
-            temp_in[t - 1], temp_out[t], thermal_resistance, ventilation[t], solar_gains[t], internal_gains[t]
+            temp_in[t - 1], temp_air[t], thermal_resistance, ventilation[t], solar_gains[t], internal_gains[t]
         )
 
         # Calculate heating and cooling loads
@@ -456,7 +459,7 @@ def format_output(temp_in, p_heat, p_cool, data):
 
     df = pd.DataFrame(
         {
-            f"{C.TEMP_IN}": temp_in,
+            f"{C.TEMP_IN}": temp_in + UnitC.KELVIN2CELSIUS.value,
             f"{C.LOAD}_{Types.HEATING}": p_heat,
             f"{C.LOAD}_{Types.COOLING}": p_cool,
         },
