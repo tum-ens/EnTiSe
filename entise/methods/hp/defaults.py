@@ -13,7 +13,7 @@ RADIATOR = "radiator"
 WATER = "water"
 
 # Temperature column names
-SOURCE_MAP = {HP_AIR: C.TEMP, HP_SOIL: C.TEMP_SOIL, HP_WATER: C.TEMP_WATER_GROUND}
+SOURCE_MAP = {HP_AIR: C.TEMP_AIR, HP_SOIL: C.TEMP_SOIL, HP_WATER: C.TEMP_WATER_GROUND}
 
 # Default values for optional keys
 DEFAULT_HP = HP_AIR

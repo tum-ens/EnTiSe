@@ -19,6 +19,7 @@ import entise.methods.hp.defaults as defs
 from entise.constants import Columns as C
 from entise.constants import Objects as O
 from entise.constants import Types
+from entise.constants import UnitConversion as UnitC
 from entise.core.base import Method
 
 logger = logging.getLogger(__name__)
@@ -44,9 +45,9 @@ HP_SYSTEM = {
 
 # Define default temperature parameters for each sink type
 DEFAULT_SINKS = {
-    defs.FLOOR: {O.TEMP_SINK: 30, O.GRADIENT_SINK: -0.5},
-    defs.RADIATOR: {O.TEMP_SINK: 40, O.GRADIENT_SINK: -1.0},
-    defs.WATER: {O.TEMP_SINK: 50, O.GRADIENT_SINK: 0},
+    defs.FLOOR: {O.TEMP_SINK: 303.15, O.GRADIENT_SINK: -0.5},
+    defs.RADIATOR: {O.TEMP_SINK: 313.15, O.GRADIENT_SINK: -1.0},
+    defs.WATER: {O.TEMP_SINK: 323.15, O.GRADIENT_SINK: 0},
 }
 
 # Default correction factor
@@ -278,21 +279,21 @@ class Ruhnau(Method):
             pd.DataFrame: DataFrame with missing temperature columns added
         """
         # Check if the air temperature column is missing
-        if C.TEMP not in df.columns:
+        if C.TEMP_AIR not in df.columns:
             logger.warning("No air temperature column found in weather data")
-            raise Warning(f"No air temperature column '{C.TEMP}' found in weather data")
+            raise Warning(f"No air temperature column '{C.TEMP_AIR}' found in weather data")
 
         # Add soil temperature column if missing
         if C.TEMP_SOIL not in df.columns:
             logger.info("Calculating soil temperature from air temperature")
-            df["rolling_temp"] = df[C.TEMP].rolling(window=24, min_periods=1).mean()
+            df["rolling_temp"] = df[C.TEMP_AIR].rolling(window=24, min_periods=1).mean() + UnitC.KELVIN2CELSIUS.value
             df[C.TEMP_SOIL] = df["rolling_temp"].apply(_calc_soil_temp)
             df.drop(columns=["rolling_temp"], inplace=True)
 
         # Add groundwater temperature column if missing
         if C.TEMP_WATER_GROUND not in df.columns:
-            logger.info("Setting default groundwater temperature to 10°C")
-            df[C.TEMP_WATER_GROUND] = 10
+            logger.info("Setting default groundwater temperature to 283.15K/10°C")
+            df[C.TEMP_WATER_GROUND] = 283.15
 
         return df
 
@@ -376,10 +377,12 @@ def _calculate_cop(
         pd.Series: COP time series
     """
     # Calculate sink temperature
-    sink_temp = temp_sink + gradient_sink * weather_df[C.TEMP]
+    sink_temp = (
+        temp_sink + UnitC.KELVIN2CELSIUS.value + gradient_sink * (weather_df[C.TEMP_AIR] + UnitC.KELVIN2CELSIUS.value)
+    )
 
     # Calculate temperature difference
-    delta_t = sink_temp - weather_df[defs.SOURCE_MAP[hp_source]]
+    delta_t = sink_temp - (weather_df[defs.SOURCE_MAP[hp_source]] + UnitC.KELVIN2CELSIUS.value)
 
     # Apply temperature offset for ground and water source heat pumps
     if hp_source in temp_offset_types:
