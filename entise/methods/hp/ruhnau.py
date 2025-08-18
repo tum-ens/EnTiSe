@@ -11,7 +11,6 @@ based on temperature differences.
 """
 
 import logging
-import re
 
 import pandas as pd
 
@@ -19,7 +18,6 @@ import entise.methods.hp.defaults as defs
 from entise.constants import Columns as C
 from entise.constants import Objects as O
 from entise.constants import Types
-from entise.constants import UnitConversion as UnitC
 from entise.core.base import Method
 
 logger = logging.getLogger(__name__)
@@ -45,9 +43,9 @@ HP_SYSTEM = {
 
 # Define default temperature parameters for each sink type
 DEFAULT_SINKS = {
-    defs.FLOOR: {O.TEMP_SINK: 303.15, O.GRADIENT_SINK: -0.5},
-    defs.RADIATOR: {O.TEMP_SINK: 313.15, O.GRADIENT_SINK: -1.0},
-    defs.WATER: {O.TEMP_SINK: 323.15, O.GRADIENT_SINK: 0},
+    defs.FLOOR: {O.TEMP_SINK: 30, O.GRADIENT_SINK: -0.5},
+    defs.RADIATOR: {O.TEMP_SINK: 40, O.GRADIENT_SINK: -1.0},
+    defs.WATER: {O.TEMP_SINK: 50, O.GRADIENT_SINK: 0},
 }
 
 # Default correction factor
@@ -164,25 +162,7 @@ class Ruhnau(Method):
         # Calculate DHW COP time series
         dhw_cop_series = _calculate_dhw_cop_series(processed_obj, processed_data)
 
-        # Prepare output
-        summary = {
-            f"{Types.HP}_{Types.HEATING}_avg": heating_cop_series.mean().round(2),
-            f"{Types.HP}_{Types.HEATING}_min": heating_cop_series.min().round(2),
-            f"{Types.HP}_{Types.HEATING}_max": heating_cop_series.max().round(2),
-            f"{Types.HP}_{Types.DHW}_avg": dhw_cop_series.mean().round(2),
-            f"{Types.HP}_{Types.DHW}_min": dhw_cop_series.min().round(2),
-            f"{Types.HP}_{Types.DHW}_max": dhw_cop_series.max().round(2),
-        }
-
-        timeseries = pd.DataFrame(
-            {f"{Types.HP}_{Types.HEATING}": heating_cop_series, f"{Types.HP}_{Types.DHW}": dhw_cop_series},
-            index=processed_data[O.WEATHER].index,
-        )
-
-        return {
-            "summary": summary,
-            "timeseries": timeseries,
-        }
+        return self._format_output(heating_cop_series, dhw_cop_series, processed_data)
 
     def _get_input_data(self, obj, data):
         """Process and validate input parameters.
@@ -240,6 +220,7 @@ class Ruhnau(Method):
             logger.warning("No weather provided")
             raise ValueError("Weather data is required but not provided")
         weather = self.get_with_backup(data, weather)
+        weather = self._strip_weather_height(weather)
         data_out[O.WEATHER] = self._process_weather_data(weather)
 
         return obj_out, data_out
@@ -258,10 +239,6 @@ class Ruhnau(Method):
             df.index = pd.to_datetime(df[C.DATETIME])
         else:
             df.index = pd.to_datetime(df.index)
-
-        # Strip altitude information and rename columns
-        column_names = {col: re.sub(r"_(c)?m$", "", col) for col in df.columns}
-        df.rename(columns=column_names, inplace=True)
 
         # Add missing temperature columns
         df = self._add_missing_temperature_columns(df)
@@ -286,16 +263,48 @@ class Ruhnau(Method):
         # Add soil temperature column if missing
         if C.TEMP_SOIL not in df.columns:
             logger.info("Calculating soil temperature from air temperature")
-            df["rolling_temp"] = df[C.TEMP_AIR].rolling(window=24, min_periods=1).mean() + UnitC.KELVIN2CELSIUS.value
+            df["rolling_temp"] = df[C.TEMP_AIR].rolling(window=24, min_periods=1).mean()
             df[C.TEMP_SOIL] = df["rolling_temp"].apply(_calc_soil_temp)
             df.drop(columns=["rolling_temp"], inplace=True)
 
         # Add groundwater temperature column if missing
         if C.TEMP_WATER_GROUND not in df.columns:
-            logger.info("Setting default groundwater temperature to 283.15K/10°C")
-            df[C.TEMP_WATER_GROUND] = 283.15
+            logger.info("Setting default groundwater temperature to 10°C")
+            df[C.TEMP_WATER_GROUND] = 10
 
         return df
+
+    @staticmethod
+    def _format_output(heating_cop_series, dhw_cop_series, processed_data):
+        """Format the output dictionary for the method.
+
+        Args:
+            summary (dict): Summary statistics
+            timeseries (pd.DataFrame): Time series data
+
+        Returns:
+            dict: Formatted output dictionary
+        """
+
+        # Prepare output
+        summary = {
+            f"{Types.HP}_{Types.HEATING}_avg": heating_cop_series.mean().round(2),
+            f"{Types.HP}_{Types.HEATING}_min": heating_cop_series.min().round(2),
+            f"{Types.HP}_{Types.HEATING}_max": heating_cop_series.max().round(2),
+            f"{Types.HP}_{Types.DHW}_avg": dhw_cop_series.mean().round(2),
+            f"{Types.HP}_{Types.DHW}_min": dhw_cop_series.min().round(2),
+            f"{Types.HP}_{Types.DHW}_max": dhw_cop_series.max().round(2),
+        }
+
+        timeseries = pd.DataFrame(
+            {f"{Types.HP}_{Types.HEATING}": heating_cop_series, f"{Types.HP}_{Types.DHW}": dhw_cop_series},
+            index=processed_data[O.WEATHER].index,
+        )
+
+        return {
+            "summary": summary,
+            "timeseries": timeseries,
+        }
 
 
 def _calc_soil_temp(t_avg):
@@ -377,12 +386,10 @@ def _calculate_cop(
         pd.Series: COP time series
     """
     # Calculate sink temperature
-    sink_temp = (
-        temp_sink + UnitC.KELVIN2CELSIUS.value + gradient_sink * (weather_df[C.TEMP_AIR] + UnitC.KELVIN2CELSIUS.value)
-    )
+    sink_temp = temp_sink + gradient_sink * weather_df[C.TEMP_AIR]
 
     # Calculate temperature difference
-    delta_t = sink_temp - (weather_df[defs.SOURCE_MAP[hp_source]] + UnitC.KELVIN2CELSIUS.value)
+    delta_t = sink_temp - weather_df[defs.SOURCE_MAP[hp_source]]
 
     # Apply temperature offset for ground and water source heat pumps
     if hp_source in temp_offset_types:
