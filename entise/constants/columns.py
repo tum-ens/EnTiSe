@@ -20,7 +20,7 @@ class Columns:
     DURATION_SIGMA = f"{DURATION}_sigma"
     EVENT = "event"  # event
     FLOW_RATE = "flow_rate[l s-1]"  # l/s
-    FLOW_RATE_SIGMA = f"{FLOW_RATE}_sigma[l s-1]"  # l/s
+    FLOW_RATE_SIGMA = "flow_rate_sigma[l s-1]"  # l/s
     FLH = "full_load_hours[h]"  # full load hours (h; [0, 8760])
     GAIN = "gain[W]"  # Gain (W)
     GENERATION = "generation[Wh]"  # e.g. pv, wind (Wh)
