@@ -5,16 +5,19 @@ This module contains functions for loading and processing activity data
 used by the Jordan & Vajen DHW method.
 """
 
-import os
 import logging
+import os
+
 import pandas as pd
 
+from entise.constants import Columns as C
+from entise.constants import Objects as O
 from entise.methods.dhw.jordanvajen.utils import _get_data_path
 
 logger = logging.getLogger(__name__)
 
 
-def _get_activity_data(source: str, filename: str = 'dhw_activity.csv') -> pd.DataFrame:
+def _get_activity_data(source: str, filename: str = "dhw_activity.csv") -> pd.DataFrame:
     """
     Get activity data from filename.
 
@@ -60,7 +63,7 @@ def _get_activity_data(source: str, filename: str = 'dhw_activity.csv') -> pd.Da
         data = pd.read_csv(path)
 
         # Validate required columns
-        required_columns = ['day_of_week', 'time', 'event', 'probability', 'duration', 'flow_rate']
+        required_columns = [C.DAY_OF_WEEK, C.TIME, C.EVENT, C.PROBABILITY, C.DURATION, C.FLOW_RATE]
         missing_columns = [col for col in required_columns if col not in data.columns]
         if missing_columns:
             raise ValueError(f"Activity data missing required columns: {missing_columns}")
@@ -81,7 +84,7 @@ def _get_activity_data(source: str, filename: str = 'dhw_activity.csv') -> pd.Da
         raise
 
 
-def _get_demand_data(source: str, filename: str = 'dhw_demand_by_dwelling.csv') -> pd.DataFrame:
+def _get_demand_data(source: str, filename: str = "dhw_demand_by_dwelling.csv") -> pd.DataFrame:
     """
     Get demand data from filename.
 
@@ -120,7 +123,7 @@ def _get_demand_data(source: str, filename: str = 'dhw_demand_by_dwelling.csv') 
         data = pd.read_csv(path)
 
         # Validate required columns
-        required_columns = ['dwelling_size', 'm3_per_m2_a', 'sigma']
+        required_columns = [O.DWELLING_SIZE, O.YEARLY_DHW_DEMAND, O.SIGMA]
         missing_columns = [col for col in required_columns if col not in data.columns]
         if missing_columns:
             raise ValueError(f"Demand data missing required columns: {missing_columns}")

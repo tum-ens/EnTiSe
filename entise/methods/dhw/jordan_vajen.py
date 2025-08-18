@@ -327,10 +327,10 @@ def calculate_timeseries(obj, data):
 
     # Obtain statistical data for yearly demand
     demand_data = _get_demand_data("jordan_vajen")
-    sizes = demand_data["dwelling_size"].values
+    sizes = demand_data[O.DWELLING_SIZE].values
     idx = np.abs(sizes - dwelling_size).argmin()
-    m3_per_m2_a = demand_data.iloc[idx]["m3_per_m2_a"]
-    sigma = demand_data.iloc[idx]["sigma"]
+    m3_per_m2_a = demand_data.iloc[idx][O.YEARLY_DHW_DEMAND]
+    sigma = demand_data.iloc[idx][O.SIGMA]
 
     # Compute mean & std in litres/day
     mean_daily_l = m3_per_m2_a * dwelling_size * 1e3 / 365
