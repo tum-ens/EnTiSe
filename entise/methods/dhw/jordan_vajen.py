@@ -457,15 +457,15 @@ def format_output(data, ts_volume, ts_energy, ts_power, water_temp, tank_duratio
 
     # Summary statistics
     summary = {
-        f"{Types.DHW}_volume_total": int(ts_volume.sum().round(0)),
-        f"{Types.DHW}_volume_avg": float(ts_volume.mean().round(3)),
-        f"{Types.DHW}_volume_peak": float(ts_volume.max().round(3)),
-        f"{Types.DHW}_energy_total": int(ts_energy.sum()),
-        f"{Types.DHW}_energy_avg": int(ts_energy.mean().round(0)),
-        f"{Types.DHW}_energy_peak": int(ts_energy.max()),
-        f"{Types.DHW}_power_avg": int(ts_power.mean().round(0)),
-        f"{Types.DHW}_power_max": int(ts_power.max()),
-        f"{Types.DHW}_power_min": int(ts_power.min()),
+        f"{Types.DHW}_volume_total[l]": int(ts_volume.sum().round(0)),
+        f"{Types.DHW}_volume_avg[l]": float(ts_volume.mean().round(3)),
+        f"{Types.DHW}_volume_peak[l]": float(ts_volume.max().round(3)),
+        f"{Types.DHW}_energy_total[Wh]": int(ts_energy.sum()),
+        f"{Types.DHW}_energy_avg[Wh]": int(ts_energy.mean().round(0)),
+        f"{Types.DHW}_energy_peak[Wh]": int(ts_energy.max()),
+        f"{Types.DHW}_power_avg[W]": int(ts_power.mean().round(0)),
+        f"{Types.DHW}_power_max[W]": int(ts_power.max()),
+        f"{Types.DHW}_power_min[W]": int(ts_power.min()),
     }
 
     # Apply smoothing
@@ -476,14 +476,14 @@ def format_output(data, ts_volume, ts_energy, ts_power, water_temp, tank_duratio
     # Combine all time series into output
     timeseries = pd.DataFrame(
         {
-            f"{Types.DHW}_volume": ts_volume,
-            f"{Types.DHW}_energy": ts_energy.astype(int),
-            f"{Types.DHW}_power": ts_power.astype(int),
-            f"{Types.DHW}_power_sma": sma.astype(int),
-            f"{Types.DHW}_power_ewma": ewma.astype(int),
-            f"{Types.DHW}_power_gaussian": gaussian.astype(int),
-            f"{Types.DHW}_{O.TEMP_WATER_COLD}": water_temp.loc[:, O.TEMP_WATER_COLD],
-            f"{Types.DHW}_{O.TEMP_WATER_HOT}": water_temp.loc[:, O.TEMP_WATER_COLD],
+            f"{Types.DHW}_volume[l]": ts_volume,
+            f"{Types.DHW}_energy[Wh]": ts_energy.astype(int),
+            f"{Types.DHW}_power[W]": ts_power.astype(int),
+            f"{Types.DHW}_power_sma[W]": sma.astype(int),
+            f"{Types.DHW}_power_ewma[W]": ewma.astype(int),
+            f"{Types.DHW}_power_gaussian[W]": gaussian.astype(int),
+            f"{Types.DHW}_{O.TEMP_WATER_COLD}[C]": water_temp.loc[:, O.TEMP_WATER_COLD],
+            f"{Types.DHW}_{O.TEMP_WATER_HOT}[C]": water_temp.loc[:, O.TEMP_WATER_COLD],
         },
         index=time_index,
     )
