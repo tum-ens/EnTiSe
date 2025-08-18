@@ -14,7 +14,7 @@ class Objects:
     ACTIVE_HEATING = f"{ACTIVE}_heating"  # Activate heating?
     ALTITUDE = "altitude[m]"  # Altitude (m)
     AREA = "area[m2]"  # Area (m2)
-    AZIMUTH = "azimuth[º]"  # Azimuth (degrees; 0/360 = North)
+    AZIMUTH = "azimuth[degree]"  # Azimuth (degrees; 0/360 = North)
     CAPACITANCE = "capacitance[J K-1]"  # Capacitance (J/K)
     COLUMN = "column"
     CORRECTION_FACTOR = "correction_factor"  # Correction factor for calculations
@@ -39,14 +39,14 @@ class Objects:
     HP_SYSTEM = "hp_system"  # HP system configuration
     HUB_HEIGHT = "hub_height[m]"  # Hub height (wind)
     INHABITANTS = "inhabitants"  # Number of inhabitants
-    LAT = "latitude[º]"  # Latitude (degree north)
+    LAT = "latitude[degree]"  # Latitude (degree north)
     LOAD = "load[W]"
     LOAD_BASE = f"{LOAD}_base[W]"  # Base load
     LOAD_MAX = f"{LOAD}_max[W]"
-    LON = "longitude[º]"  # Longitude (degree north)
+    LON = "longitude[degree]"  # Longitude (degree north)
     OCCUPATION = "occupation"  # Occupancy (for timeseries files)
     OCCUPANTS = "occupants"  # Number of occupants
-    ORIENTATION = "orientation[º]"  # Orientation (degrees; 180 = south)
+    ORIENTATION = "orientation[degree]"  # Orientation (degrees; 180 = south)
     POWER = "power[W]"  # Power (W)
     POWER_COOLING = f"{POWER}_cooling[W]"  # Power cooling (W)
     POWER_HEATING = f"{POWER}_heating[W]"  # Power heating (W)
@@ -56,18 +56,19 @@ class Objects:
     SEASONAL_PEAK_DAY = "seasonal_peak_day"  # Day of year with peak demand
     SEASONAL_VARIATION = "seasonal_variation"  # Seasonal variation factor
     SEED = "seed"  # Seed to ensure reproducibility
+    SIGMA = "sigma"  # Standard deviation
     SOURCE = "source"  # Source of data or method
     TEMP = "temperature[C]"  # Temperature (°C)
-    TEMP_WATER = f"water_{TEMP}[C]"  # Water temperature (°C)
-    TEMP_WATER_COLD = f"cold_{TEMP_WATER}[C]"  # Cold water temperature (°C)
-    TEMP_WATER_HOT = f"hot_{TEMP_WATER}[C]"  # Hot water temperature (°C)
-    TEMP_INIT = f"init_{TEMP}[C]"  # Initial temperature (°C)
-    TEMP_MAX = f"max_{TEMP}[C]"  # Maximum temperature (°C)
-    TEMP_MIN = f"min_{TEMP}[C]"  # Minimum temperature (°C)
-    TEMP_SET = f"set_{TEMP}[C]"  # Set temperature (°C)
-    TEMP_SINK = f"sink_{TEMP}[C]"  # Heat pump sink temperature setting (°C)
+    TEMP_WATER = f"water_{TEMP}"  # Water temperature (°C)
+    TEMP_WATER_COLD = f"cold_{TEMP_WATER}"  # Cold water temperature (°C)
+    TEMP_WATER_HOT = f"hot_{TEMP_WATER}"  # Hot water temperature (°C)
+    TEMP_INIT = f"init_{TEMP}"  # Initial temperature (°C)
+    TEMP_MAX = f"max_{TEMP}"  # Maximum temperature (°C)
+    TEMP_MIN = f"min_{TEMP}"  # Minimum temperature (°C)
+    TEMP_SET = f"set_{TEMP}"  # Set temperature (°C)
+    TEMP_SINK = f"sink_{TEMP}"  # Heat pump sink temperature setting (°C)
     THERMAL_INERTIA = "thermal_inertia"  # Thermal inertia [0, 1]
-    TILT = "tilt[º]"  # Tilt (degrees; 0 = horizontal)
+    TILT = "tilt[degree]"  # Tilt (degrees; 0 = horizontal)
     TRANSMITTANCE = "transmittance[W m-2 K-1]"  # Transmittance (W/m2/K)
     TURBINE_TYPE = "turbine_type"  # Turbine type (wind)
     VENTILATION = "ventilation[W K-1]"  # Ventilation losses (W/K)
@@ -77,6 +78,7 @@ class Objects:
     WEATHER = "weather"  # Weather data
     WIND_MODEL = "wind_model"  # Model chain (wind)
     WINDOWS = "windows"  # Windows
+    YEARLY_DHW_DEMAND = "yearly_dhw_demand[m3 m-2 a-1]"  # Yearly DHW demand in m³ per m²
     DTYPES = {
         ID: object,
         ACTIVE_HEATING: bool,

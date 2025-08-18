@@ -17,7 +17,7 @@ class Columns:
     COP = "cop"  # Coefficient of Performance
     DEMAND = "demand[Wh]"  # e.g. heating or cooling demand (Wh)
     DURATION = "duration[s]"  # (s)
-    DURATION_SIGMA = f"{DURATION}_sigma"
+    DURATION_SIGMA = f"duration_sigma[s]"  # Standard deviation of duration (s)
     EVENT = "event"  # event
     FLOW_RATE = "flow_rate[l s-1]"  # l/s
     FLOW_RATE_SIGMA = "flow_rate_sigma[l s-1]"  # l/s
@@ -27,7 +27,7 @@ class Columns:
     LOAD = "load[W]"  # Load values (e.g., electricity load) (W)
     MONTH = "month"
     OCCUPATION = "occupation"  # Occupancy data
-    ORIENTATION = "orientation[º]"  # Orientation (degrees; 180 = south)
+    ORIENTATION = "orientation[degree]"  # Orientation (degrees; 180 = south)
     POWER = "power[W]"  # power (W)
     PROBABILITY = "probability"  # probability (of event; [0, 1])
     PROBABILITY_DAY = f"{PROBABILITY}_day"  # Probabilty of event per day [0, inf)
@@ -38,19 +38,19 @@ class Columns:
     SOLAR_GHI = "global_horizontal_irradiance[W m-2]"  # Global horizontal irradiance (W/m2)
     SURFACE_AIR_PRESSURE = "surface_air_pressure[Pa]"  # Surface pressure (Pa)
     TEMP = "temperature[C]"  #  Temperature (°C)
-    TEMP_AIR = f"air_{TEMP}[C]"  # Air temperature (°C)
-    TEMP_IN = f"indoor_{TEMP}[C]"  # Indoor temperature (°C)
-    TEMP_OUT = f"outdoor_{TEMP}[C]"  # Outdoor temperature (°C)
-    TEMP_SOIL = f"soil_{TEMP}[C]"  # Soil temperature (°C)
-    TEMP_WATER = f"water_{TEMP}[C]"  # Water temperature (°C)
-    TEMP_WATER_COLD = f"cold_{TEMP_WATER}[C]"  # Cold water temperature (°C)
-    TEMP_WATER_GROUND = f"groundwater_{TEMP}[C]"  # Groundwater temperature (°C)
-    TEMP_WATER_HOT = f"hot_{TEMP_WATER}[C]"  # Hot water temperature (°C)
-    TILT = "tilt[º]"  # Tilt (degrees; 0 = horizontal)
+    TEMP_AIR = f"air_{TEMP}"  # Air temperature (°C)
+    TEMP_IN = f"indoor_{TEMP}"  # Indoor temperature (°C)
+    TEMP_OUT = f"outdoor_{TEMP}"  # Outdoor temperature (°C)
+    TEMP_SOIL = f"soil_{TEMP}"  # Soil temperature (°C)
+    TEMP_WATER = f"water_{TEMP}"  # Water temperature (°C)
+    TEMP_WATER_COLD = f"cold_{TEMP_WATER}"  # Cold water temperature (°C)
+    TEMP_WATER_GROUND = f"groundwater_{TEMP}"  # Groundwater temperature (°C)
+    TEMP_WATER_HOT = f"hot_{TEMP_WATER}"  # Hot water temperature (°C)
+    TILT = "tilt[degree]"  # Tilt (degrees; 0 = horizontal)
     TIME = "time"  # time of day
     TRANSMITTANCE = "transmittance[W m-2 K-1]"  # Transmittance (W/m2/K)
     WIND_SPEED = "wind_speed[m s-1]"  # Wind speed (m/s)
-    WIND_DIRECTION = "wind_from_direction[º]"  # Wind direction (º)
+    WIND_DIRECTION = "wind_from_direction[degree]"  # Wind direction (degree)
     DTYPES = {
         ID: object,
         AREA: float | int | np.number,
