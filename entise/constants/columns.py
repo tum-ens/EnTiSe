@@ -8,49 +8,49 @@ class Columns:
     """Column names used in timeseries data."""
 
     ID = "id"  # Object ID
-    AREA = "area"  # Area of the object (m²)
+    AREA = "area[m2]"  # Area of the object (m²)
     DATE = "date"  # Date
     DATETIME = "datetime"  # Timestamps
     DAY = "day"  # day
     DAY_OF_WEEK = f"{DAY}_of_week"  # Day of the week (0-6; 6: Sunday)
     DAY_CALENDAR = f"{DAY}_calendar"  # Calendar day
     COP = "cop"  # Coefficient of Performance
-    DEMAND = "demand"  # e.g. heating or cooling demand (Wh)
-    DURATION = "duration"  # (s)
+    DEMAND = "demand[Wh]"  # e.g. heating or cooling demand (Wh)
+    DURATION = "duration[s]"  # (s)
     DURATION_SIGMA = f"{DURATION}_sigma"
     EVENT = "event"  # event
-    FLOW_RATE = "flow_rate"  # l/s
-    FLOW_RATE_SIGMA = f"{FLOW_RATE}_sigma"
-    FLH = "full_load_hours"  # full load hours (h; [0, 8760])
-    GAIN = "gain"  # Gain (W)
-    GENERATION = "generation"  # e.g. pv, wind (Wh)
-    LOAD = "load"  # Load values (e.g., electricity load) (W)
+    FLOW_RATE = "flow_rate[l s-1]"  # l/s
+    FLOW_RATE_SIGMA = f"{FLOW_RATE}_sigma[l s-1]"  # l/s
+    FLH = "full_load_hours[h]"  # full load hours (h; [0, 8760])
+    GAIN = "gain[W]"  # Gain (W)
+    GENERATION = "generation[Wh]"  # e.g. pv, wind (Wh)
+    LOAD = "load[W]"  # Load values (e.g., electricity load) (W)
     MONTH = "month"
     OCCUPATION = "occupation"  # Occupancy data
-    ORIENTATION = "orientation"  # Orientation (degrees; 180 = south)
-    POWER = "power"  # power (W)
+    ORIENTATION = "orientation[º]"  # Orientation (degrees; 180 = south)
+    POWER = "power[W]"  # power (W)
     PROBABILITY = "probability"  # probability (of event; [0, 1])
     PROBABILITY_DAY = f"{PROBABILITY}_day"  # Probabilty of event per day [0, inf)
     ROUGHNESS_LENGTH = "roughness_length"  # Roughness length
     SHADING = "shading"  # Shading [0, 1]
-    SOLAR_DHI = "diffuse_horizontal_irradiance"  # Diffuse horizontal irradiance (W/m2)
-    SOLAR_DNI = "direct_normal_irradiance"  # Direct normal irradiance (W/m2)
-    SOLAR_GHI = "global_horizontal_irradiance"  # Global horizontal irradiance (W/m2)
-    SURFACE_AIR_PRESSURE = "surface_air_pressure"  # Surface pressure (Pa)
-    TEMP = "temperature"  #  Temperature (K)
-    TEMP_AIR = f"air_{TEMP}"  # Air temperature (K)
-    TEMP_IN = f"indoor_{TEMP}"  # Indoor temperature (K)
-    TEMP_OUT = f"outdoor_{TEMP}"  # Outdoor temperature (K)
-    TEMP_SOIL = f"soil_{TEMP}"  # Soil temperature (K)
-    TEMP_WATER = f"water_{TEMP}"  # Water temperature (K)
-    TEMP_WATER_COLD = f"cold_{TEMP_WATER}"  # Cold water temperature (K)
-    TEMP_WATER_GROUND = f"groundwater_{TEMP}"  # Groundwater temperature (K)
-    TEMP_WATER_HOT = f"hot_{TEMP_WATER}"  # Hot water temperature (K)
-    TILT = "tilt"  # Tilt (degrees; 0 = horizontal)
+    SOLAR_DHI = "diffuse_horizontal_irradiance[W m-2]"  # Diffuse horizontal irradiance (W/m2)
+    SOLAR_DNI = "direct_normal_irradiance[W m-2]"  # Direct normal irradiance (W/m2)
+    SOLAR_GHI = "global_horizontal_irradiance[W m-2]"  # Global horizontal irradiance (W/m2)
+    SURFACE_AIR_PRESSURE = "surface_air_pressure[Pa]"  # Surface pressure (Pa)
+    TEMP = "temperature[C]"  #  Temperature (°C)
+    TEMP_AIR = f"air_{TEMP}[C]"  # Air temperature (°C)
+    TEMP_IN = f"indoor_{TEMP}[C]"  # Indoor temperature (°C)
+    TEMP_OUT = f"outdoor_{TEMP}[C]"  # Outdoor temperature (°C)
+    TEMP_SOIL = f"soil_{TEMP}[C]"  # Soil temperature (°C)
+    TEMP_WATER = f"water_{TEMP}[C]"  # Water temperature (°C)
+    TEMP_WATER_COLD = f"cold_{TEMP_WATER}[C]"  # Cold water temperature (°C)
+    TEMP_WATER_GROUND = f"groundwater_{TEMP}[C]"  # Groundwater temperature (°C)
+    TEMP_WATER_HOT = f"hot_{TEMP_WATER}[C]"  # Hot water temperature (°C)
+    TILT = "tilt[º]"  # Tilt (degrees; 0 = horizontal)
     TIME = "time"  # time of day
-    TRANSMITTANCE = "transmittance"  # Transmittance (W/m2/K)
-    WIND_SPEED = "wind_speed"  # Wind speed (m/s)
-    WIND_DIRECTION = "wind_from_direction"  # Wind direction (º)
+    TRANSMITTANCE = "transmittance[W m-2 K-1]"  # Transmittance (W/m2/K)
+    WIND_SPEED = "wind_speed[m s-1]"  # Wind speed (m/s)
+    WIND_DIRECTION = "wind_from_direction[º]"  # Wind direction (º)
     DTYPES = {
         ID: object,
         AREA: float | int | np.number,
