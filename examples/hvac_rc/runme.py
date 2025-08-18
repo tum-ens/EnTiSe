@@ -24,6 +24,11 @@ from entise.core.generator import TimeSeriesGenerator
 cwd = "."  # Current working directory: change if your kernel is not running in the same folder
 objects = pd.read_csv(os.path.join(cwd, "objects.csv"))
 data = {}
+common_data_folder = "../common_data"
+for file in os.listdir(os.path.join(cwd, common_data_folder)):
+    if file.endswith(".csv"):
+        name = file.split(".")[0]
+        data[name] = pd.read_csv(os.path.join(os.path.join(cwd, common_data_folder, file)), parse_dates=True)
 data_folder = "data"
 for file in os.listdir(os.path.join(cwd, data_folder)):
     if file.endswith(".csv"):
@@ -43,9 +48,10 @@ gen.add_objects(objects)
 summary, df = gen.generate(data, workers=1)
 
 # Print summary
-print("Summary [kWh/a] or [kW/a]:")
+print("Summary:")
 summary_kwh = (summary / 1000).round(0).astype(int)
-print(summary_kwh)
+summary_kwh.rename(columns=lambda x: x.replace("[W]", "[kW]").replace("[Wh]", "[kWh]"), inplace=True)
+print(summary_kwh.to_string())
 
 # Visualize results for the processed building
 # Note: We're using the same building_id as defined above
@@ -65,8 +71,8 @@ ax2.legend(loc="upper right")
 ax2.set_ylim(-250, 1000)
 
 # Temperature plot
-ax1.plot(building_data.index, data["weather"][Cols.TEMP_AIR] - 273.15, label="Outdoor Temp", color="tab:cyan", alpha=0.7)
-ax1.plot(building_data.index, building_data[Cols.TEMP_IN] - 273.15, label="Indoor Temp", color="tab:blue")
+ax1.plot(building_data.index, data["weather"][f"{Cols.TEMP_AIR}@2m"], label="Outdoor Temp", color="tab:cyan", alpha=0.7)
+ax1.plot(building_data.index, building_data[Cols.TEMP_IN], label="Indoor Temp", color="tab:blue")
 ax1.set_ylabel("Temperature (°C)")
 ax1.set_title(f"Building ID: {building_id} - Temperatures and Solar Radiation")
 ax1.legend(loc="upper left")
@@ -80,18 +86,18 @@ plt.show()
 
 # Figure 2: Heating and Cooling Loads
 fig, ax = plt.subplots(figsize=(14, 5))
-heating_MWh = summary.loc[building_id, "demand_heating"] / 1e6
-cooling_MWh = summary.loc[building_id, "demand_cooling"] / 1e6
+heating_MWh = summary.loc[building_id, "demand_heating[Wh]"] / 1e6
+cooling_MWh = summary.loc[building_id, "demand_cooling[Wh]"] / 1e6
 (line1,) = ax.plot(
     building_data.index,
-    building_data["load_heating"],
+    building_data["load_heating[W]"],
     label=f"Heating: {heating_MWh:.1f} MWh",
     color="tab:red",
     alpha=0.8,
 )
 (line2,) = ax.plot(
     building_data.index,
-    building_data["load_cooling"],
+    building_data["load_cooling[W]"],
     label=f"Cooling: {cooling_MWh:.1f} MWh",
     color="tab:cyan",
     alpha=0.8,
@@ -108,7 +114,7 @@ plt.show()
 fig, ax1 = plt.subplots(figsize=(15, 6))
 
 # Plot outdoor temperature on left y-axis
-air_temp = data["weather"][Cols.TEMP_AIR] - 273.15
+air_temp = data["weather"][f"{Cols.TEMP_AIR}@2m"]
 ax1.plot(building_data.index, air_temp
          , label="Outdoor Temp", color="tab:cyan", alpha=0.7)
 
@@ -117,12 +123,12 @@ ax1.set_ylim(air_temp.min().round() - 2, air_temp.max().round() + 2)
 
 # Create second y-axis for loads
 ax2 = ax1.twinx()
-ax2.plot(building_data.index, building_data["load_heating"], label="Heating Load", color="tab:red", alpha=0.8)
-ax2.plot(building_data.index, building_data["load_cooling"], label="Cooling Load", color="tab:blue", alpha=0.8)
+ax2.plot(building_data.index, building_data["load_heating[W]"], label="Heating Load", color="tab:red", alpha=0.8)
+ax2.plot(building_data.index, building_data["load_cooling[W]"], label="Cooling Load", color="tab:blue", alpha=0.8)
 ax2.set_ylabel("HVAC Load (W)")
 ax2.set_ylim(
-    min(building_data["load_heating"].min(), building_data["load_cooling"].min()) * 1.1,
-    max(building_data["load_heating"].max(), building_data["load_cooling"].max()) * 1.1,
+    min(building_data["load_heating[W]"].min(), building_data["load_cooling[W]"].min()) * 1.1,
+    max(building_data["load_heating[W]"].max(), building_data["load_cooling[W]"].max()) * 1.1,
 )
 
 # Combine legends from both axes
