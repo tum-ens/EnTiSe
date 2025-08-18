@@ -17,6 +17,11 @@ cwd = "."  # Current working directory: change if your kernel is not running in 
 objects = pd.read_csv(os.path.join(cwd, "objects.csv"))
 data = {}
 data_folder = "data"
+common_data_folder = "../common_data"
+for file in os.listdir(os.path.join(cwd, common_data_folder)):
+    if file.endswith(".csv"):
+        name = file.split(".")[0]
+        data[name] = pd.read_csv(os.path.join(os.path.join(cwd, common_data_folder, file)), parse_dates=True)
 for file in os.listdir(os.path.join(cwd, data_folder)):
     if file.endswith(".csv"):
         name = file.split(".")[0]
@@ -325,12 +330,7 @@ for i, obj_id in enumerate(df):
                     continue
 
     # Get temperature column
-    temp_col = "air_temperature"
-    if temp_col not in weather_data.columns and "air_temperature_2m" in weather_data.columns:
-        temp_col = "air_temperature_2m"
-
-    if temp_col not in weather_data.columns:
-        continue
+    temp_col = "air_temperature[C]"
 
     # Process heating COP
     heating_col = f"{Types.HP}_{Types.HEATING}"
@@ -338,7 +338,7 @@ for i, obj_id in enumerate(df):
         # Merge COP and temperature data
         merged_data = pd.merge(
             df[obj_id][Types.HP][heating_col],
-            weather_data[temp_col] - 273.15,
+            weather_data[temp_col],
             left_index=True,
             right_index=True,
             how="inner",
@@ -353,7 +353,7 @@ for i, obj_id in enumerate(df):
         # Merge COP and temperature data
         merged_data = pd.merge(
             df[obj_id][Types.HP][dhw_col],
-            weather_data[temp_col] - 273.15,
+            weather_data[temp_col],
             left_index=True,
             right_index=True,
             how="inner",
