@@ -77,11 +77,11 @@ class SolarGainsPVLib(AuxiliaryMethod):
             windows = windows.loc[windows[O.ID] == object_id]
             windows = windows if not windows.empty else None
         input_data = {
-            O.LAT: obj[O.LAT],
-            O.LON: obj[O.LON],
+            'latitude': obj[O.LAT],
+            'longitude': obj[O.LON],
             "model": obj.get("model", "isotropic"),
-            O.WEATHER: data[O.WEATHER],
-            O.WINDOWS: windows,
+            "weather": data[O.WEATHER],
+            "windows": windows,
         }
         return input_data
 
@@ -136,7 +136,7 @@ class SolarGainsPVLib(AuxiliaryMethod):
                 model=model,
             )
             poa_global = irr["poa_global"]
-            window_gains = poa_global * window["area"] * window["transmittance"] * window["shading"]
+            window_gains = poa_global * window[C.AREA] * window[C.TRANSMITTANCE] * window[C.SHADING]
 
             # Accumulate the gains
             total_solar_gains += window_gains.to_numpy(dtype=np.float32)

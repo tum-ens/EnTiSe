@@ -64,8 +64,8 @@ class VentilationConstant(AuxiliaryMethod):
 
     def get_input_data(self, obj, data):
         return {
-            O.VENTILATION: obj.get(O.VENTILATION, DEFAULT_VENTILATION),
-            O.WEATHER: data[O.WEATHER],
+            "ventilation": obj.get(O.VENTILATION, DEFAULT_VENTILATION),
+            "weather": data[O.WEATHER],
         }
 
     def run(self, ventilation, weather):
