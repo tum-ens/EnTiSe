@@ -15,7 +15,7 @@ class Columns:
     DAY_OF_WEEK = f"{DAY}_of_week"  # Day of the week (0-6; 6: Sunday)
     DAY_CALENDAR = f"{DAY}_calendar"  # Calendar day
     COP = "cop"  # Coefficient of Performance
-    DEMAND = "demand[Wh]"  # e.g. heating or cooling demand (Wh)
+    DEMAND = "demand"  # e.g. heating or cooling demand (Wh)
     DURATION = "duration[s]"  # (s)
     DURATION_SIGMA = f"duration_sigma[s]"  # Standard deviation of duration (s)
     EVENT = "event"  # event
@@ -24,7 +24,7 @@ class Columns:
     FLH = "full_load_hours[h]"  # full load hours (h; [0, 8760])
     GAIN = "gain[W]"  # Gain (W)
     GENERATION = "generation[Wh]"  # e.g. pv, wind (Wh)
-    LOAD = "load[W]"  # Load values (e.g., electricity load) (W)
+    LOAD = "load"  # Load values (e.g., electricity load) (W)
     MONTH = "month"
     OCCUPATION = "occupation"  # Occupancy data
     ORIENTATION = "orientation[degree]"  # Orientation (degrees; 180 = south)
@@ -32,7 +32,7 @@ class Columns:
     PROBABILITY = "probability"  # probability (of event; [0, 1])
     PROBABILITY_DAY = f"{PROBABILITY}_day"  # Probabilty of event per day [0, inf)
     ROUGHNESS_LENGTH = "roughness_length"  # Roughness length
-    SHADING = "shading"  # Shading [0, 1]
+    SHADING = "shading[1]"  # Shading [0, 1]
     SOLAR_DHI = "diffuse_horizontal_irradiance[W m-2]"  # Diffuse horizontal irradiance (W/m2)
     SOLAR_DNI = "direct_normal_irradiance[W m-2]"  # Direct normal irradiance (W/m2)
     SOLAR_GHI = "global_horizontal_irradiance[W m-2]"  # Global horizontal irradiance (W/m2)

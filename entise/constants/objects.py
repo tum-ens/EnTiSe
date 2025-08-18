@@ -26,7 +26,7 @@ class Objects:
     DWELLING_SIZE = "dwelling_size[m2]"  # Size of dwelling (m2)
     FILE = "filename"  # File
     GAINS_INTERNAL = "gains_internal[W]"  # Internal gains (W)
-    GAINS_INTERNAL_COL = f"{GAINS_INTERNAL}_{COLUMN}"  # column in which the internal gains are (dataframe provided)
+    GAINS_INTERNAL_COL = f"gains_internal_{COLUMN}"  # column in which the internal gains are (dataframe provided)
     GAINS_INTERNAL_PER_PERSON = f"{GAINS_INTERNAL}_per_person[W]"  # Internal gains per person (W)
     GAINS_SOLAR = "gains_solar[W]"  # Solar gains (W)
     GEN_MAX = "maximum_generation[W]"  # Maximum generation (W)
@@ -40,9 +40,9 @@ class Objects:
     HUB_HEIGHT = "hub_height[m]"  # Hub height (wind)
     INHABITANTS = "inhabitants"  # Number of inhabitants
     LAT = "latitude[degree]"  # Latitude (degree north)
-    LOAD = "load[W]"
-    LOAD_BASE = f"{LOAD}_base[W]"  # Base load
-    LOAD_MAX = f"{LOAD}_max[W]"
+    LOAD = "load"
+    LOAD_BASE = f"{LOAD}_base"  # Base load
+    LOAD_MAX = f"{LOAD}_max"
     LON = "longitude[degree]"  # Longitude (degree north)
     OCCUPATION = "occupation"  # Occupancy (for timeseries files)
     OCCUPANTS = "occupants"  # Number of occupants
@@ -72,8 +72,8 @@ class Objects:
     TRANSMITTANCE = "transmittance[W m-2 K-1]"  # Transmittance (W/m2/K)
     TURBINE_TYPE = "turbine_type"  # Turbine type (wind)
     VENTILATION = "ventilation[W K-1]"  # Ventilation losses (W/K)
-    VENTILATION_COL = f"{VENTILATION}_{COLUMN}"
-    VENTILATION_FACTOR = f"{VENTILATION}_factor[h-1]"  # 1/h
+    VENTILATION_COL = f"ventilation_{COLUMN}"
+    VENTILATION_FACTOR = f"ventilation_factor[h-1]"  # 1/h
     VERBOSE = "verbose"  # Verbose
     WEATHER = "weather"  # Weather data
     WIND_MODEL = "wind_model"  # Model chain (wind)
