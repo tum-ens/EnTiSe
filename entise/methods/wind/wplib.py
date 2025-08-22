@@ -20,9 +20,10 @@ import logging
 import pandas as pd
 from windpowerlib import ModelChain, WindTurbine
 
+from entise.constants import SEP, Types
 from entise.constants import Columns as C
 from entise.constants import Objects as O
-from entise.constants import Types
+from entise.constants import UnitConversion as UConv
 from entise.core.base import Method
 
 logger = logging.getLogger(__name__)
@@ -119,13 +120,10 @@ class WPLib(Method):
             obj (dict, optional): Dictionary containing wind turbine parameters. Defaults to None.
             data (dict, optional): Dictionary containing input data. Defaults to None.
             ts_type (str, optional): Time series type to generate. Defaults to Types.WIND.
-            latitude (float, optional): Geographic latitude in degrees. Defaults to None.
-            longitude (float, optional): Geographic longitude in degrees. Defaults to None.
             weather (pd.DataFrame, optional): Weather data with wind speed and direction. Defaults to None.
             power (float, optional): System power rating in watts. Defaults to None.
             turbine_type (str, optional): Type of wind turbine. Defaults to None.
             hub_height (float, optional): Hub height of the turbine in meters. Defaults to None.
-            altitude (float, optional): Site altitude in meters. Defaults to None.
 
         Returns:
             dict: Dictionary containing:
@@ -159,127 +157,139 @@ class WPLib(Method):
         )
 
         # Continue with existing implementation
-        processed_obj, processed_data = get_input_data(processed_obj, processed_data, ts_type)
+        processed_obj, processed_data = self.get_input_data(processed_obj, processed_data, ts_type)
 
         ts = calculate_timeseries(processed_obj, processed_data)
 
         logger.debug(f"[WIND windlib]: Generating {ts_type} data")
 
-        timestep = processed_data[O.WEATHER].index.diff().total_seconds().dropna()[0]
-        summary = {
-            f"{C.GENERATION}_{Types.WIND}": (ts.sum() * timestep / 3600).round().astype(int),
-            f"{O.GEN_MAX}_{Types.WIND}": ts.max().round().astype(int),
-            f"{C.FLH}_{Types.WIND}": (ts.sum() * timestep / 3600 / processed_obj[O.POWER]).round().astype(int),
+        return self._format_output(processed_obj, processed_data, ts)
+
+    def process_weather_data(self, weather_data):
+        """Process weather data to match windpowerlib requirements.
+
+        Args:
+            weather_data (pd.DataFrame): Raw weather data.
+
+        Returns:
+            pd.DataFrame: Processed weather data with the format required by windpowerlib.
+        """
+        weather = weather_data.copy()
+
+        # Add roughness length if not present
+        if C.ROUGHNESS_LENGTH not in weather.columns:
+            weather[C.ROUGHNESS_LENGTH] = ROUGHNESS_LENGTH
+
+        # Select and rename required columns
+        weather, info = self._obtain_weather_info(weather)
+
+        weather = self._create_multiindex(weather, info)
+
+        weather.rename(
+            columns={
+                C.TEMP_AIR.split("[")[0]: "temperature",
+                C.SURFACE_AIR_PRESSURE.split("[")[0]: "pressure",
+                C.WIND_SPEED.split("[")[0]: "wind_speed",
+                C.WIND_DIRECTION.split("[")[0]: "wind_direction",
+                C.ROUGHNESS_LENGTH.split("[")[0]: "roughness_length",
+            },
+            inplace=True,
+            level=0,
+        )
+
+        weather["temperature"] += UConv.CELSIUS2KELVIN.value
+
+        return weather
+
+    @staticmethod
+    def _create_multiindex(df, info):
+        """Reshape the dataframe to have a multi-index for columns as needed by windpowerlib.
+
+        Args:
+            df (pd.DataFrame): Weather dataframe to reshape.
+            info (dict): Information dictionary with column information including height.
+
+        Returns:
+            pd.DataFrame: Reshaped dataframe with multi-index columns.
+        """
+        df.index.name = None
+
+        # Create arrays for MultiIndex using vectorized operations
+        arrays = [
+            [info.get(col, {}).get("name", col) for col in df.columns],  # variable_name
+            [int(info.get(col, {}).get("height", 0) or 0) for col in df.columns],  # height
+        ]
+
+        df.columns = pd.MultiIndex.from_arrays(arrays, names=["variable_name", "height"])
+
+        return df
+
+    def get_input_data(self, obj, data, method_type=Types.WIND):
+        """Process and validate input data for wind power generation calculation.
+
+        This function extracts required and optional parameters from the input dictionaries,
+        applies default values where needed, performs data validation, and prepares the
+        data for wind power generation calculation.
+
+        Args:
+            obj (dict): Dictionary containing wind turbine parameters such as location,
+                turbine type, and power rating.
+            data (dict): Dictionary containing input data such as weather information.
+            method_type (str, optional): Method type to use for prefixing. Defaults to Types.WIND.
+
+        Returns:
+            tuple: A tuple containing:
+                - obj_out (dict): Processed object parameters with defaults applied.
+                - data_out (dict): Processed data with required format for calculation.
+
+        Raises:
+            Exception: If required weather data is missing.
+
+        Notes:
+            - Parameters can be specified with method-specific prefixes (e.g., "wind:altitude")
+              which will take precedence over generic parameters (e.g., "altitude").
+            - Weather data is processed to match the format required by windpowerlib.
+        """
+        obj_out = {
+            O.ID: Method.get_with_backup(obj, O.ID),
+            O.POWER: Method.get_with_method_backup(obj, O.POWER, method_type, DEFAULT_POWER),
+            O.TURBINE_TYPE: Method.get_with_method_backup(obj, O.TURBINE_TYPE, method_type, DEFAULT_TURBINE_TYPE),
+            O.HUB_HEIGHT: Method.get_with_method_backup(obj, O.HUB_HEIGHT, method_type, DEFAULT_HUB_HEIGHT),
         }
 
-        ts = ts.rename(columns={O.POWER: f"{C.POWER}_{Types.WIND}"})
+        data_out = {
+            O.WEATHER: Method.get_with_backup(data, O.WEATHER),
+        }
+
+        # Process weather data
+        if data_out[O.WEATHER] is not None:
+            weather = data_out[O.WEATHER].copy()
+            weather[C.DATETIME] = pd.to_datetime(weather[C.DATETIME], utc=False)
+            weather.index = pd.to_datetime(weather[C.DATETIME], utc=True)
+            data_out[O.WEATHER] = self.process_weather_data(weather)
+        else:
+            logger.error("[WIND windlib]: No weather data")
+            raise Exception(f"{O.WEATHER} not available")
+
+        return obj_out, data_out
+
+    @staticmethod
+    def _format_output(processed_obj, processed_data, ts):
+        timestep = processed_data[O.WEATHER].index.diff().total_seconds().dropna()[0]
+        summary = {
+            f"{Types.WIND}{SEP}{C.GENERATION}": (ts[O.POWER].sum() * timestep / 3600).round().astype(int),
+            f"{Types.WIND}{SEP}{O.GEN_MAX}": ts[O.POWER].max().round().astype(int),
+            f"{Types.WIND}{SEP}{C.FLH}": (ts[O.POWER].sum() * timestep / 3600 / processed_obj[O.POWER])
+            .round()
+            .astype(int),
+        }
+
+        ts = ts.rename(columns={O.POWER: f"{Types.WIND}{SEP}{C.POWER}"})
 
         return {
             "summary": summary,
             "timeseries": ts,
         }
-
-
-def process_weather_data(weather_data):
-    """Process weather data to match windpowerlib requirements.
-
-    Args:
-        weather_data (pd.DataFrame): Raw weather data.
-
-    Returns:
-        pd.DataFrame: Processed weather data with the format required by windpowerlib.
-    """
-    weather = weather_data.copy()
-
-    # Add roughness length if not present
-    if C.ROUGHNESS_LENGTH not in weather.columns:
-        weather[C.ROUGHNESS_LENGTH] = ROUGHNESS_LENGTH
-
-    # Select and rename required columns
-    weather = weather.loc[
-        :, ["temperature_2m", C.SURFACE_PRESSURE, "wind_speed_100m", "wind_direction_100m", C.ROUGHNESS_LENGTH]
-    ]
-    weather.rename(columns={C.SURFACE_PRESSURE: "pressure"}, inplace=True)
-
-    # Convert temperature to Kelvin
-    weather["temperature_2m"] += 273.15
-
-    # Convert surface pressure to Pa
-    weather["pressure"] *= 100
-
-    # Create multi-index for columns as needed by windpowerlib
-    weather = reshape_weather_data(weather)
-
-    return weather
-
-
-def reshape_weather_data(df):
-    """Reshape the dataframe to have a multi-index for columns as needed by windpowerlib.
-
-    Args:
-        df (pd.DataFrame): Weather dataframe to reshape.
-
-    Returns:
-        pd.DataFrame: Reshaped dataframe with multi-index columns.
-    """
-    df.index.name = None
-
-    # Create multi-index for columns
-    col_df = df.columns.to_series().str.extract(r"(?P<variable_name>.+?)(?:_(?P<height>\d+)m)?$")
-    col_df["height"] = col_df["height"].fillna(0).astype(int)
-    df.columns = pd.MultiIndex.from_frame(col_df)
-
-    return df
-
-
-def get_input_data(obj, data, method_type=Types.WIND):
-    """Process and validate input data for wind power generation calculation.
-
-    This function extracts required and optional parameters from the input dictionaries,
-    applies default values where needed, performs data validation, and prepares the
-    data for wind power generation calculation.
-
-    Args:
-        obj (dict): Dictionary containing wind turbine parameters such as location,
-            turbine type, and power rating.
-        data (dict): Dictionary containing input data such as weather information.
-        method_type (str, optional): Method type to use for prefixing. Defaults to Types.WIND.
-
-    Returns:
-        tuple: A tuple containing:
-            - obj_out (dict): Processed object parameters with defaults applied.
-            - data_out (dict): Processed data with required format for calculation.
-
-    Raises:
-        Exception: If required weather data is missing.
-
-    Notes:
-        - Parameters can be specified with method-specific prefixes (e.g., "wind:altitude")
-          which will take precedence over generic parameters (e.g., "altitude").
-        - Weather data is processed to match the format required by windpowerlib.
-    """
-    obj_out = {
-        O.ID: Method.get_with_backup(obj, O.ID),
-        O.POWER: Method.get_with_method_backup(obj, O.POWER, method_type, DEFAULT_POWER),
-        O.TURBINE_TYPE: Method.get_with_method_backup(obj, O.TURBINE_TYPE, method_type, DEFAULT_TURBINE_TYPE),
-        O.HUB_HEIGHT: Method.get_with_method_backup(obj, O.HUB_HEIGHT, method_type, DEFAULT_HUB_HEIGHT),
-    }
-
-    data_out = {
-        O.WEATHER: Method.get_with_backup(data, O.WEATHER),
-    }
-
-    # Process weather data
-    if data_out[O.WEATHER] is not None:
-        weather = data_out[O.WEATHER].copy()
-        weather[C.DATETIME] = pd.to_datetime(weather[C.DATETIME], utc=False)
-        weather.index = pd.to_datetime(weather[C.DATETIME], utc=True)
-        data_out[O.WEATHER] = process_weather_data(weather)
-    else:
-        logger.error("[WIND windlib]: No weather data")
-        raise Exception(f"{O.WEATHER} not available")
-
-    return obj_out, data_out
 
 
 def calculate_timeseries(obj, data):
@@ -309,7 +319,7 @@ def calculate_timeseries(obj, data):
         - The output power is scaled by the system power rating.
     """
     # Get objects
-    power = obj[O.POWER] / 1e3
+    power = obj[O.POWER]
     turbine_type = obj[O.TURBINE_TYPE]
     hub_height = obj[O.HUB_HEIGHT]
 
@@ -336,7 +346,7 @@ def calculate_timeseries(obj, data):
     df = pd.DataFrame(power_output, columns=[O.POWER])
 
     # Calculate and round power (normalize by nominal power)
-    df[O.POWER] = df[O.POWER] / turbine.nominal_power * power * 1e3
+    df[O.POWER] = df[O.POWER] / turbine.nominal_power * power
     df = df.round(3)
 
     return df
