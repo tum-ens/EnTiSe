@@ -119,7 +119,7 @@ class Method(ABC, metaclass=MethodMeta):
         return weather
 
     @staticmethod
-    def _process_weather_info(weather: pd.DataFrame) -> Tuple[pd.DataFrame, dict]:
+    def _obtain_weather_info(weather: pd.DataFrame) -> Tuple[pd.DataFrame, dict]:
         """Process weather DataFrame to ensure it has the required columns.
 
         Args:
@@ -147,8 +147,6 @@ class Method(ABC, metaclass=MethodMeta):
             return None, None, None
 
         info: dict = {}
-        rename_map: dict = {}
-        used_out_cols: set = set()
 
         for col in weather.columns:
             if col == C.DATETIME:
@@ -159,34 +157,9 @@ class Method(ABC, metaclass=MethodMeta):
             if name is None:
                 # Unparsed; keep as-is but record minimal info
                 info[col] = {"name": col, "unit": None, "height": None}
-                rename_map[col] = col
-                used_out_cols.add(col)
-                continue
-
-            # Canonical key 'name[unit]' if unit known; otherwise just 'name'
-            base_key = f"{name}[{unit}]" if unit else name
-            out_col = base_key
-
-            # Disambiguate collisions by appending @<height>
-            if out_col in used_out_cols:
-                if height_m is not None:
-                    out_col = f"{base_key}@{height_m:g}m"
-                else:
-                    # Fallback unique suffix if no height available
-                    k = 2
-                    candidate = f"{base_key}__{k}"
-                    while candidate in used_out_cols:
-                        k += 1
-                        candidate = f"{base_key}__{k}"
-                    out_col = candidate
-
-            rename_map[col] = out_col
-            used_out_cols.add(out_col)
-            info[out_col] = {"name": name, "unit": unit, "height": height_m}
-
-        # Apply renaming, leave 'datetime' untouched
-        if rename_map:
-            weather = weather.rename(columns=rename_map)
+            else:
+                # Store parsed information using original column name as key
+                info[col] = {"name": name, "unit": unit, "height": height_m}
 
         return weather, info
 
