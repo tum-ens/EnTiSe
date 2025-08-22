@@ -3,10 +3,10 @@ import logging
 import numpy as np
 import pandas as pd
 
+from entise.constants import SEP, Types
 from entise.constants import Columns as C
 from entise.constants import Constants as Const
 from entise.constants import Objects as O
-from entise.constants import Types
 from entise.core.base import Method
 from entise.methods.auxiliary.internal.selector import InternalGains
 from entise.methods.auxiliary.solar.selector import SolarGains
@@ -244,17 +244,17 @@ class R1C1(Method):
     def _format_output(temp_in, p_heat, p_cool, data):
         timestep = data[O.WEATHER][C.DATETIME].diff().dt.total_seconds().dropna().mode()[0]
         summary = {
-            f"{C.DEMAND}_{Types.HEATING}[Wh]": int(round(p_heat.sum() * timestep / 3600)),
-            f"{O.LOAD_MAX}_{Types.HEATING}[W]": int(max(p_heat)),
-            f"{C.DEMAND}_{Types.COOLING}[Wh]": int(round(p_cool.sum() * timestep / 3600)),
-            f"{O.LOAD_MAX}_{Types.COOLING}[W]": int(max(p_cool)),
+            f"{Types.HEATING}{SEP}{C.DEMAND}[Wh]": int(round(p_heat.sum() * timestep / 3600)),
+            f"{Types.HEATING}{SEP}{O.LOAD_MAX}[W]": int(max(p_heat)),
+            f"{Types.COOLING}{SEP}{C.DEMAND}[Wh]": int(round(p_cool.sum() * timestep / 3600)),
+            f"{Types.COOLING}{SEP}{O.LOAD_MAX}[W]": int(max(p_cool)),
         }
 
         df = pd.DataFrame(
             {
                 f"{C.TEMP_IN}": temp_in,
-                f"{C.LOAD}_{Types.HEATING}[W]": p_heat,
-                f"{C.LOAD}_{Types.COOLING}[W]": p_cool,
+                f"{Types.HEATING}{SEP}{C.LOAD}[W]": p_heat,
+                f"{Types.COOLING}{SEP}{C.LOAD}[W]": p_cool,
             },
             index=data[O.WEATHER].index,
         )
