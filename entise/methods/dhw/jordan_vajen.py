@@ -25,9 +25,9 @@ import numpy as np
 import pandas as pd
 import scipy.stats as stats
 
+from entise.constants import SEP, Types
 from entise.constants import Columns as C
 from entise.constants import Objects as O
-from entise.constants import Types
 from entise.core.base import Method
 from entise.methods.dhw.defaults import (
     DEFAULT_SEASONAL_PEAK_DAY,
@@ -198,7 +198,7 @@ class JordanVajen(Method):
 
         logger.debug(f"[DHW jordanvajen]: Generating {ts_type} data")
 
-        return format_output(processed_data, ts_volume, ts_energy, ts_power, water_temp)
+        return _format_output(processed_data, ts_volume, ts_energy, ts_power, water_temp)
 
 
 def get_input_data(obj, data, method_type=Types.DHW):
@@ -365,7 +365,7 @@ def calculate_timeseries(obj, data):
     return ts_volume, ts_energy, ts_power, water_temp
 
 
-def format_output(data, ts_volume, ts_energy, ts_power, water_temp, tank_duration_h: float = 2):
+def _format_output(data, ts_volume, ts_energy, ts_power, water_temp, tank_duration_h: float = 2):
     """
     Format and postprocess the DHW demand time series into a structured output
     for reporting and downstream use.
@@ -428,7 +428,7 @@ def format_output(data, ts_volume, ts_energy, ts_power, water_temp, tank_duratio
     - This function is tailored to hot water tanks but may generalize to other thermal buffers.
 
     Examples:
-    >>> result = format_output(data, ts_volume, ts_energy, ts_power, water_temp, tank_duration_h=2.0)
+    >>> result = _format_output(data, ts_volume, ts_energy, ts_power, water_temp, tank_duration_h=2.0)
     >>> summary = result["summary"]
     >>> result["timeseries"].columns
     Index(['dhw_volume', 'dhw_energy', 'dhw_power',
@@ -457,15 +457,15 @@ def format_output(data, ts_volume, ts_energy, ts_power, water_temp, tank_duratio
 
     # Summary statistics
     summary = {
-        f"{Types.DHW}_volume_total[l]": int(ts_volume.sum().round(0)),
-        f"{Types.DHW}_volume_avg[l]": float(ts_volume.mean().round(3)),
-        f"{Types.DHW}_volume_peak[l]": float(ts_volume.max().round(3)),
-        f"{Types.DHW}_energy_total[Wh]": int(ts_energy.sum()),
-        f"{Types.DHW}_energy_avg[Wh]": int(ts_energy.mean().round(0)),
-        f"{Types.DHW}_energy_peak[Wh]": int(ts_energy.max()),
-        f"{Types.DHW}_power_avg[W]": int(ts_power.mean().round(0)),
-        f"{Types.DHW}_power_max[W]": int(ts_power.max()),
-        f"{Types.DHW}_power_min[W]": int(ts_power.min()),
+        f"{Types.DHW}{SEP}volume_total[l]": int(ts_volume.sum().round(0)),
+        f"{Types.DHW}{SEP}volume_avg[l]": float(ts_volume.mean().round(3)),
+        f"{Types.DHW}{SEP}volume_peak[l]": float(ts_volume.max().round(3)),
+        f"{Types.DHW}{SEP}energy_total[Wh]": int(ts_energy.sum()),
+        f"{Types.DHW}{SEP}energy_avg[Wh]": int(ts_energy.mean().round(0)),
+        f"{Types.DHW}{SEP}energy_peak[Wh]": int(ts_energy.max()),
+        f"{Types.DHW}{SEP}power_avg[W]": int(ts_power.mean().round(0)),
+        f"{Types.DHW}{SEP}power_max[W]": int(ts_power.max()),
+        f"{Types.DHW}{SEP}power_min[W]": int(ts_power.min()),
     }
 
     # Apply smoothing
@@ -476,14 +476,14 @@ def format_output(data, ts_volume, ts_energy, ts_power, water_temp, tank_duratio
     # Combine all time series into output
     timeseries = pd.DataFrame(
         {
-            f"{Types.DHW}_volume[l]": ts_volume,
-            f"{Types.DHW}_energy[Wh]": ts_energy.astype(int),
-            f"{Types.DHW}_power[W]": ts_power.astype(int),
-            f"{Types.DHW}_power_sma[W]": sma.astype(int),
-            f"{Types.DHW}_power_ewma[W]": ewma.astype(int),
-            f"{Types.DHW}_power_gaussian[W]": gaussian.astype(int),
-            f"{Types.DHW}_{O.TEMP_WATER_COLD}[C]": water_temp.loc[:, O.TEMP_WATER_COLD],
-            f"{Types.DHW}_{O.TEMP_WATER_HOT}[C]": water_temp.loc[:, O.TEMP_WATER_COLD],
+            f"{Types.DHW}{SEP}volume[l]": ts_volume,
+            f"{Types.DHW}{SEP}energy[Wh]": ts_energy.astype(int),
+            f"{Types.DHW}{SEP}power[W]": ts_power.astype(int),
+            f"{Types.DHW}{SEP}power_sma[W]": sma.astype(int),
+            f"{Types.DHW}{SEP}power_ewma[W]": ewma.astype(int),
+            f"{Types.DHW}{SEP}power_gaussian[W]": gaussian.astype(int),
+            f"{Types.DHW}{SEP}{O.TEMP_WATER_COLD}": water_temp.loc[:, O.TEMP_WATER_COLD],
+            f"{Types.DHW}{SEP}{O.TEMP_WATER_HOT}": water_temp.loc[:, O.TEMP_WATER_COLD],
         },
         index=time_index,
     )
