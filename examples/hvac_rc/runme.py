@@ -86,18 +86,18 @@ plt.show()
 
 # Figure 2: Heating and Cooling Loads
 fig, ax = plt.subplots(figsize=(14, 5))
-heating_MWh = summary.loc[building_id, "demand_heating[Wh]"] / 1e6
-cooling_MWh = summary.loc[building_id, "demand_cooling[Wh]"] / 1e6
+heating_MWh = summary.loc[building_id, "heating:demand[Wh]"] / 1e6
+cooling_MWh = summary.loc[building_id, "cooling:demand[Wh]"] / 1e6
 (line1,) = ax.plot(
     building_data.index,
-    building_data["load_heating[W]"],
+    building_data["heating:load[W]"],
     label=f"Heating: {heating_MWh:.1f} MWh",
     color="tab:red",
     alpha=0.8,
 )
 (line2,) = ax.plot(
     building_data.index,
-    building_data["load_cooling[W]"],
+    building_data["cooling:load[W]"],
     label=f"Cooling: {cooling_MWh:.1f} MWh",
     color="tab:cyan",
     alpha=0.8,
@@ -123,12 +123,12 @@ ax1.set_ylim(air_temp.min().round() - 2, air_temp.max().round() + 2)
 
 # Create second y-axis for loads
 ax2 = ax1.twinx()
-ax2.plot(building_data.index, building_data["load_heating[W]"], label="Heating Load", color="tab:red", alpha=0.8)
-ax2.plot(building_data.index, building_data["load_cooling[W]"], label="Cooling Load", color="tab:blue", alpha=0.8)
+ax2.plot(building_data.index, building_data["heating:load[W]"], label="Heating Load", color="tab:red", alpha=0.8)
+ax2.plot(building_data.index, building_data["cooling:load[W]"], label="Cooling Load", color="tab:blue", alpha=0.8)
 ax2.set_ylabel("HVAC Load (W)")
 ax2.set_ylim(
-    min(building_data["load_heating[W]"].min(), building_data["load_cooling[W]"].min()) * 1.1,
-    max(building_data["load_heating[W]"].max(), building_data["load_cooling[W]"].max()) * 1.1,
+    min(building_data["heating:load[W]"].min(), building_data["cooling:load[W]"].min()) * 1.1,
+    max(building_data["heating:load[W]"].max(), building_data["cooling:load[W]"].max()) * 1.1,
 )
 
 # Combine legends from both axes
