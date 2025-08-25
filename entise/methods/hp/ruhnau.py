@@ -15,7 +15,9 @@ import logging
 import pandas as pd
 
 import entise.methods.hp.defaults as defs
-from entise.constants import Columns as C, Objects as O, Types, SEP
+from entise.constants import SEP, Types
+from entise.constants import Columns as C
+from entise.constants import Objects as O
 from entise.core.base import Method
 
 logger = logging.getLogger(__name__)
@@ -87,16 +89,16 @@ class Ruhnau(Method):
     required_timeseries = [O.WEATHER]
     optional_timeseries = [O.HP_SYSTEM]
     output_summary = {
-        f"{Types.HP}_{Types.HEATING}_avg": "average heating COP value",
-        f"{Types.HP}_{Types.HEATING}_min": "minimum heating COP value",
-        f"{Types.HP}_{Types.HEATING}_max": "maximum heating COP value",
-        f"{Types.HP}_{Types.DHW}_avg": "average DHW COP value",
-        f"{Types.HP}_{Types.DHW}_min": "minimum DHW COP value",
-        f"{Types.HP}_{Types.DHW}_max": "maximum DHW COP value",
+        f"{Types.HP}{SEP}{Types.HEATING}_avg[1]": "average heating COP value",
+        f"{Types.HP}{SEP}{Types.HEATING}_min[1]": "minimum heating COP value",
+        f"{Types.HP}{SEP}{Types.HEATING}_max[1]": "maximum heating COP value",
+        f"{Types.HP}{SEP}{Types.DHW}_avg[1]": "average DHW COP value",
+        f"{Types.HP}{SEP}{Types.DHW}_min[1]": "minimum DHW COP value",
+        f"{Types.HP}{SEP}{Types.DHW}_max[1]": "maximum DHW COP value",
     }
     output_timeseries = {
-        f"{Types.HP}_{Types.HEATING}": "heating COP time series",
-        f"{Types.HP}_{Types.DHW}": "DHW COP time series",
+        f"{Types.HP}{SEP}{Types.HEATING}[1]": "heating COP time series",
+        f"{Types.HP}{SEP}{Types.DHW}[1]": "DHW COP time series",
     }
 
     def generate(
@@ -295,8 +297,10 @@ class Ruhnau(Method):
         }
 
         timeseries = pd.DataFrame(
-            {f"{Types.HP}{SEP}{Types.HEATING}[1]": heating_cop_series,
-             f"{Types.HP}{SEP}{Types.DHW}[1]": dhw_cop_series},
+            {
+                f"{Types.HP}{SEP}{Types.HEATING}[1]": heating_cop_series,
+                f"{Types.HP}{SEP}{Types.DHW}[1]": dhw_cop_series,
+            },
             index=processed_data[O.WEATHER].index,
         )
 
