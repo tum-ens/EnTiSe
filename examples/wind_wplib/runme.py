@@ -18,23 +18,23 @@ import pandas as pd
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
 # Import the new TimeSeriesGenerator
-from entise.constants import Types
+from entise.constants import Types, Columns as C
 from entise.core.generator import TimeSeriesGenerator
 
 # Load data
 cwd = "."  # Current working directory: change if your kernel is not running in the same folder
 objects = pd.read_csv(os.path.join(cwd, "objects.csv"))
 data = {}
+common_data_folder = "../common_data"
+for file in os.listdir(os.path.join(cwd, common_data_folder)):
+    if file.endswith(".csv"):
+        name = file.split(".")[0]
+        data[name] = pd.read_csv(os.path.join(os.path.join(cwd, common_data_folder, file)), parse_dates=True)
 data_folder = "data"
-
-# Load CSV files (weather data)
 for file in os.listdir(os.path.join(cwd, data_folder)):
     if file.endswith(".csv"):
         name = file.split(".")[0]
         data[name] = pd.read_csv(os.path.join(os.path.join(cwd, data_folder, file)), parse_dates=True)
-
-# Load JSON files (system configuration)
-for file in os.listdir(os.path.join(cwd, data_folder)):
     if file.endswith(".json"):
         name = file.split(".")[0]
         with open(os.path.join(os.path.join(cwd, data_folder, file)), "r") as f:
@@ -52,12 +52,13 @@ gen.add_objects(objects)
 summary, df = gen.generate(data, workers=1)
 
 # Print summary
-print("Summary [MWh/a] | [MW] | [h]:")
+print("Summary:")
 summary_mwh = summary.copy()
-summary_mwh["generation_wind"] /= 1e6  # Convert Wh to MWh
-summary_mwh["maximum_generation_wind"] /= 1e6  # Convert W to MW
+summary_mwh['wind:generation[Wh]'] /= 1e6  # Convert Wh to MWh
+summary_mwh['wind:maximum_generation[W]'] /= 1e6  # Convert W to MW
+summary_mwh.columns = [col.replace("[W", "[MW") for col in summary_mwh.columns]
 summary_mwh = summary_mwh.astype(float).round(2)
-print(summary_mwh)
+print(summary_mwh.to_string())
 
 # Convert index to datetime for all time series
 for obj_id in df:
@@ -70,7 +71,7 @@ for _, row in objects.iterrows():
     if obj_id in df:
         turbine_type = row["turbine_type"] if not pd.isna(row.get("turbine_type", pd.NA)) else "Default"
         hub_height = row["hub_height"] if not pd.isna(row.get("hub_height", pd.NA)) else "Default"
-        power = row["power"] if not pd.isna(row["power"]) else 1
+        power = row[C.POWER] if not pd.isna(row[C.POWER]) else 1
         system_configs[obj_id] = {"turbine_type": turbine_type, "hub_height": hub_height, "power": power}
 
 # Figure 1: Comparative analysis between different wind turbine systems
@@ -158,7 +159,7 @@ for i, obj_id in enumerate(df):
 
     # Merge power data with wind speed
     merged_data = pd.DataFrame({"power": ts.values.flatten()}, index=ts.index)
-    merged_data["wind_speed"] = weather_resampled["wind_speed_100m"]
+    merged_data["wind_speed"] = weather_resampled[f"{C.WIND_SPEED}@100m"]
 
     # Remove NaN values
     merged_data = merged_data.dropna()
@@ -256,8 +257,8 @@ for i, obj_id in enumerate(df):
 
     # Merge power data with wind direction
     merged_data = pd.DataFrame({"power": ts.values.flatten()}, index=ts.index)
-    merged_data["wind_direction"] = weather_resampled["wind_direction_100m"]
-    merged_data["wind_speed"] = weather_resampled["wind_speed_100m"]
+    merged_data["wind_direction"] = weather_resampled[f"{C.WIND_DIRECTION}@100m"]
+    merged_data["wind_speed"] = weather_resampled[f"{C.WIND_SPEED}@100m"]
 
     # Remove NaN values
     merged_data = merged_data.dropna()

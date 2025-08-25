@@ -1,4 +1,4 @@
-id,hvac,weather,resistance,capacitance,ventilation,ventilation_column,temp_init,temp_min,temp_max,windows,latitude,longitude,area,gains_internal,gains_internal_column
+id,hvac,weather,resistance[K W-1],capacitance[J K-1],ventilation[W K-1],ventilation_column,init_temperature[C],min_temperature[C],max_temperature[C],windows,latitude[degree],longitude[degree],area[m2],gains_internal[W],gains_internal_column
 367791,1R1C,weather,0.000303954,147361932.5,468.2,,22,22,24,windows,49.72025553,11.05552524,2754,internal_gains,
 31991680,1R1C,weather,0.000199275,336968150.4,1292.9,,19,19,22,windows,49.72561366,11.05732008,5070,internal_gains,industrial
 31991682,1R1C,weather,0.003485991,10941974.4,42,,22,22,24,windows,49.7266711,11.05702054,165,internal_gains,

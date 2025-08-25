@@ -8,7 +8,7 @@ class Columns:
     """Column names used in timeseries data."""
 
     ID = "id"  # Object ID
-    AREA = "area"  # Area of the object (m²)
+    AREA = "area[m2]"  # Area of the object (m²)
     DATE = "date"  # Date
     DATETIME = "datetime"  # Timestamps
     DAY = "day"  # day
@@ -16,38 +16,41 @@ class Columns:
     DAY_CALENDAR = f"{DAY}_calendar"  # Calendar day
     COP = "cop"  # Coefficient of Performance
     DEMAND = "demand"  # e.g. heating or cooling demand (Wh)
-    DURATION = "duration"  # (s)
-    DURATION_SIGMA = f"{DURATION}_sigma"
+    DURATION = "duration[s]"  # (s)
+    DURATION_SIGMA = f"duration_sigma[s]"  # Standard deviation of duration (s)
     EVENT = "event"  # event
-    FLOW_RATE = "flow_rate"  # l/s
-    FLOW_RATE_SIGMA = f"{FLOW_RATE}_sigma"
-    FLH = "full_load_hours"  # full load hours (h; [0, 8760])
-    GAIN = "gain"  # Gain (W)
-    GENERATION = "generation"  # e.g. pv, wind (Wh)
+    FLOW_RATE = "flow_rate[l s-1]"  # l/s
+    FLOW_RATE_SIGMA = "flow_rate_sigma[l s-1]"  # l/s
+    FLH = "full_load_hours[h]"  # full load hours (h; [0, 8760])
+    GAIN = "gain[W]"  # Gain (W)
+    GENERATION = "generation[Wh]"  # e.g. pv, wind (Wh)
     LOAD = "load"  # Load values (e.g., electricity load) (W)
     MONTH = "month"
     OCCUPATION = "occupation"  # Occupancy data
-    ORIENTATION = "orientation"  # Orientation (degrees; 180 = south)
-    POWER = "power"  # power (W)
+    ORIENTATION = "orientation[degree]"  # Orientation (degrees; 180 = south)
+    POWER = "power[W]"  # power (W)
     PROBABILITY = "probability"  # probability (of event; [0, 1])
     PROBABILITY_DAY = f"{PROBABILITY}_day"  # Probabilty of event per day [0, inf)
     ROUGHNESS_LENGTH = "roughness_length"  # Roughness length
-    SHADING = "shading"  # Shading [0, 1]
-    SOLAR_DHI = "solar_dhi"  # Diffuse horizontal irradiance (W/m2)
-    SOLAR_DNI = "solar_dni"  # Direct normal irradiance (W/m2)
-    SOLAR_GHI = "solar_ghi"  # Global horizontal irradiance (W/m2)
-    SURFACE_PRESSURE = "surface_pressure"  # Surface pressure
-    TEMP = "temperature"  #  Temperature (ºC)
-    TEMP_IN = "temp_in"  # Indoor temperature (ºC)
-    TEMP_OUT = "temp_out"  # Outdoor temperature (ºC)
-    TEMP_SOIL = "soil_temperature"  # Soil temperature (ºC)
-    TEMP_WATER = "temp_water"  # Water temperature (ºC)
-    TEMP_WATER_COLD = f"{TEMP_WATER}_cold"  # Cold water temperature (ºC)
-    TEMP_WATER_GROUND = "groundwater_temperature"  # Groundwater temperature (ºC)
-    TEMP_WATER_HOT = f"{TEMP_WATER}_hot"  # Hot water temperature (ºC)
-    TILT = "tilt"  # Tilt (degrees; 0 = horizontal)
+    SHADING = "shading[1]"  # Shading [0, 1]
+    SOLAR_DHI = "diffuse_horizontal_irradiance[W m-2]"  # Diffuse horizontal irradiance (W/m2)
+    SOLAR_DNI = "direct_normal_irradiance[W m-2]"  # Direct normal irradiance (W/m2)
+    SOLAR_GHI = "global_horizontal_irradiance[W m-2]"  # Global horizontal irradiance (W/m2)
+    SURFACE_AIR_PRESSURE = "surface_air_pressure[Pa]"  # Surface pressure (Pa)
+    TEMP = "temperature[C]"  #  Temperature (°C)
+    TEMP_AIR = f"air_{TEMP}"  # Air temperature (°C)
+    TEMP_IN = f"indoor_{TEMP}"  # Indoor temperature (°C)
+    TEMP_OUT = f"outdoor_{TEMP}"  # Outdoor temperature (°C)
+    TEMP_SOIL = f"soil_{TEMP}"  # Soil temperature (°C)
+    TEMP_WATER = f"water_{TEMP}"  # Water temperature (°C)
+    TEMP_WATER_COLD = f"cold_{TEMP_WATER}"  # Cold water temperature (°C)
+    TEMP_WATER_GROUND = f"groundwater_{TEMP}"  # Groundwater temperature (°C)
+    TEMP_WATER_HOT = f"hot_{TEMP_WATER}"  # Hot water temperature (°C)
+    TILT = "tilt[degree]"  # Tilt (degrees; 0 = horizontal)
     TIME = "time"  # time of day
-    TRANSMITTANCE = "transmittance"  # Transmittance (W/m2/K)
+    TRANSMITTANCE = "transmittance[W m-2 K-1]"  # Transmittance (W/m2/K)
+    WIND_SPEED = "wind_speed[m s-1]"  # Wind speed (m/s)
+    WIND_DIRECTION = "wind_from_direction[degree]"  # Wind direction (degree)
     DTYPES = {
         ID: object,
         AREA: float | int | np.number,
@@ -82,4 +85,6 @@ class Columns:
         TILT: float | int | np.number,
         TIME: str,
         TRANSMITTANCE: float | int | np.number,
+        WIND_SPEED: float | int | np.number,
+        WIND_DIRECTION: float | int | np.number,
     }

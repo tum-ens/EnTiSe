@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-from entise.constants import Types
+from entise.constants import Types, SEP
 from entise.core.generator import TimeSeriesGenerator
 
 # Load data
@@ -17,6 +17,11 @@ cwd = "."  # Current working directory: change if your kernel is not running in 
 objects = pd.read_csv(os.path.join(cwd, "objects.csv"))
 data = {}
 data_folder = "data"
+common_data_folder = "../common_data"
+for file in os.listdir(os.path.join(cwd, common_data_folder)):
+    if file.endswith(".csv"):
+        name = file.split(".")[0]
+        data[name] = pd.read_csv(os.path.join(os.path.join(cwd, common_data_folder, file)), parse_dates=True)
 for file in os.listdir(os.path.join(cwd, data_folder)):
     if file.endswith(".csv"):
         name = file.split(".")[0]
@@ -71,7 +76,7 @@ system_ids = []
 for obj_id in df:
     if Types.HP in df[obj_id]:
         # Extract heating COP
-        heating_col = f"{Types.HP}_{Types.HEATING}"
+        heating_col = f"{Types.HP}{SEP}{Types.HEATING}[1]"
         if heating_col in df[obj_id][Types.HP].columns:
             heating_cop_data.append(df[obj_id][Types.HP][heating_col].values)
 
@@ -80,7 +85,7 @@ for obj_id in df:
                 system_ids.append(obj_id)
 
         # Extract DHW COP
-        dhw_col = f"{Types.HP}_{Types.DHW}"
+        dhw_col = f"{Types.HP}{SEP}{Types.DHW}[1]"
         if dhw_col in df[obj_id][Types.HP].columns:
             dhw_cop_data.append(df[obj_id][Types.HP][dhw_col].values)
 
@@ -133,12 +138,12 @@ for i, obj_id in enumerate(df):
     temp_water = config.get("temp_water", "Default")
 
     # Plot the heating COP time series
-    heating_col = f"{Types.HP}_{Types.HEATING}"
+    heating_col = f"{Types.HP}{SEP}{Types.HEATING}[1]"
     if heating_col in df[obj_id][Types.HP].columns:
         df[obj_id][Types.HP][heating_col].plot(ax=axes[i], color="#1f77b4", linewidth=1, label="Heating COP")
 
     # Plot the DHW COP time series
-    dhw_col = f"{Types.HP}_{Types.DHW}"
+    dhw_col = f"{Types.HP}{SEP}{Types.DHW}[1]"
     if dhw_col in df[obj_id][Types.HP].columns:
         df[obj_id][Types.HP][dhw_col].plot(ax=axes[i], color="#ff7f0e", linewidth=1, label="DHW COP")
 
@@ -180,7 +185,7 @@ for i, obj_id in enumerate(df):
     hp_sink = config.get("hp_sink", "Default")
 
     # Process heating COP
-    heating_col = f"{Types.HP}_{Types.HEATING}"
+    heating_col = f"{Types.HP}{SEP}{Types.HEATING}[1]"
     if heating_col in df[obj_id][Types.HP].columns:
         ts = df[obj_id][Types.HP][heating_col]
 
@@ -231,7 +236,7 @@ for i, obj_id in enumerate(df):
     hp_sink = config.get("hp_sink", "Default")
 
     # Process heating COP
-    heating_col = f"{Types.HP}_{Types.HEATING}"
+    heating_col = f"{Types.HP}{SEP}{Types.HEATING}[1]"
     if heating_col in df[obj_id][Types.HP].columns:
         ts_heating = df[obj_id][Types.HP][heating_col]
 
@@ -245,7 +250,7 @@ for i, obj_id in enumerate(df):
                 axes[i].plot(daily_profile.index, daily_profile.values, label=f"{season_name} (Heating)", linewidth=2)
 
     # Process DHW COP
-    dhw_col = f"{Types.HP}_{Types.DHW}"
+    dhw_col = f"{Types.HP}{SEP}{Types.DHW}[1]"
     if dhw_col in df[obj_id][Types.HP].columns:
         ts_dhw = df[obj_id][Types.HP][dhw_col]
 
@@ -325,30 +330,33 @@ for i, obj_id in enumerate(df):
                     continue
 
     # Get temperature column
-    temp_col = "temperature"
-    if temp_col not in weather_data.columns and "temperature_2m" in weather_data.columns:
-        temp_col = "temperature_2m"
-
-    if temp_col not in weather_data.columns:
-        continue
+    temp_col = "air_temperature[C]"
 
     # Process heating COP
-    heating_col = f"{Types.HP}_{Types.HEATING}"
+    heating_col = f"{Types.HP}{SEP}{Types.HEATING}[1]"
     if heating_col in df[obj_id][Types.HP].columns:
         # Merge COP and temperature data
         merged_data = pd.merge(
-            df[obj_id][Types.HP][heating_col], weather_data[temp_col], left_index=True, right_index=True, how="inner"
+            df[obj_id][Types.HP][heating_col],
+            weather_data[temp_col],
+            left_index=True,
+            right_index=True,
+            how="inner",
         )
 
         # Plot scatter plot
         axes[i].scatter(merged_data[temp_col], merged_data[heating_col], label="Heating COP", alpha=0.5, s=10)
 
     # Process DHW COP
-    dhw_col = f"{Types.HP}_{Types.DHW}"
+    dhw_col = f"{Types.HP}{SEP}{Types.DHW}[1]"
     if dhw_col in df[obj_id][Types.HP].columns:
         # Merge COP and temperature data
         merged_data = pd.merge(
-            df[obj_id][Types.HP][dhw_col], weather_data[temp_col], left_index=True, right_index=True, how="inner"
+            df[obj_id][Types.HP][dhw_col],
+            weather_data[temp_col],
+            left_index=True,
+            right_index=True,
+            how="inner",
         )
 
         # Plot scatter plot

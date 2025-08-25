@@ -30,7 +30,7 @@ def test_install():
 
         # Test importing the package and accessing the version
         result = subprocess.check_output(
-            [python_exe, "-c", "import entise; print(entise.__version__)"],
+            [python_exe, "-c", "import importlib.metadata as im; print(im.version('entise'))"],
             universal_newlines=True,
         )
 

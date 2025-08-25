@@ -22,9 +22,9 @@ import pandas as pd
 import pvlib
 from pvlib import pvsystem
 
+from entise.constants import SEP, Types
 from entise.constants import Columns as C
 from entise.constants import Objects as O
-from entise.constants import Types
 from entise.core.base import Method
 
 warnings.filterwarnings("ignore")
@@ -163,101 +163,107 @@ class PVLib(Method):
         )
 
         # Continue with existing implementation
-        processed_obj, processed_data = get_input_data(processed_obj, processed_data, ts_type)
+        processed_obj, processed_data = self._get_input_data(processed_obj, processed_data, ts_type)
 
         ts = calculate_timeseries(processed_obj, processed_data)
 
         logger.debug(f"[PV pvlib]: Generating {ts_type} data")
 
-        timestep = processed_data[O.WEATHER][C.DATETIME].diff().dt.total_seconds().dropna().mode()[0]
-        summary = {
-            f"{C.GENERATION}_{Types.PV}": (ts.sum() * timestep / 3600).round().astype(int),
-            f"{O.GEN_MAX}_{Types.PV}": ts.max().round().astype(int),
-            f"{C.FLH}_{Types.PV}": (ts.sum() * timestep / 3600 / processed_obj[O.POWER]).round().astype(int),
+        return self._format_output(ts, processed_obj, processed_data)
+
+    def _get_input_data(self, obj, data, method_type=Types.PV):
+        """Process and validate input data for PV generation calculation.
+
+        This function extracts required and optional parameters from the input dictionaries,
+        applies default values where needed, performs data validation, and prepares the
+        data for PV generation calculation.
+
+        Args:
+            obj (dict): Dictionary containing PV system parameters such as location,
+                orientation, and power rating.
+            data (dict): Dictionary containing input data such as weather information.
+            method_type (str, optional): Method type to use for prefixing. Defaults to Types.PV.
+
+        Returns:
+            tuple: A tuple containing:
+                - obj_out (dict): Processed object parameters with defaults applied.
+                - data_out (dict): Processed data with required format for calculation.
+
+        Raises:
+            Exception: If required weather data is missing.
+
+        Notes:
+            - Parameters can be specified with method-specific prefixes (e.g., "pv:altitude")
+              which will take precedence over generic parameters (e.g., "altitude").
+            - Missing altitude values are automatically looked up based on latitude/longitude.
+            - Weather data columns are renamed to match pvlib requirements.
+            - Azimuth and tilt values are validated to be within normal ranges.
+        """
+        obj_out = {
+            O.ID: Method.get_with_backup(obj, O.ID),
+            O.ALTITUDE: Method.get_with_method_backup(obj, O.ALTITUDE, method_type),
+            O.AZIMUTH: Method.get_with_method_backup(obj, O.AZIMUTH, method_type, AZIMUTH),
+            O.LAT: Method.get_with_method_backup(obj, O.LAT, method_type),
+            O.LON: Method.get_with_method_backup(obj, O.LON, method_type),
+            O.POWER: Method.get_with_method_backup(obj, O.POWER, method_type, POWER),
+            O.PV_ARRAYS: Method.get_with_method_backup(obj, O.PV_ARRAYS, method_type),
+            O.PV_INVERTER: Method.get_with_method_backup(obj, O.PV_INVERTER, method_type),
+            O.TILT: Method.get_with_method_backup(obj, O.TILT, method_type, TILT),
+        }
+        data_out = {
+            O.WEATHER: Method.get_with_backup(data, O.WEATHER),
+            O.PV_ARRAYS: Method.get_with_backup(data, obj_out[O.PV_ARRAYS], PV_ARRAYS),
+            O.PV_INVERTER: Method.get_with_backup(data, O.PV_INVERTER, PV_INVERTER),
         }
 
-        ts = ts.rename(columns={"p_mp": f"{C.POWER}_{Types.PV}"})
+        # Fill missing data
+        if obj_out[O.ALTITUDE] is None:
+            obj_out[O.ALTITUDE] = pvlib.location.lookup_altitude(obj_out[O.LAT], obj_out[O.LON])
+
+        if data_out[O.WEATHER] is not None:
+            weather = data_out[O.WEATHER].copy()
+            weather = self._strip_weather_height(weather)
+            weather = weather.loc[:, ~weather.columns.duplicated()]
+            weather.rename(
+                columns={
+                    f"{C.SOLAR_GHI}": "ghi",
+                    f"{C.SOLAR_DNI}": "dni",
+                    f"{C.SOLAR_DHI}": "dhi",
+                    f"{C.TEMP_AIR}": "temp_air",
+                    f"{C.WIND_SPEED}": "wind_speed",
+                },
+                inplace=True,
+            )
+            weather[C.DATETIME] = pd.to_datetime(weather[C.DATETIME], utc=False)
+            weather.index = pd.to_datetime(weather[C.DATETIME], utc=True)
+            data_out[O.WEATHER] = weather
+        else:
+            logger.error("[PV pvlib]: No weather data")
+            raise Exception(f"{O.WEATHER} not available")
+
+        # Sanity checks
+        if not 0 <= obj_out[O.AZIMUTH] <= 360:
+            logger.warning(f"Azimuth value {obj_out[O.AZIMUTH]} outside normal range [0-360]")
+        if not 0 <= obj_out[O.TILT] <= 90:
+            logger.warning(f"Tilt value {obj_out[O.TILT]} outside normal range [0-90]")
+
+        return obj_out, data_out
+
+    @staticmethod
+    def _format_output(ts, processed_obj, processed_data):
+        timestep = processed_data[O.WEATHER][C.DATETIME].diff().dt.total_seconds().dropna().mode()[0]
+        summary = {
+            f"{Types.PV}{SEP}{C.GENERATION}": (ts.sum() * timestep / 3600).round().astype(int),
+            f"{Types.PV}{SEP}{O.GEN_MAX}": ts.max().round().astype(int),
+            f"{Types.PV}{SEP}{C.FLH}": (ts.sum() * timestep / 3600 / processed_obj[O.POWER]).round().astype(int),
+        }
+
+        ts = ts.rename(columns={"p_mp": f"{Types.PV}{SEP}{C.POWER}"})
 
         return {
             "summary": summary,
             "timeseries": ts,
         }
-
-
-def get_input_data(obj, data, method_type=Types.PV):
-    """Process and validate input data for PV generation calculation.
-
-    This function extracts required and optional parameters from the input dictionaries,
-    applies default values where needed, performs data validation, and prepares the
-    data for PV generation calculation.
-
-    Args:
-        obj (dict): Dictionary containing PV system parameters such as location,
-            orientation, and power rating.
-        data (dict): Dictionary containing input data such as weather information.
-        method_type (str, optional): Method type to use for prefixing. Defaults to Types.PV.
-
-    Returns:
-        tuple: A tuple containing:
-            - obj_out (dict): Processed object parameters with defaults applied.
-            - data_out (dict): Processed data with required format for calculation.
-
-    Raises:
-        Exception: If required weather data is missing.
-
-    Notes:
-        - Parameters can be specified with method-specific prefixes (e.g., "pv:altitude")
-          which will take precedence over generic parameters (e.g., "altitude").
-        - Missing altitude values are automatically looked up based on latitude/longitude.
-        - Weather data columns are renamed to match pvlib requirements.
-        - Azimuth and tilt values are validated to be within normal ranges.
-    """
-    obj_out = {
-        O.ID: Method.get_with_backup(obj, O.ID),
-        O.ALTITUDE: Method.get_with_method_backup(obj, O.ALTITUDE, method_type),
-        O.AZIMUTH: Method.get_with_method_backup(obj, O.AZIMUTH, method_type, AZIMUTH),
-        O.LAT: Method.get_with_method_backup(obj, O.LAT, method_type),
-        O.LON: Method.get_with_method_backup(obj, O.LON, method_type),
-        O.POWER: Method.get_with_method_backup(obj, O.POWER, method_type, POWER),
-        O.PV_ARRAYS: Method.get_with_method_backup(obj, O.PV_ARRAYS, method_type),
-        O.PV_INVERTER: Method.get_with_method_backup(obj, O.PV_INVERTER, method_type),
-        O.TILT: Method.get_with_method_backup(obj, O.TILT, method_type, TILT),
-    }
-    data_out = {
-        O.WEATHER: Method.get_with_backup(data, O.WEATHER),
-        O.PV_ARRAYS: Method.get_with_backup(data, obj_out[O.PV_ARRAYS], PV_ARRAYS),
-        O.PV_INVERTER: Method.get_with_backup(data, O.PV_INVERTER, PV_INVERTER),
-    }
-
-    # Fill missing data
-    if obj_out[O.ALTITUDE] is None:
-        obj_out[O.ALTITUDE] = pvlib.location.lookup_altitude(obj_out[O.LAT], obj_out[O.LON])
-
-    if data_out[O.WEATHER] is not None:
-        weather = data_out[O.WEATHER].copy()
-        weather.rename(
-            columns={
-                f"{C.SOLAR_GHI}": "ghi",
-                f"{C.SOLAR_DNI}": "dni",
-                f"{C.SOLAR_DHI}": "dhi",
-            },
-            inplace=True,
-            errors="raise",
-        )
-        weather[C.DATETIME] = pd.to_datetime(weather[C.DATETIME], utc=False)
-        weather.index = pd.to_datetime(weather[C.DATETIME], utc=True)
-        data_out[O.WEATHER] = weather
-    else:
-        logger.error("[PV pvlib]: No weather data")
-        raise Exception(f"{O.WEATHER} not available")
-
-    # Sanity checks
-    if not 0 <= obj_out[O.AZIMUTH] <= 360:
-        logger.warning(f"Azimuth value {obj_out[O.AZIMUTH]} outside normal range [0-360]")
-    if not 0 <= obj_out[O.TILT] <= 90:
-        logger.warning(f"Tilt value {obj_out[O.TILT]} outside normal range [0-90]")
-
-    return obj_out, data_out
 
 
 def calculate_timeseries(obj, data):
@@ -338,6 +344,4 @@ def calculate_timeseries(obj, data):
 
     mc.run_model(df_weather)
 
-    df = pd.DataFrame(mc.results.ac * power, index=df_weather.index)
-
-    return df
+    return pd.DataFrame(mc.results.ac * power, index=df_weather.index)

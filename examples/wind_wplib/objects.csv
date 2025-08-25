@@ -1,4 +1,4 @@
-id,wind,weather,power,manufacturer,turbine_type,hub_height,wind_model
+id,wind,weather,power[W],manufacturer,turbine_type,hub_height[m],wind_model
 367791,wplib,weather,5000000,Adwen/Areva,AD116/5000,102,
 31991680,wplib,weather,3500000,Enercon,E-101/3500,99,
 31991682,wplib,weather,3200000,GE Wind,GE130/3200,155,

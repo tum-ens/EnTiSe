@@ -1,4 +1,4 @@
-dwelling_size,m3_per_m2_a,sigma
+dwelling_size[m2],yearly_dhw_demand[m3 m-2 a-1],sigma
 0,0.28,0.14
 40,0.25,0.23
 55,0.26,0.10

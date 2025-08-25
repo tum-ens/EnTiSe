@@ -58,8 +58,8 @@ class InternalConstant(AuxiliaryMethod):
 
     def get_input_data(self, obj, data):
         return {
-            O.GAINS_INTERNAL: obj.get(O.GAINS_INTERNAL, DEFAULT_GAINS_INTERNAL),
-            O.WEATHER: data[O.WEATHER],
+            "gains_internal": obj.get(O.GAINS_INTERNAL, DEFAULT_GAINS_INTERNAL),
+            "weather": data[O.WEATHER],
         }
 
     def run(self, gains_internal, weather):
