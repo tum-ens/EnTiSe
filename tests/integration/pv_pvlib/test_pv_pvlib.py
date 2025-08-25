@@ -153,9 +153,9 @@ def test_pv_pvlib_power_scaling(inputs):
     objects_df, shared_data = inputs
 
     # Get objects with different powers
-    low_power_obj = objects_df.iloc[0]
-    mid_power_obj = objects_df.iloc[0]
-    high_power_obj = objects_df.iloc[0]
+    low_power_obj = objects_df.iloc[0].copy()
+    mid_power_obj = objects_df.iloc[0].copy()
+    high_power_obj = objects_df.iloc[0].copy()
 
     # Scale powers
     low_power_obj[O.POWER] = 1000  # 1 kW

@@ -64,14 +64,14 @@ def test_ruhnau_initialization():
     assert ruhnau.optional_timeseries == [O.HP_SYSTEM]
 
     # Check output definitions
-    assert f"{Types.HP}_{Types.HEATING}_avg" in ruhnau.output_summary
-    assert f"{Types.HP}_{Types.HEATING}_min" in ruhnau.output_summary
-    assert f"{Types.HP}_{Types.HEATING}_max" in ruhnau.output_summary
-    assert f"{Types.HP}_{Types.DHW}_avg" in ruhnau.output_summary
-    assert f"{Types.HP}_{Types.DHW}_min" in ruhnau.output_summary
-    assert f"{Types.HP}_{Types.DHW}_max" in ruhnau.output_summary
-    assert f"{Types.HP}_{Types.HEATING}" in ruhnau.output_timeseries
-    assert f"{Types.HP}_{Types.DHW}" in ruhnau.output_timeseries
+    assert f"{Types.HP}:{Types.HEATING}_avg[1]" in ruhnau.output_summary
+    assert f"{Types.HP}:{Types.HEATING}_min[1]" in ruhnau.output_summary
+    assert f"{Types.HP}:{Types.HEATING}_max[1]" in ruhnau.output_summary
+    assert f"{Types.HP}:{Types.DHW}_avg[1]" in ruhnau.output_summary
+    assert f"{Types.HP}:{Types.DHW}_min[1]" in ruhnau.output_summary
+    assert f"{Types.HP}:{Types.DHW}_max[1]" in ruhnau.output_summary
+    assert f"{Types.HP}:{Types.HEATING}[1]" in ruhnau.output_timeseries
+    assert f"{Types.HP}:{Types.DHW}[1]" in ruhnau.output_timeseries
 
 
 def test_generate_method(dummy_inputs):
@@ -87,23 +87,23 @@ def test_generate_method(dummy_inputs):
 
     # Check summary values
     summary = result["summary"]
-    assert f"{Types.HP}_{Types.HEATING}_avg" in summary
-    assert f"{Types.HP}_{Types.HEATING}_min" in summary
-    assert f"{Types.HP}_{Types.HEATING}_max" in summary
-    assert f"{Types.HP}_{Types.DHW}_avg" in summary
-    assert f"{Types.HP}_{Types.DHW}_min" in summary
-    assert f"{Types.HP}_{Types.DHW}_max" in summary
+    assert f"{Types.HP}:{Types.HEATING}_avg[1]" in summary
+    assert f"{Types.HP}:{Types.HEATING}_min[1]" in summary
+    assert f"{Types.HP}:{Types.HEATING}_max[1]" in summary
+    assert f"{Types.HP}:{Types.DHW}_avg[1]" in summary
+    assert f"{Types.HP}:{Types.DHW}_min[1]" in summary
+    assert f"{Types.HP}:{Types.DHW}_max[1]" in summary
 
     # Check that COP values are positive and within reasonable range
-    assert summary[f"{Types.HP}_{Types.HEATING}_avg"] > 0
-    assert summary[f"{Types.HP}_{Types.HEATING}_avg"] < 10  # Reasonable upper bound
-    assert summary[f"{Types.HP}_{Types.DHW}_avg"] > 0
-    assert summary[f"{Types.HP}_{Types.DHW}_avg"] < 10  # Reasonable upper bound
+    assert summary[f"{Types.HP}:{Types.HEATING}_avg[1]"] > 0
+    assert summary[f"{Types.HP}:{Types.HEATING}_avg[1]"] < 10  # Reasonable upper bound
+    assert summary[f"{Types.HP}:{Types.DHW}_avg[1]"] > 0
+    assert summary[f"{Types.HP}:{Types.DHW}_avg[1]"] < 10  # Reasonable upper bound
 
     # Check timeseries values
     ts = result["timeseries"]
-    assert f"{Types.HP}_{Types.HEATING}" in ts.columns
-    assert f"{Types.HP}_{Types.DHW}" in ts.columns
+    assert f"{Types.HP}:{Types.HEATING}[1]" in ts.columns
+    assert f"{Types.HP}:{Types.DHW}[1]" in ts.columns
     assert len(ts) == len(data["weather"])
     assert (ts > 0).all().all()  # All COP values should be positive
 
@@ -160,12 +160,12 @@ def test_different_heat_pump_sources(dummy_weather):
     # Check that ground and water source heat pumps have higher COP than air source
     # This is expected due to more stable source temperatures
     assert (
-        ground_result["summary"][f"{Types.HP}_{Types.HEATING}_avg"]
-        > air_result["summary"][f"{Types.HP}_{Types.HEATING}_avg"]
+        ground_result["summary"][f"{Types.HP}:{Types.HEATING}_avg[1]"]
+        > air_result["summary"][f"{Types.HP}:{Types.HEATING}_avg[1]"]
     )
     assert (
-        water_result["summary"][f"{Types.HP}_{Types.HEATING}_avg"]
-        > air_result["summary"][f"{Types.HP}_{Types.HEATING}_avg"]
+        water_result["summary"][f"{Types.HP}:{Types.HEATING}_avg[1]"]
+        > air_result["summary"][f"{Types.HP}:{Types.HEATING}_avg[1]"]
     )
 
 
@@ -208,8 +208,8 @@ def test_different_heat_sink_types(dummy_weather):
 
     # Check that floor heating (lower temperature) has higher COP than radiator heating
     assert (
-        floor_result["summary"][f"{Types.HP}_{Types.HEATING}_avg"]
-        > radiator_result["summary"][f"{Types.HP}_{Types.HEATING}_avg"]
+        floor_result["summary"][f"{Types.HP}:{Types.HEATING}_avg[1]"]
+        > radiator_result["summary"][f"{Types.HP}:{Types.HEATING}_avg[1]"]
     )
 
 
@@ -242,12 +242,12 @@ def test_custom_coefficients(dummy_inputs):
 
     # Check that the custom coefficients produce different COP values
     assert (
-        custom_result["summary"][f"{Types.HP}_{Types.HEATING}_avg"]
-        != default_result["summary"][f"{Types.HP}_{Types.HEATING}_avg"]
+        custom_result["summary"][f"{Types.HP}:{Types.HEATING}_avg[1]"]
+        != default_result["summary"][f"{Types.HP}:{Types.HEATING}_avg[1]"]
     )
     assert (
-        custom_result["summary"][f"{Types.HP}_{Types.DHW}_avg"]
-        != default_result["summary"][f"{Types.HP}_{Types.DHW}_avg"]
+        custom_result["summary"][f"{Types.HP}:{Types.DHW}_avg[1]"]
+        != default_result["summary"][f"{Types.HP}:{Types.DHW}_avg[1]"]
     )
 
 
@@ -283,8 +283,8 @@ def test_default_values(dummy_weather):
     assert "timeseries" in result
 
     # Check that COP values are calculated (indicating defaults were applied)
-    assert result["summary"][f"{Types.HP}_{Types.HEATING}_avg"] > 0
-    assert result["summary"][f"{Types.HP}_{Types.DHW}_avg"] > 0
+    assert result["summary"][f"{Types.HP}:{Types.HEATING}_avg[1]"] > 0
+    assert result["summary"][f"{Types.HP}:{Types.DHW}_avg[1]"] > 0
 
 
 def test_temperature_relationship(dummy_weather):
@@ -311,7 +311,7 @@ def test_temperature_relationship(dummy_weather):
     result = ruhnau.generate(obj, data)
 
     # Get the COP time series
-    cop_series = result["timeseries"][f"{Types.HP}_{Types.HEATING}"]
+    cop_series = result["timeseries"][f"{Types.HP}:{Types.HEATING}[1]"]
 
     # Check that COP increases as outdoor temperature increases (smaller temperature difference)
     # We can check this by comparing the first half (colder) with the second half (warmer)
@@ -376,9 +376,9 @@ def test_reference_values():
     water_result = ruhnau.generate(water_obj, data)
 
     # Check against reference values (with some tolerance)
-    air_cop = air_result["summary"][f"{Types.HP}_{Types.HEATING}_avg"]
-    ground_cop = ground_result["summary"][f"{Types.HP}_{Types.HEATING}_avg"]
-    water_cop = water_result["summary"][f"{Types.HP}_{Types.HEATING}_avg"]
+    air_cop = air_result["summary"][f"{Types.HP}:{Types.HEATING}_avg[1]"]
+    ground_cop = ground_result["summary"][f"{Types.HP}:{Types.HEATING}_avg[1]"]
+    water_cop = water_result["summary"][f"{Types.HP}:{Types.HEATING}_avg[1]"]
 
     # Print actual values for debugging
     print(f"Air COP: {air_cop}, Ground COP: {ground_cop}, Water COP: {water_cop}")
