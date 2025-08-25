@@ -1,16 +1,32 @@
-import pytest
 import pandas as pd
-from entise.methods.auxiliary.solar.selector import SolarGains
+import pytest
+
+from entise.constants import Columns as C
 from entise.constants import Objects as O
+from entise.methods.auxiliary.solar.selector import SolarGains
+
 
 @pytest.fixture
 def minimal_weather():
-    index = pd.date_range("2025-01-01", periods=24, freq="h")
+    index = pd.date_range("2025-01-01", periods=24, freq="h", tz="UTC")
     return pd.DataFrame(index=index)
+
 
 @pytest.fixture
 def dummy_windows():
-    return pd.DataFrame([{O.ID: 42, "area": 1.0, "transmittance": 0.9, "shading": 1.0, "tilt": 90, "orientation": 180}])
+    return pd.DataFrame(
+        [
+            {
+                O.ID: 42,
+                "area[m2]": 1.0,
+                "transmittance[W m-2 K-1]": 0.9,
+                "shading[1]": 1.0,
+                "tilt[degree]": 90,
+                "orientation[degree]": 180,
+            }
+        ]
+    )
+
 
 def test_inactive_strategy_used(minimal_weather):
     sg = SolarGains()
@@ -21,11 +37,12 @@ def test_inactive_strategy_used(minimal_weather):
     assert isinstance(result, pd.DataFrame)
     assert (result[O.GAINS_SOLAR] == 0).all()
 
+
 def test_pvlib_strategy_used(minimal_weather, dummy_windows):
     sg = SolarGains()
     obj = {O.ID: 42, O.LAT: 48.1, O.LON: 11.6}
     data = {
-        O.WEATHER: minimal_weather.assign(solar_ghi=500, solar_dhi=100, solar_dni=400),
+        O.WEATHER: minimal_weather.assign(**{C.SOLAR_GHI: 500, C.SOLAR_DHI: 100, C.SOLAR_DNI: 400}),
         O.WINDOWS: dummy_windows,
     }
 

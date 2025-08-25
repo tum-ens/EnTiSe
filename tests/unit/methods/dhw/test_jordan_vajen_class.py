@@ -9,9 +9,9 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from entise.constants import SEP, Types
 from entise.constants import Columns as C
 from entise.constants import Objects as O
-from entise.constants import Types
 from entise.methods.dhw.jordan_vajen import JordanVajen
 
 
@@ -60,28 +60,28 @@ def test_jordan_vajen_basic():
 
     # Check that the summary has the expected keys
     summary = result["summary"]
-    assert f"{Types.DHW}_volume_total" in summary
-    assert f"{Types.DHW}_volume_avg" in summary
-    assert f"{Types.DHW}_volume_peak" in summary
-    assert f"{Types.DHW}_energy_total" in summary
-    assert f"{Types.DHW}_energy_avg" in summary
-    assert f"{Types.DHW}_energy_peak" in summary
-    assert f"{Types.DHW}_power_avg" in summary
-    assert f"{Types.DHW}_power_max" in summary
-    assert f"{Types.DHW}_power_min" in summary
+    assert f"{Types.DHW}:volume_total[l]" in summary
+    assert f"{Types.DHW}:volume_avg[l]" in summary
+    assert f"{Types.DHW}:volume_peak[l]" in summary
+    assert f"{Types.DHW}:energy_total[Wh]" in summary
+    assert f"{Types.DHW}:energy_avg[Wh]" in summary
+    assert f"{Types.DHW}:energy_peak[Wh]" in summary
+    assert f"{Types.DHW}:power_avg[W]" in summary
+    assert f"{Types.DHW}:power_max[W]" in summary
+    assert f"{Types.DHW}:power_min[W]" in summary
 
     # Check that the timeseries has the expected columns
     timeseries = result["timeseries"]
-    assert f"{Types.DHW}_volume" in timeseries.columns
-    assert f"{Types.DHW}_energy" in timeseries.columns
-    assert f"{Types.DHW}_power" in timeseries.columns
+    assert f"{Types.DHW}:volume[l]" in timeseries.columns
+    assert f"{Types.DHW}:energy[Wh]" in timeseries.columns
+    assert f"{Types.DHW}:power[W]" in timeseries.columns
 
     # Check that the values are reasonable
-    assert summary[f"{Types.DHW}_volume_total"] > 0
-    assert summary[f"{Types.DHW}_energy_total"] > 0
-    assert np.all(timeseries[f"{Types.DHW}_volume"] >= 0)
-    assert np.all(timeseries[f"{Types.DHW}_energy"] >= 0)
-    assert np.all(timeseries[f"{Types.DHW}_power"] >= 0)
+    assert summary[f"{Types.DHW}:volume_total[l]"] > 0
+    assert summary[f"{Types.DHW}:energy_total[Wh]"] > 0
+    assert np.all(timeseries[f"{Types.DHW}:volume[l]"] >= 0)
+    assert np.all(timeseries[f"{Types.DHW}:energy[Wh]"] >= 0)
+    assert np.all(timeseries[f"{Types.DHW}:power[W]"] >= 0)
 
 
 # Test reproducibility with different seeds
@@ -118,10 +118,10 @@ def test_jordan_vajen_reproducibility():
 
     # Check that the results are identical
     pd.testing.assert_series_equal(
-        result1["timeseries"][f"{Types.DHW}_volume"], result2["timeseries"][f"{Types.DHW}_volume"]
+        result1["timeseries"][f"{Types.DHW}:volume[l]"], result2["timeseries"][f"{Types.DHW}:volume[l]"]
     )
     pd.testing.assert_series_equal(
-        result1["timeseries"][f"{Types.DHW}_energy"], result2["timeseries"][f"{Types.DHW}_energy"]
+        result1["timeseries"][f"{Types.DHW}:energy[Wh]"], result2["timeseries"][f"{Types.DHW}:energy[Wh]"]
     )
 
     # Create a third object with a different seed
@@ -140,7 +140,7 @@ def test_jordan_vajen_reproducibility():
     # Check that the results are different
     with pytest.raises(AssertionError):
         pd.testing.assert_series_equal(
-            result1["timeseries"][f"{Types.DHW}_volume"], result3["timeseries"][f"{Types.DHW}_volume"]
+            result1["timeseries"][f"{Types.DHW}:volume[l]"], result3["timeseries"][f"{Types.DHW}:volume[l]"]
         )
 
 
@@ -177,8 +177,8 @@ def test_jordan_vajen_dwelling_size():
     result2 = dhw.generate(obj2, data)
 
     # Check that the results are different
-    assert result1["summary"][f"{Types.DHW}_volume_total"] < result2["summary"][f"{Types.DHW}_volume_total"]
-    assert result1["summary"][f"{Types.DHW}_energy_total"] < result2["summary"][f"{Types.DHW}_energy_total"]
+    assert result1["summary"][f"{Types.DHW}:volume_total[l]"] < result2["summary"][f"{Types.DHW}:volume_total[l]"]
+    assert result1["summary"][f"{Types.DHW}:energy_total[Wh]"] < result2["summary"][f"{Types.DHW}:energy_total[Wh]"]
 
 
 # Test with different water temperatures
@@ -215,11 +215,11 @@ def test_jordan_vajen_water_temperatures():
 
     # Check that the volume results are the same (water temperature doesn't affect volume)
     pd.testing.assert_series_equal(
-        result1["timeseries"][f"{Types.DHW}_volume"], result2["timeseries"][f"{Types.DHW}_volume"]
+        result1["timeseries"][f"{Types.DHW}:volume[l]"], result2["timeseries"][f"{Types.DHW}:volume[l]"]
     )
 
     # Check that the energy results are different (colder water requires more energy to heat)
-    assert result1["summary"][f"{Types.DHW}_energy_total"] > result2["summary"][f"{Types.DHW}_energy_total"]
+    assert result1["summary"][f"{Types.DHW}:energy_total[Wh]"] > result2["summary"][f"{Types.DHW}:energy_total[Wh]"]
 
 
 # Test with seasonal variation
@@ -259,12 +259,12 @@ def test_jordan_vajen_seasonal_variation():
     # Check that the results are different
     with pytest.raises(AssertionError):
         pd.testing.assert_series_equal(
-            result1["timeseries"][f"{Types.DHW}_volume"], result2["timeseries"][f"{Types.DHW}_volume"]
+            result1["timeseries"][f"{Types.DHW}{SEP}volume[l]"], result2["timeseries"][f"{Types.DHW}{SEP}volume[l]"]
         )
 
     # Check seasonal pattern by comparing winter vs. summer demand
     # For the object with seasonal variation, winter demand should be higher than summer demand
-    ts2 = result2["timeseries"][f"{Types.DHW}_volume"]
+    ts2 = result2["timeseries"][f"{Types.DHW}{SEP}volume[l]"]
     winter_demand = ts2["2023-01-01":"2023-03-31"].mean()  # Winter (Jan-Mar)
     summer_demand = ts2["2023-07-01":"2023-09-30"].mean()  # Summer (Jul-Sep)
     assert winter_demand > summer_demand
@@ -288,7 +288,7 @@ def test_jordan_vajen_edge_cases():
     }
     dhw = JordanVajen()
     result_small = dhw.generate(obj_small, data)
-    assert result_small["summary"][f"{Types.DHW}_volume_total"] > 0  # Should still produce some demand
+    assert result_small["summary"][f"{Types.DHW}{SEP}volume_total[l]"] > 0  # Should still produce some demand
 
     # Test with very large dwelling
     obj_large = {
@@ -300,7 +300,7 @@ def test_jordan_vajen_edge_cases():
         O.SEED: 42,
     }
     result_large = dhw.generate(obj_large, data)
-    assert result_large["summary"][f"{Types.DHW}_volume_total"] > 0  # Should produce demand
+    assert result_large["summary"][f"{Types.DHW}{SEP}volume_total[l]"] > 0  # Should produce demand
 
     # Test with equal water temperatures
     obj_equal_temp = {
@@ -312,7 +312,7 @@ def test_jordan_vajen_edge_cases():
         O.SEED: 42,
     }
     result_equal_temp = dhw.generate(obj_equal_temp, data)
-    assert np.all(result_equal_temp["timeseries"][f"{Types.DHW}_energy"] == 0)  # Energy should be zero
+    assert np.all(result_equal_temp["timeseries"][f"{Types.DHW}{SEP}energy[Wh]"] == 0)  # Energy should be zero
 
 
 # Test error handling
@@ -409,6 +409,6 @@ def test_jordan_vajen_time_resolution():
 
     # Check that the total demand is similar across different resolutions
     # (allowing for some variation due to randomness)
-    hourly_total = result_hourly["summary"][f"{Types.DHW}_volume_total"]
-    daily_total = result_daily["summary"][f"{Types.DHW}_volume_total"]
+    hourly_total = result_hourly["summary"][f"{Types.DHW}{SEP}volume_total[l]"]
+    daily_total = result_daily["summary"][f"{Types.DHW}{SEP}volume_total[l]"]
     assert 0.5 * hourly_total <= daily_total <= 1.5 * hourly_total

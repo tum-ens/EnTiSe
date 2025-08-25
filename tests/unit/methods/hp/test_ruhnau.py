@@ -20,7 +20,7 @@ def dummy_weather():
     water_temp = np.full(24, 10)  # Constant 10°C
 
     return pd.DataFrame(
-        {C.DATETIME: index, C.TEMP: air_temp, C.TEMP_SOIL: soil_temp, C.TEMP_WATER_GROUND: water_temp}, index=index
+        {C.DATETIME: index, C.TEMP_AIR: air_temp, C.TEMP_SOIL: soil_temp, C.TEMP_WATER_GROUND: water_temp}, index=index
     )
 
 
@@ -294,7 +294,7 @@ def test_temperature_relationship(dummy_weather):
 
     # Create a range of temperatures from -10 to 20°C
     temperatures = np.linspace(-10, 20, len(modified_weather))
-    modified_weather[C.TEMP] = temperatures
+    modified_weather[C.TEMP_AIR] = temperatures
 
     obj = {
         O.ID: "hp_system_temp_test",
@@ -332,7 +332,7 @@ def test_reference_values():
     # 3. Water source heat pump, water temp = 10°C, radiator (40°C) -> COP ≈ 4
 
     weather_data = pd.DataFrame(
-        {C.DATETIME: index, C.TEMP: [0, 0, 0], C.TEMP_SOIL: [10, 10, 10], C.TEMP_WATER_GROUND: [10, 10, 10]},
+        {C.DATETIME: index, C.TEMP_AIR: [0, 0, 0], C.TEMP_SOIL: [10, 10, 10], C.TEMP_WATER_GROUND: [10, 10, 10]},
         index=index,
     )
 
