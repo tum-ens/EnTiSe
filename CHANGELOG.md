@@ -15,6 +15,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Added a ventilation auxiliary class similar to internal gains to allow for time series (`#43`, `!38`)
 - Added heat pump COP time series generation method based on Ruhnau et al. (`#37`,`!34`)
 
+### Changed
+- Renamed weather and other columns to use the following convention: name[unit]@height (e.g., temp_[C]_2m) (`#41`, `!44`)
+
+### Fixed
+- Fixed issue that failed 1R1C HVAC model when weather time series was not under "weather" key (`#75`, `!49`)
+
 ## [0.2.1] Hotfix - 2025-06-25
 ### Fixed
 - Fixed exposure of methods which was taken out by the githooks (`#38`, `!35`)
