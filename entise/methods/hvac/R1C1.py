@@ -215,13 +215,17 @@ class R1C1(Method):
             O.VENTILATION: Method.get_with_method_backup(obj, O.VENTILATION, method_type, DEFAULT_VENTILATION),
             O.VENTILATION_COL: Method.get_with_method_backup(obj, O.VENTILATION_COL, method_type),
         }
+        weather_key = Method.get_with_method_backup(obj, O.WEATHER, method_type, O.WEATHER)
+        weather = Method.get_with_backup(data, weather_key)
+        windows_key = Method.get_with_method_backup(obj, O.WINDOWS, method_type)
+        windows = Method.get_with_backup(data, windows_key) if isinstance(windows_key, str) else None
         internal_key = Method.get_with_method_backup(obj, O.GAINS_INTERNAL, method_type)
         internal_gains = Method.get_with_backup(data, internal_key) if isinstance(internal_key, str) else None
         ventilation_key = Method.get_with_method_backup(obj, O.VENTILATION, method_type)
         ventilation = Method.get_with_backup(data, ventilation_key) if isinstance(ventilation_key, str) else None
         data_out = {
-            O.WEATHER: Method.get_with_backup(data, O.WEATHER),
-            O.WINDOWS: Method.get_with_backup(data, O.WINDOWS),
+            O.WEATHER: weather,
+            O.WINDOWS: windows,
             internal_key: internal_gains,
             ventilation_key: ventilation,
         }
