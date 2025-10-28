@@ -41,9 +41,10 @@ def dummy_inputs():
         O.LON: 11.6,
         O.GAINS_INTERNAL_COL: "obj1",  # Specifies the column in the timeseries
         O.GAINS_INTERNAL: "internal_gains",  # Points to timeseries in `data`
+        O.WEATHER: f"{O.WEATHER}_dummy",
     }
 
-    data = {O.WEATHER: weather, O.WINDOWS: windows, "internal_gains": internal_gains}
+    data = {f"{O.WEATHER}_dummy": weather, O.WINDOWS: windows, "internal_gains": internal_gains}
 
     return obj, data
 
