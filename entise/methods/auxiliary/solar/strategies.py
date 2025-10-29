@@ -77,8 +77,8 @@ class SolarGainsPVLib(AuxiliaryMethod):
             windows = windows.loc[windows[O.ID] == object_id]
             windows = windows if not windows.empty else None
         input_data = {
-            'latitude': obj[O.LAT],
-            'longitude': obj[O.LON],
+            "latitude": obj[O.LAT],
+            "longitude": obj[O.LON],
             "model": obj.get("model", "isotropic"),
             "weather": data[O.WEATHER],
             "windows": windows,
@@ -104,9 +104,13 @@ class SolarGainsPVLib(AuxiliaryMethod):
         if windows is None:
             return pd.DataFrame({O.GAINS_SOLAR: np.zeros(len(weather), dtype=np.float32)}, index=weather.index)
 
-        # Obtain all relevant information upfront
-        timezone = weather.index[0].tzinfo or "UTC"
-        location = pvlib.location.Location(latitude, longitude, tz=timezone)
+        # # Obtain all relevant information upfront
+        timezone_info = weather.index[0].tzinfo
+        if timezone_info is None:
+            tz_offset = 0
+        else:
+            tz_offset = timezone_info.utcoffset(None).total_seconds() / 3600
+        location = pvlib.location.Location(latitude, longitude, tz=tz_offset)  # adjusted for pvlib>=0.12
         solpos = location.get_solarposition(pd.to_datetime(weather.index, utc=True), method="nrel_numba")
 
         # Calculate values depending on model
