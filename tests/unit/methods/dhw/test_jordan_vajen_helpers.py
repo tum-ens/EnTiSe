@@ -5,24 +5,21 @@ This module contains tests for the helper functions used by the JordanVajen clas
 to generate DHW demand time series.
 """
 
-import os
-import pandas as pd
+
 import numpy as np
-import pytest
-from datetime import datetime, timedelta
+import pandas as pd
 
+import entise.methods.dhw.defaults as defaults
+from entise.constants import Columns as C
+from entise.constants import Objects as O
 from entise.methods.dhw.jordanvajen.activity import _get_activity_data, _get_demand_data
-from entise.methods.dhw.jordanvajen.calculation import _calculate_volume_timeseries
 from entise.methods.dhw.jordanvajen.temperature import _get_water_temperatures
-
 from entise.methods.dhw.jordanvajen.utils import (
+    SEASONAL_FACTOR,
     _convert_time_to_seconds_of_day,
     _find_nearest_activity_times,
     _sample_event_volumes,
-    SEASONAL_FACTOR
 )
-from entise.constants import Columns as C, Objects as O, Types
-import entise.methods.dhw.defaults as defaults
 
 
 def test_convert_time_to_seconds_of_day():
@@ -81,25 +78,32 @@ def test_sample_event_volumes():
 
     # Check statistical properties (with some tolerance)
     assert abs(np.mean(volumes) - mean_flow) < 0.5  # Mean should be close to mean_flow
-    assert abs(np.std(volumes) / np.mean(volumes) - sigma_relative) < 0.05  # Relative std should be close to sigma_relative
+    assert (
+        abs(np.std(volumes) / np.mean(volumes) - sigma_relative) < 0.05
+    )  # Relative std should be close to sigma_relative
 
 
 def test_vectorized_inverse_sampling():
     """Test the _vectorized_inverse_sampling function."""
+
     # Create a simplified mock version of the function for testing
-    def mock_vectorized_inverse_sampling(activity_data, annual_volumes, mean_flows, sigma_rel, daily_demand, index, rng):
+    def mock_vectorized_inverse_sampling(
+        activity_data, annual_volumes, mean_flows, sigma_rel, daily_demand, index, rng
+    ):
         """Mock version of _vectorized_inverse_sampling for testing."""
         # Create a simple time series with random values
         return pd.Series(rng.random(len(index)) * daily_demand / len(index), index=index)
 
     # Create sample activity data
-    activity_data = pd.DataFrame({
-        C.EVENT: ["Shower", "Shower", "Bath", "Bath"],
-        C.TIME: ["08:00", "18:00", "08:00", "18:00"],
-        C.PROBABILITY: [0.6, 0.4, 0.7, 0.3],
-        C.PROBABILITY_DAY: [0.7, 0.7, 0.3, 0.3],
-        SEASONAL_FACTOR: [1.0, 1.0, 1.0, 1.0]
-    })
+    activity_data = pd.DataFrame(
+        {
+            C.EVENT: ["Shower", "Shower", "Bath", "Bath"],
+            C.TIME: ["08:00", "18:00", "08:00", "18:00"],
+            C.PROBABILITY: [0.6, 0.4, 0.7, 0.3],
+            C.PROBABILITY_DAY: [0.7, 0.7, 0.3, 0.3],
+            SEASONAL_FACTOR: [1.0, 1.0, 1.0, 1.0],
+        }
+    )
 
     # Create sample parameters
     annual_volumes = {"Shower": 36500, "Bath": 18250}  # 100L/day for shower, 50L/day for bath
@@ -133,7 +137,7 @@ def test_vectorized_inverse_sampling():
 def test_get_activity_data():
     """Test the _get_activity_data function."""
     # Test with default parameters
-    result = _get_activity_data('jordan_vajen')
+    result = _get_activity_data("jordan_vajen")
 
     # Check that the result is a DataFrame with the expected columns
     assert isinstance(result, pd.DataFrame)
@@ -148,13 +152,13 @@ def test_get_activity_data():
 def test_get_demand_data():
     """Test the _get_demand_data function."""
     # Test with default parameters
-    result = _get_demand_data('jordan_vajen')
+    result = _get_demand_data("jordan_vajen")
 
     # Check that the result is a DataFrame with the expected columns
     assert isinstance(result, pd.DataFrame)
-    assert 'dwelling_size' in result.columns
-    assert 'm3_per_m2_a' in result.columns
-    assert 'sigma' in result.columns
+    assert "dwelling_size[m2]" in result.columns
+    assert "yearly_dhw_demand[m3 m-2 a-1]" in result.columns
+    assert "sigma" in result.columns
 
     # Check that the DataFrame is not empty
     assert not result.empty
@@ -163,19 +167,14 @@ def test_get_demand_data():
 def test_get_water_temperatures():
     """Test the _get_water_temperatures function."""
     # Create sample data
-    obj = {
-        O.TEMP_WATER_COLD: 10,
-        O.TEMP_WATER_HOT: 60
-    }
+    obj = {O.TEMP_WATER_COLD: 10, O.TEMP_WATER_HOT: 60}
     data = {}
 
     # Create sample weather data
     start = pd.Timestamp("2023-01-01")
     end = start + pd.Timedelta(days=7)
-    index = pd.date_range(start=start, end=end, freq='h')
-    weather = pd.DataFrame({
-        C.DATETIME: index
-    })
+    index = pd.date_range(start=start, end=end, freq="h")
+    weather = pd.DataFrame({C.DATETIME: index})
 
     # Get water temperatures
     result = _get_water_temperatures(obj, data, weather)
@@ -190,9 +189,7 @@ def test_get_water_temperatures():
     assert np.all(result[O.TEMP_WATER_HOT] == 60)
 
     # Test with missing cold water temperature (should use VDI4655 method)
-    obj = {
-        O.TEMP_WATER_HOT: 60
-    }
+    obj = {O.TEMP_WATER_HOT: 60}
     result = _get_water_temperatures(obj, data, weather)
 
     # Check that cold water temperature is calculated
@@ -200,9 +197,7 @@ def test_get_water_temperatures():
     assert not np.isnan(result[O.TEMP_WATER_COLD]).any()
 
     # Test with missing hot water temperature (should use default)
-    obj = {
-        O.TEMP_WATER_COLD: 10
-    }
+    obj = {O.TEMP_WATER_COLD: 10}
     result = _get_water_temperatures(obj, data, weather)
 
     # Check that hot water temperature is set to default

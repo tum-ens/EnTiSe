@@ -1,4 +1,4 @@
-day_of_week,time,event,probability,duration,flow_rate,duration_sigma,flow_rate_sigma,probability_day
+day_of_week,time,event,probability,duration[s],flow_rate[l s-1],duration_sigma[s],flow_rate_sigma[l s-1],probability_day
 0,00:00,Shower,0.008,300,0.13333,120,0.03333,0.9
 0,00:12,Shower,0.008,300,0.13333,120,0.03333,0.9
 0,00:24,Shower,0.008,300,0.13333,120,0.03333,0.9

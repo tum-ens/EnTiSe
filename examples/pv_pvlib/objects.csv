@@ -1,4 +1,4 @@
-id,pv,latitude,longitude,weather,power,azimuth,tilt,altitude,pv_arrays
+id,pv,latitude[degree],longitude[degree],weather,power[W],azimuth[degree],tilt[degree],altitude[m],pv_arrays
 367791,pvlib,49.72025553,11.05552524,weather,7100,90,15,,
 31991680,pvlib,49.72561366,11.05732008,weather,2900,180,90,,
 31991682,pvlib,49.7266711,11.05702054,weather,3300,180,35,,

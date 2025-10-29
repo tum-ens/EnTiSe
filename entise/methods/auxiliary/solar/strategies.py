@@ -2,8 +2,10 @@ import numpy as np
 import pandas as pd
 import pvlib
 
-from entise.core.base_auxiliary import AuxiliaryMethod, BaseSelector
-from entise.constants import Keys, SEP, Objects as O, Columns as C
+from entise.constants import Columns as C
+from entise.constants import Objects as O
+from entise.core.base_auxiliary import AuxiliaryMethod
+
 
 class SolarGainsInactive(AuxiliaryMethod):
     """
@@ -14,6 +16,7 @@ class SolarGainsInactive(AuxiliaryMethod):
     applicable. It ensures compatibility with the required input data and produces
     an output in a specific format.
     """
+
     required_timeseries = [O.WEATHER]
 
     def get_input_data(self, obj, data):
@@ -52,6 +55,7 @@ class SolarGainsInactive(AuxiliaryMethod):
         """
         return pd.DataFrame({O.GAINS_SOLAR: np.zeros(len(weather), dtype=np.float32)}, index=weather.index)
 
+
 class SolarGainsPVLib(AuxiliaryMethod):
     """
     Perform calculations of solar gains for buildings using irradiance models.
@@ -61,6 +65,7 @@ class SolarGainsPVLib(AuxiliaryMethod):
     with `pvlib` to compute solar positions and irradiance values. The class supports different
     irradiance models, such as "isotropic" and "haydavies", and handles missing input gracefully.
     """
+
     required_keys = [O.ID, O.LAT, O.LON]
     optional_keys = ["model"]
     required_timeseries = [O.WEATHER, O.WINDOWS]
@@ -72,11 +77,11 @@ class SolarGainsPVLib(AuxiliaryMethod):
             windows = windows.loc[windows[O.ID] == object_id]
             windows = windows if not windows.empty else None
         input_data = {
-            O.LAT: obj[O.LAT],
-            O.LON: obj[O.LON],
+            "latitude": obj[O.LAT],
+            "longitude": obj[O.LON],
             "model": obj.get("model", "isotropic"),
-            O.WEATHER: data[O.WEATHER],
-            O.WINDOWS: windows,
+            "weather": data[O.WEATHER],
+            "windows": windows,
         }
         return input_data
 
@@ -99,23 +104,26 @@ class SolarGainsPVLib(AuxiliaryMethod):
         if windows is None:
             return pd.DataFrame({O.GAINS_SOLAR: np.zeros(len(weather), dtype=np.float32)}, index=weather.index)
 
-        # Obtain all relevant information upfront
-        altitude = pvlib.location.lookup_altitude(latitude, longitude)
-        timezone = weather.index.tzinfo or "UTC"
-        location = pvlib.location.Location(latitude, longitude, altitude=altitude, tz=timezone)
-        solpos = location.get_solarposition(weather.index)
+        # # Obtain all relevant information upfront
+        timezone_info = weather.index[0].tzinfo
+        if timezone_info is None:
+            tz_offset = 0
+        else:
+            tz_offset = timezone_info.utcoffset(None).total_seconds() / 3600
+        location = pvlib.location.Location(latitude, longitude, tz=tz_offset)  # adjusted for pvlib>=0.12
+        solpos = location.get_solarposition(pd.to_datetime(weather.index, utc=True), method="nrel_numba")
 
         # Calculate values depending on model
-        if model == 'haydavies':
+        if model == "haydavies":
             dni_extra = pvlib.irradiance.get_extra_radiation(weather.index)
-            dni = pvlib.irradiance.dirint(ghi=weather[C.SOLAR_GHI],
-                                        solar_zenith=solpos['apparent_zenith'],
-                                        times=weather.index).fillna(0)
-        elif model == 'isotropic':
+            dni = pvlib.irradiance.dirint(
+                ghi=weather[C.SOLAR_GHI], solar_zenith=solpos["apparent_zenith"], times=weather.index
+            ).fillna(0)
+        elif model == "isotropic":
             dni_extra = None
             dni = weather[C.SOLAR_DNI]
         else:
-            raise ValueError('Unknown irradiance model.')
+            raise ValueError("Unknown irradiance model.")
 
         total_solar_gains = np.zeros(len(weather), dtype=np.float32)
         for _, window in windows.iterrows():
@@ -129,17 +137,19 @@ class SolarGainsPVLib(AuxiliaryMethod):
                 ghi=weather[C.SOLAR_GHI],
                 dhi=weather[C.SOLAR_DHI],
                 dni_extra=dni_extra,
-                model=model
+                model=model,
             )
             poa_global = irr["poa_global"]
-            window_gains = poa_global * window["area"] * window["transmittance"] * window["shading"]
+            window_gains = poa_global * window[C.AREA] * window[C.TRANSMITTANCE] * window[C.SHADING]
 
             # Accumulate the gains
             total_solar_gains += window_gains.to_numpy(dtype=np.float32)
         return pd.DataFrame({O.GAINS_SOLAR: total_solar_gains}, index=weather.index)
 
+
 __all__ = [
-    name for name, obj in globals().items()
+    name
+    for name, obj in globals().items()
     if isinstance(obj, type)
     and issubclass(obj, AuxiliaryMethod)
     and obj is not AuxiliaryMethod  # exclude the base class

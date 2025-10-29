@@ -1,0 +1,9 @@
+{
+  "wind_speed_model": "hellman",
+  "density_model": "ideal_gas",
+  "temperature_model": "interpolation_extrapolation",
+  "power_output_model": "power_curve",
+  "density_correction": true,
+  "obstacle_height": 30,
+  "hellman_exp": null
+}

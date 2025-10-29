@@ -16,6 +16,7 @@ Briefly describe the method change (max 5 sentences).
 - [ ] 🚿 DHW (Domestic Hot Water)
 - [ ] ⚡ Electricity
 - [ ] 🌋 Geothermal
+- [ ] 🌡️ Heat Pump
 - [ ] 🔥 Heating (tick only for methods that exclusively generate cooling, otherwise choose HVAC)
 - [ ] 🏢 HVAC (Heating, Ventilation, and Air Conditioning)
 - [ ] 💧 Hydro
@@ -35,10 +36,10 @@ Briefly describe the method change (max 5 sentences).
 - [ ] ⚡ Method performance improvement
 - [ ] 📝 Method documentation update
 
-**Affected Components/Modules**: 
+**Affected Components/Modules**:
 - List the components or modules affected by this change (if applicable)
 
-**⚠️ Breaking Change**: 
+**⚠️ Breaking Change**:
 - [ ] Yes: (If yes, briefly explain which existing functionality might be affected)
 - [ ] No
 

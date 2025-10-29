@@ -1,0 +1,9 @@
+id,hp,weather,hp_source,hp_sink,sink_temperature[C],gradient_sink,water_temperature[C],correction_factor,hp_system
+1,ruhnau,weather,air,radiator,50,-1,50,,
+2,ruhnau,weather,soil,floor,30,-0.5,55,,
+3,ruhnau,weather,water,radiator,35,-1,60,,
+4,ruhnau,weather,,floor,25,-0.5,,,
+5,ruhnau,weather,air,floor,35,,,,
+6,ruhnau,weather,soil,radiator,,,,,
+7,ruhnau,weather,water,floor,,,,,
+8,ruhnau,weather,,,,,,0.95,system

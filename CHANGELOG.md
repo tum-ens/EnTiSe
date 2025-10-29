@@ -10,10 +10,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [1.0.0] New naming scheme and methods - 2025-10-28
+### Added
+- Added a weather service to download weather data directly (`#33`,`!31`)
+- Added wind power generation method based on windpowerlib (`#35`, `!33`)
+- Added a ventilation auxiliary class similar to internal gains to allow for time series (`#43`, `!38`)
+- Added heat pump COP time series generation method based on Ruhnau et al. (`#37`,`!34`)
+
+### Changed
+- Renamed weather and other columns to use the following convention: name[unit]@height (e.g., temp_[C]_2m) (`#41`, `!44`)
+- Changed timezone format in SolarGainsPVLib to IANA-based timezone handling due to breaking PVLib changes (`#77`, `!51`)
+
+### Fixed
+- Fixed issue that failed 1R1C HVAC model when weather time series was not under "weather" key (`#75`, `!49`)
+
 ## [0.2.1] Hotfix - 2025-06-25
 ### Fixed
 - Fixed exposure of methods which was taken out by the githooks (`#38`, `!35`)
-
 
 ## [0.2.0] New architecture, methods and packaging - 2025-06-04
 ### Added

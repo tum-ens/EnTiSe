@@ -1,0 +1,9 @@
+id,wind,weather,power[W],manufacturer,turbine_type,hub_height[m],wind_model
+367791,wplib,weather,5000000,Adwen/Areva,AD116/5000,102,
+31991680,wplib,weather,3500000,Enercon,E-101/3500,99,
+31991682,wplib,weather,3200000,GE Wind,GE130/3200,155,
+31991685,wplib,weather,2400000,Nordex,N117/2400,120,system
+31991686,wplib,weather,3200000,Senvion/REpower,S122/3200,,
+31991688,wplib,weather,3150000,Siemens,SWT142/3150,165,
+31991690,wplib,weather,,,,,
+31991691,wplib,weather,8000000,Vestas,V164/8000,164,system

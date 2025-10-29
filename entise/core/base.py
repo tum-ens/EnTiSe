@@ -1,11 +1,13 @@
-from abc import ABC, ABCMeta, abstractmethod
 import logging
 import math
-from typing import List, Dict, Any, Type, Optional, Tuple
+import re
+from abc import ABC, ABCMeta, abstractmethod
+from typing import Any, Dict, List, Tuple, Type
 
 import pandas as pd
 
-from entise.constants import Keys, SEP, Objects as O, VALID_TYPES
+from entise.constants import SEP, VALID_TYPES, Keys
+from entise.constants import Columns as C
 
 logger = logging.getLogger(__name__)
 
@@ -56,18 +58,11 @@ class Method(ABC, metaclass=MethodMeta):
         if ts_type is None:
             return obj
 
-        relevant_objs = {
-            k.split(SEP, 1)[1]: v
-            for k, v in obj.items()
-            if k.startswith(f"{ts_type}{SEP}")
-        }
+        relevant_objs = {k.split(SEP, 1)[1]: v for k, v in obj.items() if k.startswith(f"{ts_type}{SEP}")}
 
         expected_keys = set(self.required_keys + self.optional_keys)
         shared_keys_set = expected_keys - set(relevant_objs.keys())
-        shared_objs = {
-            k: v for k, v in obj.items()
-            if k in shared_keys_set and k not in relevant_objs
-        }
+        shared_objs = {k: v for k, v in obj.items() if k in shared_keys_set and k not in relevant_objs}
 
         relevant_objs.update(shared_objs)
         logger.debug(
@@ -108,6 +103,65 @@ class Method(ABC, metaclass=MethodMeta):
                 local_data[param_name] = value
 
         return local_obj, local_data
+
+    @staticmethod
+    def _strip_weather_height(weather: pd.DataFrame) -> pd.DataFrame:
+        """Strip height information from weather DataFrame columns.
+
+        Args:
+            weather (pd.DataFrame): Weather data DataFrame.
+
+        Returns:
+            pd.DataFrame: Weather DataFrame with height information stripped.
+        """
+        # Remove height suffix from column names
+        weather.columns = [re.sub(r"@\d+(\.\d+)?m$", "", col) for col in weather.columns]
+        return weather
+
+    @staticmethod
+    def _obtain_weather_info(weather: pd.DataFrame) -> Tuple[pd.DataFrame, dict]:
+        """Process weather DataFrame to ensure it has the required columns.
+
+        Args:
+            weather (pd.DataFrame): Weather data DataFrame.
+
+        Returns:
+            weather (pd.DataFrame): Processed weather DataFrame.
+            info (dict): Information dictionary with column information.
+        """
+        pattern = re.compile(
+            r"^(?P<name>[a-z0-9_]+)\[(?P<unit>[^\]]+)\](?:@(?P<height>[0-9]+(?:\.[0-9]+)?m))?$",
+            re.IGNORECASE,
+        )
+
+        def parse_column(col: str):
+            """Return (name, unit, height_m) or (None, None, None) if cannot parse."""
+            m = pattern.match(col)
+            if m:
+                n = m.group("name")
+                u = m.group("unit")
+                h = m.group("height")
+                height_m = float(h[:-1]) if h else None  # strip trailing 'm'
+                return n, u, height_m
+
+            return None, None, None
+
+        info: dict = {}
+
+        for col in weather.columns:
+            if col == C.DATETIME:
+                continue
+
+            name, unit, height_m = parse_column(col)
+
+            if name is None:
+                # Unparsed; keep as-is but record minimal info
+                info[col] = {"name": col, "unit": None, "height": None}
+            else:
+                # Store parsed information using original column name as key
+                info[col] = {"name": name, "unit": unit, "height": height_m}
+
+        return weather, info
 
     @staticmethod
     def get_with_backup(obj, key, backup=None):

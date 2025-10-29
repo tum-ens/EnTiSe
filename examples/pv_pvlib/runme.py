@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
 # Import the new TimeSeriesGenerator
+from entise.constants import Columns as C, SEP
 from entise.core.generator import TimeSeriesGenerator
 from entise.constants import Types
 
@@ -18,6 +19,11 @@ from entise.constants import Types
 cwd = '.'  # Current working directory: change if your kernel is not running in the same folder
 objects = pd.read_csv(os.path.join(cwd, 'objects.csv'))
 data = {}
+common_data_folder = "../common_data"
+for file in os.listdir(os.path.join(cwd, common_data_folder)):
+    if file.endswith(".csv"):
+        name = file.split(".")[0]
+        data[name] = pd.read_csv(os.path.join(os.path.join(cwd, common_data_folder, file)), parse_dates=True)
 data_folder = 'data'
 for file in os.listdir(os.path.join(cwd, data_folder)):
     if file.endswith('.csv'):
@@ -35,9 +41,10 @@ gen.add_objects(objects)
 summary, df = gen.generate(data, workers=1)
 
 # Print summary
-print("Summary [kWh/a] | [Wp] | [h]:")
+print("Summary:")
 summary_kwh = summary
-summary_kwh['generation_pv'] /= 1000
+summary_kwh[f'{Types.PV}{SEP}{C.GENERATION}'] /= 1000
+summary_kwh.rename(columns=lambda x: x.replace('[Wh]', '[kWh]'), inplace=True)
 summary_kwh = summary_kwh.round(0).astype(int)
 print(summary_kwh)
 
@@ -50,9 +57,9 @@ system_configs = {}
 for _, row in objects.iterrows():
     obj_id = row['id']
     if obj_id in df:
-        azimuth = row['azimuth'] if not pd.isna(row['azimuth']) else 0
-        tilt = row['tilt'] if not pd.isna(row['tilt']) else 0
-        power = row['power'] if not pd.isna(row['power']) else 1
+        azimuth = row['azimuth[degree]'] if not pd.isna(row['azimuth[degree]']) else 0
+        tilt = row['tilt[degree]'] if not pd.isna(row['tilt[degree]']) else 0
+        power = row['power[W]'] if not pd.isna(row['power[W]']) else 1
         system_configs[obj_id] = {
             'azimuth': azimuth,
             'tilt': tilt,
