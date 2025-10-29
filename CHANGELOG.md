@@ -19,6 +19,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Changed
 - Renamed weather and other columns to use the following convention: name[unit]@height (e.g., temp_[C]_2m) (`#41`, `!44`)
+- Changed timezone format in SolarGainsPVLib to IANA-based timezone handling due to breaking PVLib changes (`#77`, `!51`)
 
 ### Fixed
 - Fixed issue that failed 1R1C HVAC model when weather time series was not under "weather" key (`#75`, `!49`)
