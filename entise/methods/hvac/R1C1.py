@@ -24,6 +24,9 @@ from entise.methods.hvac.defaults import (
 
 logger = logging.getLogger(__name__)
 
+# Module-level caches (per process)
+_WEATHER_CACHE: dict[tuple, pd.DataFrame] = {}
+
 
 class R1C1(Method):
     """Implements the R1C1 model for HVAC demand and indoor temperature simulation.
@@ -235,12 +238,18 @@ class R1C1(Method):
         data_out = {k: v for k, v in data_out.items() if v is not None}
 
         # Safe datetime handling
-        if O.WEATHER in data_out:
-            weather = data_out[O.WEATHER].copy()
-            weather = self._strip_weather_height(weather)
-            weather[C.DATETIME] = pd.to_datetime(weather[C.DATETIME])
-            weather.set_index(C.DATETIME, inplace=True, drop=False)
-            data_out[O.WEATHER] = weather
+        weather_cache_key = weather_key
+        weather_cached = _WEATHER_CACHE.get(weather_cache_key)
+        if weather_cached is None:
+            if O.WEATHER in data_out:
+                weather = data_out[O.WEATHER].copy()
+                weather = self._strip_weather_height(weather)
+                weather[C.DATETIME] = pd.to_datetime(weather[C.DATETIME])
+                weather.set_index(C.DATETIME, inplace=True, drop=False)
+                data_out[O.WEATHER] = weather
+                _WEATHER_CACHE[weather_cache_key] = weather
+        else:
+            data_out[O.WEATHER] = weather_cached
 
         return obj_out, data_out
 
