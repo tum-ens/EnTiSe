@@ -11,7 +11,9 @@ _SOLPOS_CACHE: dict[tuple, pd.DataFrame] = {}
 _POA_CACHE: dict[tuple, np.ndarray] = {}
 
 
-def _round_loc(lat: float, lon: float, nd: int = 4) -> tuple:
+def _round_loc(lat: float, lon: float, nd: int = 1) -> tuple:
+    """Round latitude and longitude to given number of decimals.
+    Rounding to 1 decimal gives about 11/7 km precision (lat/lon), enough for caching."""
     return (round(float(lat), nd), round(float(lon), nd))
 
 
