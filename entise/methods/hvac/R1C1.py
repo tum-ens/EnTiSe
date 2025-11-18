@@ -163,17 +163,21 @@ class R1C1(Method):
         # Get input data
         processed_obj, processed_data = self._get_input_data(processed_obj, processed_data, ts_type)
 
+        # Timestep in seconds (assuming a regular time grid)
+        idx = processed_data[O.WEATHER][C.DATETIME].values.astype("datetime64[ns]")
+        timestep = np.float32((idx[1] - idx[0]) / np.timedelta64(1, "s"))
+
         # Precompute auxiliary data
         processed_data[O.GAINS_SOLAR] = SolarGains().generate(processed_obj, processed_data)
         processed_data[O.GAINS_INTERNAL] = InternalGains().generate(processed_obj, processed_data)
         processed_data[O.VENTILATION] = Ventilation().generate(processed_obj, processed_data)
 
         # Compute temperature and energy demand
-        temp_in, p_heat, p_cool = calculate_timeseries(processed_obj, processed_data)
+        temp_in, p_heat, p_cool = calculate_timeseries(processed_obj, processed_data, timestep)
 
         logger.debug(f"[HVAC R1C1] {ts_type}: max heating {p_heat.max()}, cooling {p_cool.max()}")
 
-        return self._format_output(temp_in, p_heat, p_cool, processed_data)
+        return self._format_output(temp_in, p_heat, p_cool, processed_data, timestep)
 
     def _get_input_data(self, obj: dict, data: dict, method_type: str = Types.HVAC) -> tuple[dict, dict]:
         """Process and validate input data for HVAC calculation.
@@ -254,8 +258,7 @@ class R1C1(Method):
         return obj_out, data_out
 
     @staticmethod
-    def _format_output(temp_in, p_heat, p_cool, data):
-        timestep = data[O.WEATHER][C.DATETIME].diff().dt.total_seconds().dropna().mode()[0]
+    def _format_output(temp_in, p_heat, p_cool, data, timestep) -> dict:
         summary = {
             f"{Types.HEATING}{SEP}{C.DEMAND}[Wh]": int(round(p_heat.sum() * timestep / 3600)),
             f"{Types.HEATING}{SEP}{O.LOAD_MAX}[W]": int(max(p_heat)),
@@ -276,205 +279,149 @@ class R1C1(Method):
         return {"summary": summary, "timeseries": df}
 
 
-def calculate_timeseries(obj: dict, data: dict) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Calculate HVAC time series using the R1C1 model.
+def calculate_timeseries(obj: dict, data: dict, timestep: float) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Calculate HVAC time series using a 1R1C model.
 
     This function simulates the thermal behavior of a building using a simple
-    one-resistance, one-capacitance (R1C1) model. It calculates the indoor temperature
+    one-resistance, one-capacitance (1R1C) model. It calculates the indoor temperature
     and the heating and cooling power required to maintain comfort conditions.
 
     Args:
-        obj (dict): Dictionary containing processed building parameters such as:
-            - temp_init: Initial indoor temperature in K
-            - resistance: Thermal resistance in K/W
-            - capacitance: Thermal capacitance in J/K
-            - ventilation: Ventilation rate in W/K
-            - temp_min: Minimum indoor temperature setpoint in K
-            - temp_max: Maximum indoor temperature setpoint in K
-            - active_cooling: Whether cooling is active (bool)
-            - active_heating: Whether heating is active (bool)
-            - power_cooling: Maximum cooling power in W
-            - power_heating: Maximum heating power in W
-        data (dict): Dictionary containing processed data such as:
-            - weather: DataFrame with outdoor temperature data
-            - gains_solar: Solar heat gains in W
-            - gains_internal: Internal heat gains in W
+        obj (dict): A dictionary containing building parameters such as thermal
+            resistance, capacitance, initial temperature, temperature limits, and
+            heating/cooling capabilities.
+        data (dict): A dictionary containing time-series data such as weather
+            information, solar gains, internal gains, and ventilation rates.
+        timestep (float): The time step in seconds for the simulation.
 
     Returns:
         tuple: A tuple containing:
-            - temp_in (np.ndarray): Time series of indoor temperature in K
-            - p_heat (np.ndarray): Time series of heating power in W
-            - p_cool (np.ndarray): Time series of cooling power in W
+            - temp_in (np.ndarray): Array of indoor temperatures over time.
+            - p_heat (np.ndarray): Array of heating power over time.
+            - p_cool (np.ndarray): Array of cooling power over time.
 
     Notes:
         - The function simulates the building's thermal behavior time step by time step
         - At each time step, it calculates the net heat transfer, the required heating
           and cooling power, and the resulting indoor temperature
         - The simulation accounts for thermal inertia, heat gains, and heat losses
+        - The function uses NumPy for efficient numerical computations and is trimmed for speed
     """
     # Get objects
-    temp_init = obj[O.TEMP_INIT]
-    thermal_resistance = obj[O.RESISTANCE]
-    thermal_capacitance = obj[O.CAPACITANCE]
-    temp_min = obj[O.TEMP_MIN]
-    temp_max = obj[O.TEMP_MAX]
-    active_cool = obj[O.ACTIVE_COOLING]
-    active_heat = obj[O.ACTIVE_HEATING]
-    power_cool_max = obj[O.POWER_COOLING]
-    power_heat_max = obj[O.POWER_HEATING]
+    thermal_resistance = np.float32(obj[O.RESISTANCE])
+    thermal_capacitance = np.float32(obj[O.CAPACITANCE])
+    temp_init = np.float32(obj[O.TEMP_INIT])
+    temp_min = np.float32(obj[O.TEMP_MIN])
+    temp_max = np.float32(obj[O.TEMP_MAX])
+    active_heat = bool(obj[O.ACTIVE_HEATING])
+    active_cool = bool(obj[O.ACTIVE_COOLING])
+    power_heat_max = np.float32(obj[O.POWER_HEATING])
+    power_cool_max = np.float32(obj[O.POWER_COOLING])
+
     # Get data
-    solar_gains = data[O.GAINS_SOLAR].to_numpy(dtype=np.float32)
-    internal_gains = data[O.GAINS_INTERNAL].to_numpy(dtype=np.float32)
-    ventilation = data[O.VENTILATION].to_numpy(dtype=np.float32)
     weather = data[O.WEATHER]
-    temp_air = (weather[C.TEMP_AIR]).to_numpy(dtype=np.float32) if C.TEMP_AIR in weather else None
-    if temp_air is None:
-        raise Exception(f"Missing temperature column: {C.TEMP_AIR}")
+    temp_air = weather[C.TEMP_AIR].to_numpy(dtype=np.float32, copy=False)
+    solar_gains = data[O.GAINS_SOLAR].to_numpy(dtype=np.float32, copy=False).ravel()
+    internal_gains = data[O.GAINS_INTERNAL].to_numpy(dtype=np.float32, copy=False).ravel()
+    ventilation = data[O.VENTILATION].to_numpy(dtype=np.float32, copy=False).ravel()
 
-    timesteps = weather[C.DATETIME].diff().dt.total_seconds().dropna()
-    timestep = timesteps.mode()[0]
+    n_steps = temp_air.shape[0]
+    temp_in = np.empty(n_steps, dtype=np.float32)
+    p_heat = np.zeros(n_steps, dtype=np.float32)
+    p_cool = np.zeros(n_steps, dtype=np.float32)
 
-    n_steps = len(temp_air)
-    temp_in = np.zeros(n_steps, dtype=np.float64)
     temp_in[0] = temp_init
-    p_heat = np.zeros(n_steps, dtype=np.float64)
-    p_cool = np.zeros(n_steps, dtype=np.float64)
 
-    # Calculate
+    # Precompute invariants for the inner loop (these reduce the number of divisions to speed up calculations)
+    inv_resistance = np.float32(1.0) / thermal_resistance
+    inv_timestep = np.float32(1.0) / timestep
+    timestep_over_cap = timestep / thermal_capacitance
+
+    # Loop state
+    temp_prev = temp_in[0]
+
     for t in range(1, n_steps):
-        # Calculate the net heat transfer
+        # Passive heat transfer and gains
         net_transfer = calc_net_heat_transfer(
-            temp_in[t - 1], temp_air[t], thermal_resistance, ventilation[t], solar_gains[t], internal_gains[t]
+            temp_air[t], temp_prev, solar_gains[t], internal_gains[t], ventilation[t], inv_resistance
         )
 
-        # Calculate heating and cooling loads
+        # Heating power
         p_heat[t] = calc_heating_power(
-            active_heat, net_transfer, temp_in[t - 1], temp_min, thermal_capacitance, power_heat_max, timestep
-        )
-        p_cool[t] = calc_cooling_power(
-            active_cool, net_transfer, temp_in[t - 1], temp_max, thermal_capacitance, power_cool_max, timestep
+            temp_prev, temp_min, thermal_capacitance, inv_timestep, net_transfer, power_heat_max, active_heat
         )
 
-        # Recalculate indoor temperature
-        temp_in[t] = calc_temp_in(temp_in[t - 1], net_transfer, p_heat[t], p_cool[t], thermal_capacitance, timestep)
+        # Cooling power
+        p_cool[t] = calc_cooling_power(
+            temp_prev, temp_max, thermal_capacitance, inv_timestep, net_transfer, power_cool_max, active_cool
+        )
+
+        # Indoor temperature
+        temp_prev = calc_temp_in(temp_prev, net_transfer, p_heat[t], p_cool[t], timestep_over_cap)
+        temp_in[t] = temp_prev
 
     return temp_in, p_heat, p_cool
 
 
-def calc_net_heat_transfer(temp_prev, temp_out, thermal_resistance, ventilation, solar_gains, internal_gains):
-    """Calculate the net passive heat transfer between the indoor space and its environment.
-
-    This function computes the total heat flow into or out of the building,
-    considering conduction through the envelope, ventilation, solar gains, and internal gains.
-
-    Args:
-        temp_prev (float): Previous indoor temperature in °C
-        temp_out (float): Outdoor temperature in °C
-        thermal_resistance (float): Thermal resistance of the building envelope in K/W
-        ventilation (float): Ventilation heat transfer coefficient in W/K
-        solar_gains (float): Solar heat gains in W
-        internal_gains (float): Internal heat gains in W
-
-    Returns:
-        float: Net heat transfer in W. Positive values indicate net heat gain,
-               negative values indicate net heat loss.
-    """
-    conduction_loss = (temp_out - temp_prev) / thermal_resistance
-    ventilation_loss = ventilation * (temp_out - temp_prev)
-
+def calc_net_heat_transfer(
+    temp_air: float,
+    temp_prev: float,
+    solar_gains: float,
+    internal_gains: float,
+    ventilation: float,
+    inv_resistance: float,
+) -> float:
+    """Calculate net heat transfer for a building zone."""
+    delta_temp = temp_air - temp_prev
+    conduction_loss = delta_temp * inv_resistance
+    ventilation_loss = ventilation * delta_temp
     return conduction_loss + ventilation_loss + solar_gains + internal_gains
 
 
-def calc_heating_power(active, net_heat_transfer, temp_prev, temp_min, thermal_capacitance, heating_power, timestep):
-    """Calculate required heating power to maintain minimum indoor temperature.
-
-    This function computes the heating power needed to bring or maintain the indoor
-    temperature at the minimum setpoint, considering the current temperature,
-    thermal capacitance, and net heat transfer.
-
-    Args:
-        active (bool): Whether heating is active
-        net_heat_transfer (float): Net heat transfer in W
-        temp_prev (float): Previous indoor temperature in °C
-        temp_min (float): Minimum indoor temperature setpoint in °C
-        thermal_capacitance (float): Thermal capacitance of the building in J/K
-        heating_power (float): Maximum available heating power in W
-        timestep (float): Simulation timestep in seconds
-
-    Returns:
-        float: Required heating power in W, limited by the maximum available power.
-               Returns 0 if heating is not active or not needed.
-    """
+def calc_heating_power(
+    temp_prev: float,
+    temp_min: float,
+    thermal_capacitance: float,
+    inv_timestep: float,
+    net_transfer: float,
+    power_heat_max: float,
+    active: bool,
+) -> float:
+    """Calculate required heating power for a building zone."""
     if not active:
         return 0
 
-    required_heating_power = thermal_capacitance * (temp_min - temp_prev) / timestep - net_heat_transfer
+    required_heating_power = thermal_capacitance * (temp_min - temp_prev) * inv_timestep - net_transfer
 
-    return _ensure_scalar(min(heating_power, max(0, required_heating_power)))
+    if required_heating_power > 0:
+        return min(required_heating_power, power_heat_max)
+
+    return 0
 
 
-def calc_cooling_power(active, net_heat_transfer, temp_prev, temp_max, thermal_capacitance, cooling_power, timestep):
-    """Calculate required cooling power to maintain maximum indoor temperature.
-
-    This function computes the cooling power needed to bring or maintain the indoor
-    temperature at the maximum setpoint, considering the current temperature,
-    thermal capacitance, and net heat transfer.
-
-    Args:
-        active (bool): Whether cooling is active
-        net_heat_transfer (float): Net heat transfer in W
-        temp_prev (float): Previous indoor temperature in °C
-        temp_max (float): Maximum indoor temperature setpoint in °C
-        thermal_capacitance (float): Thermal capacitance of the building in J/K
-        cooling_power (float): Maximum available cooling power in W
-        timestep (float): Simulation timestep in seconds
-
-    Returns:
-        float: Required cooling power in W, limited by the maximum available power.
-               Returns 0 if cooling is not active or not needed.
-    """
+def calc_cooling_power(
+    temp_prev: float,
+    temp_max: float,
+    thermal_capacitance: float,
+    inv_timestep: float,
+    net_transfer: float,
+    power_cool_max: float,
+    active: bool,
+) -> float:
+    """Calculate required cooling power for a building zone."""
     if not active:
         return 0
 
-    required_cooling_power = thermal_capacitance * (temp_prev - temp_max) / timestep + net_heat_transfer
+    required_cooling_power = thermal_capacitance * (temp_prev - temp_max) * inv_timestep + net_transfer
 
-    return _ensure_scalar(min(cooling_power, max(0, required_cooling_power)))
+    if required_cooling_power > 0:
+        return min(required_cooling_power, power_cool_max)
 
-
-def calc_temp_in(temp_in_prev, net_heat_transfer, heating_power, cooling_power, thermal_capacitance, timestep):
-    """Calculate the new indoor temperature based on energy balance.
-
-    This function computes the new indoor temperature by applying the energy balance
-    equation, considering the previous temperature, net heat transfer, heating and
-    cooling power, and the building's thermal capacitance.
-
-    Args:
-        temp_in_prev (float): Previous indoor temperature in °C
-        net_heat_transfer (float): Net heat transfer in W
-        heating_power (float): Applied heating power in W
-        cooling_power (float): Applied cooling power in W
-        thermal_capacitance (float): Thermal capacitance of the building in J/K
-        timestep (float): Simulation timestep in seconds
-
-    Returns:
-        float: New indoor temperature in °C
-    """
-
-    temp_in_new = temp_in_prev + (timestep / thermal_capacitance) * (net_heat_transfer + heating_power - cooling_power)
-
-    return _ensure_scalar(temp_in_new)
+    return 0
 
 
-def _ensure_scalar(x):
-    """Convert numpy array with single value to scalar.
-
-    This helper function ensures that a value is returned as a scalar,
-    even if it's a numpy array with a single element.
-
-    Args:
-        x: Value to convert, which may be a numpy array or a scalar
-
-    Returns:
-        Scalar value
-    """
-    return x.item() if isinstance(x, np.ndarray) else x
+def calc_temp_in(
+    temp_prev: float, net_transfer: float, power_heat: float, power_cool: float, timestep_over_cap: float
+) -> float:
+    """Calculate indoor temperature for the next time step."""
+    return temp_prev + timestep_over_cap * (net_transfer + power_heat - power_cool)
