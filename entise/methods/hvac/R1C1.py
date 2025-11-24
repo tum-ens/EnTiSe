@@ -29,9 +29,9 @@ _WEATHER_CACHE: dict[tuple, pd.DataFrame] = {}
 
 
 class R1C1(Method):
-    """Implements the R1C1 model for HVAC demand and indoor temperature simulation.
+    """Implements the 1R1C model for HVAC demand and indoor temperature simulation.
 
-    The R1C1 model calculates time-series data for indoor temperature and energy
+    The 1R1C model calculates time-series data for indoor temperature and energy
     demand for heating and cooling based on provided inputs such as weather data,
     resistance, and capacitance properties. It also summarizes total heating and
     cooling demands over the simulation period. This model is typically used for
