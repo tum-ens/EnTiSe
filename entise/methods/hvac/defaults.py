@@ -10,10 +10,10 @@ DEFAULT_TEMP_INIT: float = 22  # °C
 DEFAULT_TEMP_MAX: float = 24  # °C
 DEFAULT_TEMP_MIN: float = 20  # °C
 DEFAULT_THERMAL_INERTIA: float = 0
-DEFAULT_VENTILATION: float = 65  # W/K (mirrored from auxiliary ventilation due to circular imports)
+DEFAULT_VENTILATION: float = 65  # W/K
+DEFAULT_FRAC_CONV_INTERNAL: float = 0.5
 
 # 5R1C-specific defaults
-DEFAULT_SIGMA_R5C1: float = 0.5  # (radiant to surfaces, convective to air)
-DEFAULT_FRAC_CONV_INTERNAL: float = 0.5
+DEFAULT_SIGMA_5R1C: float = 0.0
 DEFAULT_FRAC_RAD_SURFACE: float = 0.7
 DEFAULT_FRAC_RAD_MASS: float = 0.3
