@@ -149,7 +149,7 @@ class R7C2(Method):
         data_out['series']['gains'] = gains
 
         # Ventilation → split into mechanical & infiltration
-        ven_df = VentilationTimeSeries().generate(obj, data).squeeze()
+        ven_df = VentilationTimeSeries().generate(obj, data).squeeze() # Calls VDI 6007 conform norm directly
         vent_split = resolve_ts_or_scalar(obj, data, O.VENTILATION_SPLIT, index, default=DEFAULT_VENTILATION_SPLIT)
         Hve_vent_series = ven_df * vent_split
         Hve_inf_series = ven_df * (1.0 - vent_split)
@@ -165,8 +165,8 @@ class R7C2(Method):
             alpha_sw = float(obj.get(O.T_EQ_ALPHA_SW, DEFAULT_T_EQ_ALPHA_SW))
             h_o = float(obj.get(O.T_EQ_H_O, DEFAULT_T_EQ_H_O))
             if C.SOLAR_GHI not in weather.columns:
-                raise ValueError(f"Weather data must contain '{C.SOLAR_GHI}' column "            
-                f"to compute equivalent outdoor temperature 'T_eq'.")
+                raise ValueError(f"Weather data must contain '{C.SOLAR_GHI}' column "
+                                 f"to compute equivalent outdoor temperature 'T_eq'.")
             ghi = weather.get(C.SOLAR_GHI, None).astype(float)
             teq_series = weather[C.TEMP_AIR].astype(float) + alpha_sw * ghi / max(h_o, 1e-6)
         data_out['series']['T_eq'] = pd.DataFrame({"T_eq": teq_series}, index=index)
@@ -186,16 +186,6 @@ class R7C2(Method):
         controls = pd.DataFrame(controls)
         data_out['controls'] = controls
 
-        # Calculate window transmission H_tr_w if windows are given
-        H_tr_w = 0.0
-        if O.WINDOWS in data:
-            windows_df = data[O.WINDOWS]
-            if not windows_df.empty:
-                for _, row in windows_df.iterrows():
-                    u_value = float(row.get(C.U_VALUE, 0.0))
-                    w_area = float(row.get(C.AREA, 0.0))
-                    H_tr_w += u_value * w_area
-
         # Parameters
         volume = float(obj.get(O.AREA, Const.DEFAULT_AREA.value)) * float(obj.get(O.HEIGHT, Const.DEFAULT_HEIGHT.value))
         rho_air = 1.2 # kg/m3
@@ -211,7 +201,6 @@ class R7C2(Method):
             O.R_ALPHA_STAR_AW: float(obj[O.R_ALPHA_STAR_AW]),
             O.R_ALPHA_STAR_IW: float(obj[O.R_ALPHA_STAR_IW]),
             O.R_REST_AW: float(obj[O.R_REST_AW]),
-            O.H_TR_W: float(H_tr_w),
             O.CAPACITANCE_AIR: float(capacity_air),
         }
         data_out['params'] = params
@@ -404,7 +393,6 @@ def calculate_timeseries_7r2c(meta: dict, series: dict, controls: pd.DataFrame, 
     R_alpha_star_aw = params[O.R_ALPHA_STAR_AW]
     R_alpha_star_iw = params[O.R_ALPHA_STAR_IW]
     R_rest_aw = params[O.R_REST_AW]
-    Htr_w = params[O.H_TR_W]
     C_air = params[O.CAPACITANCE_AIR]
 
     # Splits
@@ -444,7 +432,7 @@ def calculate_timeseries_7r2c(meta: dict, series: dict, controls: pd.DataFrame, 
                                      C_1_aw, C_1_iw, sigma_aw, sigma_iw, sigma_conv, dt_s)
     if np.allclose(Hve_vent_arr, Hve_vent_arr[0]) and np.allclose(Hve_inf_arr, Hve_inf_arr[0]):
         Y_phiset_const = calc_y_phiset_optim(inv_R_1_aw, inv_R_1_iw, inv_R_a_il, inv_R_a_aw, inv_R_a_iw, inv_R_r_aw,
-                                             C_1_aw, C_1_iw, C_air, Hve_inf_arr[0], Hve_vent_arr[0], Htr_w, dt_s)
+                                             C_1_aw, C_1_iw, C_air, Hve_inf_arr[0], Hve_vent_arr[0], dt_s)
     else:
         Y_phiset_const = None
 
@@ -473,7 +461,7 @@ def calculate_timeseries_7r2c(meta: dict, series: dict, controls: pd.DataFrame, 
         # 1) Free-float (Q_hc=0)
         sol_free = solve_step_phiset_7r2c_optim(
             inv_R_1_aw, inv_R_1_iw, inv_R_a_il, inv_R_a_aw, inv_R_a_iw, inv_R_r_aw,
-            C_1_aw, C_1_iw, C_air, Hve_vent, Hve_inf, Htr_w,
+            C_1_aw, C_1_iw, C_air, Hve_vent, Hve_inf,
             T_out, T_eq, T_sup, Ta, Tm_aw, Tm_iw,
             phi_conv, phi_aw, phi_iw, 0.0, 0.0, 0.0, 0.0, dt_s, Y_phiset_const)
         Ta_free = float(sol_free[3]); Tm_aw_free = float(sol_free[0]); Tm_iw_free = float(sol_free[6])
@@ -484,7 +472,7 @@ def calculate_timeseries_7r2c(meta: dict, series: dict, controls: pd.DataFrame, 
         if Ta_free < T_min and on_heat:
             sol_tset = solve_step_tset_7r2c_optim(
                 inv_R_1_aw, inv_R_1_iw, inv_R_a_il, inv_R_a_aw, inv_R_a_iw, inv_R_r_aw,
-                C_1_aw, C_1_iw, C_air, sigma_aw, sigma_iw, sigma_conv, Hve_vent, Hve_inf, Htr_w,
+                C_1_aw, C_1_iw, C_air, sigma_aw, sigma_iw, sigma_conv, Hve_vent, Hve_inf,
                 T_out, T_eq, T_sup, T_min, Ta, Tm_aw, Tm_iw, phi_conv, phi_aw, phi_iw, dt_s, Y_tset_const)
             Q_req = float(sol_tset[4])
             Q, clamped = clamp_power(Q_req, on_heat, on_cool, P_h_max, P_c_max)
@@ -494,7 +482,7 @@ def calculate_timeseries_7r2c(meta: dict, series: dict, controls: pd.DataFrame, 
                 Q_hk_kon = Q * sigma_conv
                 sol_phi = solve_step_phiset_7r2c_optim(
                     inv_R_1_aw, inv_R_1_iw, inv_R_a_il, inv_R_a_aw, inv_R_a_iw, inv_R_r_aw,
-                    C_1_aw, C_1_iw, C_air, Hve_vent, Hve_inf, Htr_w,
+                    C_1_aw, C_1_iw, C_air, Hve_vent, Hve_inf,
                     T_out, T_eq, T_sup, Ta, Tm_aw, Tm_iw,
                     phi_conv, phi_aw, phi_iw, Q, Q_hk_iw, Q_hk_aw, Q_hk_kon, dt_s, Y_phiset_const)
                 Tm_aw, Ta, Tm_iw = float(sol_phi[0]), float(sol_phi[3]), float(sol_phi[6])
@@ -504,7 +492,7 @@ def calculate_timeseries_7r2c(meta: dict, series: dict, controls: pd.DataFrame, 
         elif Ta_free > T_max and on_cool:
             sol_tset = solve_step_tset_7r2c_optim(
                 inv_R_1_aw, inv_R_1_iw, inv_R_a_il, inv_R_a_aw, inv_R_a_iw, inv_R_r_aw,
-                C_1_aw, C_1_iw, C_air, sigma_aw, sigma_iw, sigma_conv, Hve_vent, Hve_inf, Htr_w,
+                C_1_aw, C_1_iw, C_air, sigma_aw, sigma_iw, sigma_conv, Hve_vent, Hve_inf,
                 T_out, T_eq, T_sup, T_max, Ta, Tm_aw, Tm_iw, phi_conv, phi_aw, phi_iw, dt_s, Y_tset_const)
             Q_req = float(sol_tset[4])
             Q, clamped = clamp_power(Q_req, on_heat, on_cool, P_h_max, P_c_max)
@@ -514,7 +502,7 @@ def calculate_timeseries_7r2c(meta: dict, series: dict, controls: pd.DataFrame, 
                 Q_hk_kon = Q * sigma_conv
                 sol_phi = solve_step_phiset_7r2c_optim(
                     inv_R_1_aw, inv_R_1_iw, inv_R_a_il, inv_R_a_aw, inv_R_a_iw, inv_R_r_aw,
-                    C_1_aw, C_1_iw, C_air, Hve_vent, Hve_inf, Htr_w,
+                    C_1_aw, C_1_iw, C_air, Hve_vent, Hve_inf,
                     T_out, T_eq, T_sup, Ta, Tm_aw, Tm_iw,
                     phi_conv, phi_aw, phi_iw, Q, Q_hk_iw, Q_hk_aw, Q_hk_kon, dt_s, Y_phiset_const)
                 Tm_aw, Ta, Tm_iw = float(sol_phi[0]), float(sol_phi[3]), float(sol_phi[6])
@@ -544,10 +532,10 @@ def split_gains_7r2c(g_int: np.ndarray, g_sol: np.ndarray, f_conv: float, f_aw: 
 
     q_conv = f_conv * g_int
     q_rad_int = (1.0 - f_conv) * g_int
+    q_rad_tot = q_rad_int + g_sol
 
-    # Solar gains go to AW, internal gains split between AW and IW
-    phi_aw = g_sol + f_aw * q_rad_int
-    phi_iw = f_iw * q_rad_int
+    phi_aw = f_aw * q_rad_tot
+    phi_iw = f_iw * q_rad_tot
 
     return q_conv, phi_aw, phi_iw
 
@@ -562,14 +550,14 @@ def clamp_power(Q_req: float, on_h: bool, on_c: bool, P_h_max: float, P_c_max: f
         if not on_c:
             return 0.0, True
         Q = max(Q_req, -P_c_max)
-        return Q, (Q > Q_req)
+    return Q, (Q > Q_req)
 
 
 def solve_step_tset_7r2c(R_1_aw: float, R_1_iw: float,
         R_alpha_star_il: float, R_alpha_star_aw: float, R_alpha_star_iw: float, R_rest_aw: float,
         C_1_aw: float, C_1_iw: float, C_air: float,
         sigma_aw: float, sigma_iw: float, sigma_conv: float,
-        Hve_vent: float, Hve_inf: float, Htr_w: float,
+        Hve_vent: float, Hve_inf: float,
         T_out: float, T_eq: float, T_sup: float, T_set: float,
         Ta_prev: float, Tm_aw_prev: float, Tm_iw_prev: float,
         phi_conv: float, phi_aw: float, phi_iw: float,
@@ -595,7 +583,7 @@ def solve_step_tset_7r2c_optim(inv_R_1_aw: float, inv_R_1_iw: float,
                             inv_R_a_il: float, inv_R_a_aw: float, inv_R_a_iw: float, inv_R_r_aw: float,
                             C_1_aw: float, C_1_iw: float, C_air: float,
                             sigma_aw: float, sigma_iw: float, sigma_conv: float,
-                            Hve_vent: float, Hve_inf: float, Htr_w: float,
+                            Hve_vent: float, Hve_inf: float,
                             T_out: float, T_eq: float, T_sup: float, T_set: float,
                             Ta_prev: float, Tm_aw_prev: float, Tm_iw_prev: float,
                             phi_conv: float, phi_aw: float, phi_iw: float,
@@ -605,7 +593,7 @@ def solve_step_tset_7r2c_optim(inv_R_1_aw: float, inv_R_1_iw: float,
         Y = calc_y_tset_optim(inv_R_1_aw, inv_R_1_iw, inv_R_a_il, inv_R_a_aw, inv_R_a_iw, inv_R_r_aw,
                               C_1_aw, C_1_iw, sigma_aw, sigma_iw, sigma_conv, tau)
 
-    q = calc_q_tset_optim(inv_R_r_aw, inv_R_a_il, Hve_inf, Htr_w, Hve_vent, C_1_aw, C_1_iw, C_air,
+    q = calc_q_tset_optim(inv_R_r_aw, inv_R_a_il, Hve_inf, Hve_vent, C_1_aw, C_1_iw, C_air,
                           T_set, T_eq, T_out, T_sup, Tm_aw_prev, Ta_prev, Tm_iw_prev,
                           phi_conv, phi_aw, phi_iw, tau)
 
@@ -622,7 +610,7 @@ def solve_y_tset_7r2c(Y, q, T_set: float) -> np.ndarray:
 def solve_step_phiset_7r2c(R_1_aw: float, R_1_iw: float,
                         R_alpha_star_il: float, R_alpha_star_aw: float, R_alpha_star_iw: float, R_rest_aw: float,
                         C_1_aw: float, C_1_iw: float, C_air: float,
-                        Hve_vent: float, Hve_inf: float, Htr_w: float,
+                        Hve_vent: float, Hve_inf: float,
                         T_out: float, T_eq: float, T_sup: float,
                         Ta_prev: float, Tm_aw_prev: float, Tm_iw_prev: float,
                         phi_conv: float, phi_aw: float, phi_iw: float,
@@ -636,9 +624,9 @@ def solve_step_phiset_7r2c(R_1_aw: float, R_1_iw: float,
     """
     if Y is None:
         Y = calc_y_phiset(R_1_aw, R_1_iw, R_alpha_star_il, R_alpha_star_aw, R_alpha_star_iw, R_rest_aw,
-                          C_1_aw, C_1_iw, C_air, Hve_inf, Hve_vent, Htr_w, tau)
+                          C_1_aw, C_1_iw, C_air, Hve_inf, Hve_vent, tau)
 
-    q = calc_q_phiset(R_rest_aw, Hve_inf, Hve_vent, Htr_w, C_1_aw, C_1_iw, C_air,
+    q = calc_q_phiset(R_rest_aw, Hve_inf, Hve_vent, C_1_aw, C_1_iw, C_air,
                       Q_hk_aw, Q_hk_iw, Q_hk_kon, T_eq, T_out, T_sup, Tm_aw_prev, Ta_prev, Tm_iw_prev,
                       phi_conv, phi_aw, phi_iw, tau)
 
@@ -648,7 +636,7 @@ def solve_step_phiset_7r2c(R_1_aw: float, R_1_iw: float,
 def solve_step_phiset_7r2c_optim(inv_R_1_aw: float, inv_R_1_iw: float,
                                 inv_R_a_il: float, inv_R_a_aw: float, inv_R_a_iw: float, inv_R_r_aw: float,
                                 C_1_aw: float, C_1_iw: float, C_air: float,
-                                Hve_vent: float, Hve_inf: float, H_tr_w: float,
+                                Hve_vent: float, Hve_inf: float,
                                 T_out: float, T_eq: float, T_sup: float,
                                 Ta_prev: float, Tm_aw_prev: float, Tm_iw_prev: float,
                                 phi_conv: float, phi_aw: float, phi_iw: float,
@@ -657,9 +645,9 @@ def solve_step_phiset_7r2c_optim(inv_R_1_aw: float, inv_R_1_iw: float,
     ) -> np.ndarray:
     if Y is None:
         Y = calc_y_phiset_optim(inv_R_1_aw, inv_R_1_iw, inv_R_a_il, inv_R_a_aw, inv_R_a_iw, inv_R_r_aw,
-                                C_1_aw, C_1_iw, C_air, Hve_inf, Hve_vent, H_tr_w, tau)
+                                C_1_aw, C_1_iw, C_air, Hve_inf, Hve_vent,  tau)
 
-    q = calc_q_phiset_optim(inv_R_r_aw, Hve_inf, Hve_vent, H_tr_w, C_1_aw, C_1_iw, C_air,
+    q = calc_q_phiset_optim(inv_R_r_aw, Hve_inf, Hve_vent, C_1_aw, C_1_iw, C_air,
                             Q_hk_aw, Q_hk_iw, Q_hk_kon, T_eq, T_out, T_sup, Tm_aw_prev, Ta_prev, Tm_iw_prev,
                             phi_conv, phi_aw, phi_iw, tau)
 
@@ -725,18 +713,18 @@ def calc_y_tset_optim(inv_R_1_aw, inv_R_1_iw, inv_R_a_il, inv_R_a_aw, inv_R_a_iw
 
     return Y
 
-def calc_q_tset(R_rest_aw, R_alpha_star_il, Hve_inf, Hve_vent, Htr_w, C_1_aw, C_1_iw, C_air,
+def calc_q_tset(R_rest_aw, R_alpha_star_il, Hve_inf, Hve_vent, C_1_aw, C_1_iw, C_air,
                 T_set, T_eq, T_out, T_sup, Tm_aw_prev, Ta_prev, Tm_iw_prev,
                 phi_conv, phi_aw, phi_iw, tau):
     """Calculate q matrix for 7R2C setpoint mode."""
     inv_R_rest_aw = 1.0 / R_rest_aw
     inv_R_a_il = 1.0 / R_alpha_star_il
-    return calc_q_tset_optim(inv_R_rest_aw, inv_R_a_il, Hve_inf, Hve_vent, Htr_w, C_1_aw, C_1_iw, C_air,
+    return calc_q_tset_optim(inv_R_rest_aw, inv_R_a_il, Hve_inf, Hve_vent, C_1_aw, C_1_iw, C_air,
                              T_set, T_eq, T_out, T_sup, Tm_aw_prev, Ta_prev, Tm_iw_prev,
                              phi_conv, phi_aw, phi_iw, tau)
 
 
-def calc_q_tset_optim(inv_R_r_aw, inv_R_a_il, Hve_inf, Hve_vent, Htr_w, C_1_aw, C_1_iw, C_air,
+def calc_q_tset_optim(inv_R_r_aw, inv_R_a_il, Hve_inf, Hve_vent, C_1_aw, C_1_iw, C_air,
                       T_set, T_eq, T_out, T_sup, Tm_aw_prev, Ta_prev, Tm_iw_prev,
                       phi_conv, phi_aw, phi_iw, tau):
     """Calculate q matrix for 7R2C setpoint mode in optimized way."""
@@ -757,7 +745,6 @@ def calc_q_tset_optim(inv_R_r_aw, inv_R_a_il, Hve_inf, Hve_vent, Htr_w, C_1_aw, 
         - phi_conv
         - Hve_inf * (T_out - T_set)
         - Hve_vent * (T_sup - T_set)
-        - Htr_w * (T_out - T_set)
         + C_air * (T_set - Ta_prev) / tau
     )
 
@@ -771,7 +758,7 @@ def calc_q_tset_optim(inv_R_r_aw, inv_R_a_il, Hve_inf, Hve_vent, Htr_w, C_1_aw, 
 
 
 def calc_y_phiset(R_1_aw, R_1_iw, R_alpha_star_il, R_alpha_star_aw, R_alpha_star_iw, R_rest_aw, C_1_aw, C_1_iw, C_air,
-                  Hve_inf, Hve_vent, Htr_w, tau):
+                  Hve_inf, Hve_vent, tau):
     """Calculate Y matrix for 7R2C setpoint mode."""
     # Precompute conductances (1/R) — speeds things up
     inv_R_1_aw = 1.0 / R_1_aw
@@ -784,11 +771,11 @@ def calc_y_phiset(R_1_aw, R_1_iw, R_alpha_star_il, R_alpha_star_aw, R_alpha_star
     Hve_vent = float(Hve_vent)
 
     return calc_y_phiset_optim(inv_R_1_aw, inv_R_1_iw, inv_R_a_il, inv_R_a_aw, inv_R_a_iw, inv_R_r_aw,
-                               C_1_aw, C_1_iw, C_air, Hve_inf, Hve_vent, Htr_w, tau)
+                               C_1_aw, C_1_iw, C_air, Hve_inf, Hve_vent, tau)
 
 
 def calc_y_phiset_optim(inv_R_1_aw, inv_R_1_iw, inv_R_a_il, inv_R_a_aw, inv_R_a_iw, inv_R_r_aw,
-                        C_1_aw, C_1_iw, C_air, Hve_inf, Hve_vent, Htr_w, tau):
+                        C_1_aw, C_1_iw, C_air, Hve_inf, Hve_vent, tau):
     """Calculate Y matrix for 7R2C setpoint mode in optimized way."""
     # Build Y (6x6)
     Y = np.zeros((6, 6), dtype=np.float64)
@@ -810,8 +797,7 @@ def calc_y_phiset_optim(inv_R_1_aw, inv_R_1_iw, inv_R_a_il, inv_R_a_aw, inv_R_a_
 
     # Row 3 (air node)
     Y[3, 2] = inv_R_a_il
-    Y[3, 3] = -inv_R_a_il - Hve_inf - Hve_vent - Htr_w - C_air / tau
-    # Y[3, 3] = -inv_R_a_il - Hve_inf - Hve_vent - Htr_w - C_air / tau
+    Y[3, 3] = -inv_R_a_il - Hve_inf - Hve_vent - C_air / tau
 
     # Row 4 (theta_s_iw)
     Y[4, 2] = inv_R_a_iw
@@ -825,16 +811,16 @@ def calc_y_phiset_optim(inv_R_1_aw, inv_R_1_iw, inv_R_a_il, inv_R_a_aw, inv_R_a_
     return Y
 
 
-def calc_q_phiset(R_rest_aw, Hve_inf, Hve_vent, Htr_w, C_1_aw, C_1_iw, C_air,
+def calc_q_phiset(R_rest_aw, Hve_inf, Hve_vent, C_1_aw, C_1_iw, C_air,
                   Q_hk_aw, Q_hk_iw, Q_hk_kon, T_eq, T_out, T_sup, Tm_aw_prev, Ta_prev, Tm_iw_prev,
                   phi_conv, phi_aw, phi_iw, tau):
     inv_R_rest_aw = 1.0 / R_rest_aw
-    return calc_q_phiset_optim(inv_R_rest_aw, Hve_inf, Hve_vent, Htr_w, C_1_aw, C_1_iw, C_air,
+    return calc_q_phiset_optim(inv_R_rest_aw, Hve_inf, Hve_vent, C_1_aw, C_1_iw, C_air,
                                Q_hk_aw, Q_hk_iw, Q_hk_kon, T_eq, T_out, T_sup, Tm_aw_prev, Ta_prev, Tm_iw_prev,
                                phi_conv, phi_aw, phi_iw, tau)
 
 
-def calc_q_phiset_optim(inv_R_r_aw, Hve_inf, Hve_vent, Htr_w, C_1_aw, C_1_iw, C_air,
+def calc_q_phiset_optim(inv_R_r_aw, Hve_inf, Hve_vent, C_1_aw, C_1_iw, C_air,
                         Q_hk_aw, Q_hk_iw, Q_hk_kon, T_eq, T_out, T_sup, Tm_aw_prev, Ta_prev, Tm_iw_prev,
                         phi_conv, phi_aw, phi_iw, tau):
     q = np.zeros(6, dtype=np.float64)
@@ -849,7 +835,6 @@ def calc_q_phiset_optim(inv_R_r_aw, Hve_inf, Hve_vent, Htr_w, C_1_aw, C_1_iw, C_
     # q[2] stays 0
 
     # Row 3 (air node)
-    q[3] = -Q_hk_kon - phi_conv - Hve_inf * T_out - Hve_vent * T_sup - Htr_w * T_out - C_air * Ta_prev / tau
     q[3] = -Q_hk_kon - phi_conv - Hve_inf * T_out - Hve_vent * T_sup - C_air * Ta_prev / tau
 
     # Row 4 (theta_s_iw)
