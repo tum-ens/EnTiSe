@@ -84,7 +84,7 @@ class VentilationTimeSeries(AuxiliaryMethod):
     """
 
     required_keys = [O.VENTILATION_COL]
-    optional_keys = [O.ID]
+    optional_keys = [O.ID, O.AREA, O.HEIGHT]
     required_timeseries = [O.VENTILATION]
 
     def generate(self, obj, data):
@@ -97,7 +97,7 @@ class VentilationTimeSeries(AuxiliaryMethod):
         except ValueError:
             pass
 
-        if is_numeric and isinstance(ventilation, O.DTYPES[O.VENTILATION]) and not isinstance(ventilation, str):
+        if is_numeric and not isinstance(ventilation, str):
             return VentilationConstant().generate(obj, data)
 
         return self.run(**self.get_input_data(obj, data))
@@ -119,16 +119,26 @@ class VentilationTimeSeries(AuxiliaryMethod):
         object_id = kwargs[O.ID]
         area = kwargs[O.AREA]
         height = kwargs[O.HEIGHT]
-        col = kwargs[O.VENTILATION_COL]
         ventilation = kwargs[O.VENTILATION]
+        col = kwargs[O.VENTILATION_COL]
         col = col if isinstance(col, str) else str(object_id)
+        unit = col.split("[")[-1].split("]")[0]
         try:
-            ventilation = ventilation.loc[:, col] * area * height * AIR_DENSITY * HEAT_CAPACITY / 3600
+            ts = ventilation.loc[:, col]
         except KeyError as err:
-            log.error('Ventilation column "%s" does not exist', col)
             raise Warning(
                 f"Neither explicit (column name) or implicit (column id) are specified." f"Given input column: {col}"
             ) from err
+        match unit:
+            case "1/h":
+                ventilation = ts * area * height * AIR_DENSITY * HEAT_CAPACITY / 3600
+            case "m3/h":
+                ventilation = ts * AIR_DENSITY * HEAT_CAPACITY / 3600
+            case "W/K":
+                ventilation = ts
+            case _:
+                log.warning('No unit given. "1/h" assumed as unit.')
+                ventilation = ts * area * height * AIR_DENSITY * HEAT_CAPACITY / 3600
         return pd.DataFrame({O.VENTILATION: ventilation}, index=ventilation.index)
 
 
