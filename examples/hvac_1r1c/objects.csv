@@ -1,0 +1,10 @@
+id,hvac,weather,resistance[K W-1],capacitance[J K-1],ventilation[W K-1],init_temperature[C],min_temperature[C],max_temperature[C],area[m2],height[m],windows,latitude[degree],longitude[degree],gains_internal[W]
+SFH_low,1R1C,weather,0.005952381,11200000,61,20,20,25,140,2.6,windows_9buildings,49.72,11.06,150
+SFH_mid,1R1C,weather,0.008928571,15400000,61,20,20,25,140,2.6,windows_9buildings,49.72,11.06,150
+SFH_high,1R1C,weather,0.017857143,19600000,61,20,20,25,140,2.6,windows_9buildings,49.72,11.06,150
+DFH_low,1R1C,weather,0.003787879,17600000,95,20,20,25,220,2.6,windows_9buildings,49.72,11.06,300
+DFH_mid,1R1C,weather,0.005681818,24200000,95,20,20,25,220,2.6,windows_9buildings,49.72,11.06,300
+DFH_high,1R1C,weather,0.011363636,30800000,95,20,20,25,220,2.6,windows_9buildings,49.72,11.06,300
+MFH_low,1R1C,weather,0.001851852,36000000,210,20,20,25,450,2.8,windows_9buildings,49.72,11.06,600
+MFH_mid,1R1C,weather,0.002777778,49500000,210,20,20,25,450,2.8,windows_9buildings,49.72,11.06,600
+MFH_high,1R1C,weather,0.005555556,63000000,210,20,20,25,450,2.8,windows_9buildings,49.72,11.06,600
