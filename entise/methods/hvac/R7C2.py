@@ -157,19 +157,7 @@ class R7C2(Method):
         data_out['series']['ventilation'] = ventilation
 
         # Equivalent outdoor temperature series (T_eq)
-        teq = obj.get(O.T_EQ)
-        if teq is not None:
-            teq_series = resolve_ts_or_scalar(obj, data, O.T_EQ, index)
-        else:
-            # Derive from weather (see VDI 6007-2)
-            alpha_sw = float(obj.get(O.T_EQ_ALPHA_SW, DEFAULT_T_EQ_ALPHA_SW))
-            h_o = float(obj.get(O.T_EQ_H_O, DEFAULT_T_EQ_H_O))
-            if C.SOLAR_GHI not in weather.columns:
-                raise ValueError(f"Weather data must contain '{C.SOLAR_GHI}' column "
-                                 f"to compute equivalent outdoor temperature 'T_eq'.")
-            ghi = weather.get(C.SOLAR_GHI, None).astype(float)
-            teq_series = weather[C.TEMP_AIR].astype(float) + alpha_sw * ghi / max(h_o, 1e-6)
-        data_out['series']['T_eq'] = pd.DataFrame({"T_eq": teq_series}, index=index)
+        data_out['series']['T_eq'] = self._calc_teq_series(obj, data, weather, index)
 
         # Controls
         temp_sup = obj.get(O.TEMP_SUPPLY, None)
@@ -256,9 +244,12 @@ class R7C2(Method):
         # Controls
         O.ACTIVE_HEATING: self.get_with_method_backup(obj, O.ACTIVE_HEATING, method_type, DEFAULT_ACTIVE_HEATING),
         O.ACTIVE_COOLING: self.get_with_method_backup(obj, O.ACTIVE_COOLING, method_type, DEFAULT_ACTIVE_COOLING),
-        O.ACTIVE_GAINS_INTERNAL: self.get_with_method_backup(obj, O.ACTIVE_GAINS_INTERNAL, method_type, DEFAULT_ACTIVE_INTERNAL_GAINS),
-        O.ACTIVE_GAINS_SOLAR: self.get_with_method_backup(obj, O.ACTIVE_GAINS_SOLAR, method_type, DEFAULT_ACTIVE_SOLAR_GAINS),
-        O.ACTIVE_VENTILATION: self.get_with_method_backup(obj, O.ACTIVE_VENTILATION, method_type, DEFAULT_ACTIVE_VENTILATION),
+        O.ACTIVE_GAINS_INTERNAL: self.get_with_method_backup(obj, O.ACTIVE_GAINS_INTERNAL, method_type,
+                                                             DEFAULT_ACTIVE_INTERNAL_GAINS),
+        O.ACTIVE_GAINS_SOLAR: self.get_with_method_backup(obj, O.ACTIVE_GAINS_SOLAR, method_type,
+                                                          DEFAULT_ACTIVE_SOLAR_GAINS),
+        O.ACTIVE_VENTILATION: self.get_with_method_backup(obj, O.ACTIVE_VENTILATION, method_type,
+                                                          DEFAULT_ACTIVE_VENTILATION),
         O.POWER_HEATING: self.get_with_method_backup(obj, O.POWER_HEATING, method_type, DEFAULT_POWER_HEATING),
         O.POWER_COOLING: self.get_with_method_backup(obj, O.POWER_COOLING, method_type, DEFAULT_POWER_COOLING),
         O.TEMP_INIT: self.get_with_method_backup(obj, O.TEMP_INIT, method_type, DEFAULT_TEMP_INIT),
@@ -275,14 +266,16 @@ class R7C2(Method):
         O.R_ALPHA_STAR_IW: self.get_with_method_backup(obj, O.R_ALPHA_STAR_IW, method_type),
         O.R_REST_AW: self.get_with_method_backup(obj, O.R_REST_AW, method_type),
         # Gains & splits
-        O.FRAC_CONV_INTERNAL: self.get_with_method_backup(obj, O.FRAC_CONV_INTERNAL, method_type, DEFAULT_FRAC_CONV_INTERNAL),
+        O.FRAC_CONV_INTERNAL: self.get_with_method_backup(obj, O.FRAC_CONV_INTERNAL, method_type,
+                                                          DEFAULT_FRAC_CONV_INTERNAL),
         O.FRAC_RAD_AW: self.get_with_method_backup(obj, O.FRAC_RAD_AW, method_type, DEFAULT_FRAC_RAD_AW),
         O.SIGMA_7R2C_AW: self.get_with_method_backup(obj, O.SIGMA_7R2C_AW, method_type, DEFAULT_SIGMA_7R2C_AW),
         O.SIGMA_7R2C_IW: self.get_with_method_backup(obj, O.SIGMA_7R2C_IW, method_type, DEFAULT_SIGMA_7R2C_IW),
         # Ventilation
         O.VENTILATION: self.get_with_method_backup(obj, O.VENTILATION, method_type, DEFAULT_VENTILATION),
         O.VENTILATION_COL: self.get_with_method_backup(obj, O.VENTILATION_COL, method_type),
-        O.VENTILATION_SPLIT: self.get_with_method_backup(obj, O.VENTILATION_SPLIT, method_type, DEFAULT_VENTILATION_SPLIT),
+        O.VENTILATION_SPLIT: self.get_with_method_backup(obj, O.VENTILATION_SPLIT, method_type,
+                                                         DEFAULT_VENTILATION_SPLIT),
         # Equivalent outdoor temperature (sol-air)
         O.T_EQ: self.get_with_method_backup(obj, O.T_EQ, method_type),
         O.T_EQ_COL: self.get_with_method_backup(obj, O.T_EQ_COL, method_type),
@@ -350,8 +343,54 @@ class R7C2(Method):
 
         return pd.concat([g_int_df, g_sol_df], axis=1, keys=["g_int", "g_sol"])
 
+    def _calc_teq_series(self, obj: dict, data: dict, weather: pd.DataFrame, index: pd.DatetimeIndex) -> pd.DataFrame:
+        teq = obj.get(O.T_EQ)
+        if teq is not None:
+            teq_series = resolve_ts_or_scalar(obj, data, O.T_EQ, index)
+        else:
+            # 1. Calculate Base Sol-Air Temperature (Assume this applies to Opaque parts)
+            alpha_sw = float(obj.get(O.T_EQ_ALPHA_SW, DEFAULT_T_EQ_ALPHA_SW))
+            h_o = float(obj.get(O.T_EQ_H_O, DEFAULT_T_EQ_H_O))
+            if C.SOLAR_GHI not in weather.columns:
+                raise ValueError(f"Weather data must contain '{C.SOLAR_GHI}' column.")
 
-def calculate_timeseries_7r2c(meta: dict, series: dict, controls: pd.DataFrame, params: dict, splits: dict) -> tuple[pd.Series, pd.Series, pd.Series]:
+            ghi = weather.get(C.SOLAR_GHI, None).astype(float)
+            teq_opaque = weather[C.TEMP_AIR].astype(float) + alpha_sw * ghi / max(h_o, 1e-6)
+
+            # 2. Reverse Engineer Conductances to weight the temperature
+            # Get Total Resistance from RC parameters
+            r1_aw = float(obj.get(O.R_1_AW))
+            r_rest_aw = float(obj.get(O.R_REST_AW))
+
+            # Total Conductance (H_tot) ~ 1 / R_total
+            # (Using a small epsilon to avoid division by zero if R is 0)
+            h_tot = 1.0 / max((r1_aw + r_rest_aw), 1e-6)
+
+            # Calculate Window Conductance (H_win) from available window data
+            h_win = 0.0
+            if O.WINDOWS in data:
+                windows_df = data[O.WINDOWS]
+                if not windows_df.empty:
+                    for _, row in windows_df.iterrows():
+                        u_val = float(row.get(C.U_VALUE, 0.0))
+                        area = float(row.get(C.AREA, 0.0))
+                        h_win += u_val * area
+
+            # Derive Opaque Conductance (H_op)
+            h_op = max(0.0, h_tot - h_win)
+
+            # 3. Calculate Weighted T_eq
+            # Formula: (T_sol_air * H_op + T_air * H_win) / H_tot
+            if h_tot > 1e-6:
+                t_air = weather[C.TEMP_AIR].astype(float)
+                teq_series = (teq_opaque * h_op + t_air * h_win) / h_tot
+            else:
+                teq_series = teq_opaque
+        return pd.DataFrame({"T_eq": teq_series}, index=index)
+
+
+def calculate_timeseries_7r2c(meta: dict, series: dict, controls: pd.DataFrame, params: dict, splits: dict) \
+        -> tuple[pd.Series, pd.Series, pd.Series]:
     """Time loop with free-float → setpoint/clamp logic (skeleton)."""
 
     idx: pd.DatetimeIndex = meta["index"]
