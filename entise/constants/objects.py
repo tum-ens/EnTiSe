@@ -1,6 +1,3 @@
-import numpy as np
-
-
 class Objects:
     """Keys used for identifying objects and their attributes.
     Sorted alphabetically for easy reference (except for ID).
@@ -15,9 +12,14 @@ class Objects:
     ACTIVE_VENTILATION = f"{ACTIVE}_ventilation"  # Activate ventilation?
     ALTITUDE = "altitude[m]"  # Altitude (m)
     AREA = "area[m2]"  # Area (m2)
+    AREA_M = "area_m[m2]"  # Area of the building mass (m2)
+    AREA_TOT = "area_tot[m2]"  # Total area (m2)
     AZIMUTH = "azimuth[degree]"  # Azimuth (degrees; 0/360 = North)
+    C_1_AW = "C_1_AW[J K-1]"  # Thermal capacitance of the outer walls (J/K)
+    C_1_IW = "C_1_IW[J K-1]"  # Thermal capacitance of the inner walls (J/K)
     C_M = "C_m[J K-1]"  # Thermal capacitance of the building mass (J/K)
     CAPACITANCE = "capacitance[J K-1]"  # Capacitance (J/K)
+    CAPACITANCE_AIR = "capacitance_air[J K-1]"  # Air capacitance (J/K)
     COLUMN = "column"
     CORRECTION_FACTOR = "correction_factor"  # Correction factor for calculations
     DATETIMES = "datetimes"
@@ -27,6 +29,7 @@ class Objects:
     DHW_DEMAND_PER_PERSON = "dhw_demand_per_person"  # DHW demand per person
     DWELLING_SIZE = "dwelling_size[m2]"  # Size of dwelling (m2)
     FILE = "filename"  # File
+    FRAC_RAD_AW = "fraction_rad_AW"  # Fraction of radiant gains that go to outer walls
     FRAC_CONV_INTERNAL = "fraction_conv_internal"  # Fraction of total gains that is convective to air
     FRAC_RAD_SURFACE = "fraction_rad_surface"  # Fraction of radiant gains that go to surfaces (vs. mass)
     FRAC_RAD_MASS = "fraction_rad_mass"  # Fraction of radiant gains that go to mass
@@ -38,6 +41,7 @@ class Objects:
     GRADIENT_SINK = "gradient_sink"  # Gradient of the sink temperature
     H_TR_EM = "H_tr_em[W K-1]"  # Transmission heat transfer coefficient between thermal mass and exterior (W/K)
     H_TR_IS = "H_tr_is[W K-1]"  # Transmission heat transfer coefficient between indoor air and internal surfaces (W/K)
+    H_TR_OP_SKY = "H_tr_op_sky[W K-1]"  # Transmission heat transfer coeff. between outdoor air and sky (W/K)
     H_TR_MS = "H_tr_ms[W K-1]"  # Transmission heat transfer coeff. between thermal mass and internal surfaces (W/K)
     H_TR_W = "H_tr_w[W K-1]"  # Transmission heat transfer coefficient between windows and exterior (W/K)
     H_VE = "H_ve[W K-1]"  # Ventilation heat transfer coefficient between indoor air and exterior (W/K)
@@ -62,13 +66,25 @@ class Objects:
     POWER_HEATING = f"{POWER}_heating[W]"  # Power heating (W)
     PV_ARRAYS = "pv_arrays"  # PV array configuration (dict)
     PV_INVERTER = "pv_inverter"  # PV inverter configuration (dict)
+    R_1_AW = "R_1_AW[K W-1]"  # Thermal resistance of the outer walls (K/W)
+    R_1_IW = "R_1_IW[K W-1]"  # Thermal resistance of the inner walls (K/W)
+    R_ALPHA_STAR_AW = "R_alpha_star_AW[K W-1]"  # External surface heat transfer resistance (K/W)
+    R_ALPHA_STAR_IL = "R_alpha_star_IL[K W-1]"  # Internal surface heat transfer resistance (K/W)
+    R_ALPHA_STAR_IW = "R_alpha_star_IW[K W-1]"  # Internal surface heat transfer resistance (K/W)
+    R_REST_AW = "R_rest_AW[K W-1]"  # Thermal resistance of the remaining layers of the outer walls (K/W)
     RESISTANCE = "resistance[K W-1]"  # Resistance (K/W)
     SEASONAL_PEAK_DAY = "seasonal_peak_day"  # Day of year with peak demand
     SEASONAL_VARIATION = "seasonal_variation"  # Seasonal variation factor
     SEED = "seed"  # Seed to ensure reproducibility
     SIGMA = "sigma"  # Standard deviation
-    SIGMA_5R1C_SURFACE = "sigma_5R1C_surface"  # Sigma for 5R1C radiant internal gains to surfaces
+    SIGMA_SURFACE = "sigma_surface"  # Sigma for 5R1C radiant internal gains to surfaces
+    SIGMA_7R2C_AW = "sigma_7R2C_AW"  # Sigma for 7R2C fraction of radiant internal gains to outer walls
+    SIGMA_7R2C_IW = "sigma_7R2C_IW"  # Sigma for 7R2C fraction of radiant internal gains to inner walls
     SOURCE = "source"  # Source of data or method
+    T_EQ = "T_eq[C]"  # Equivalent temperature (°C)
+    T_EQ_COL = f"{T_EQ}_{COLUMN}"  # Name of column if equivalent temperature is provided in a dataframe
+    T_EQ_ALPHA_SW = "T_eq_alpha_SW[1]"  # Shortwave absorptance
+    T_EQ_H_O = "T_eq_h_o[W m-2 K-1]"  # Outdoor heat transfer coeff
     TEMP = "temperature[C]"  # Temperature (°C)
     TEMP_WATER = f"water_{TEMP}"  # Water temperature (°C)
     TEMP_WATER_COLD = f"cold_{TEMP_WATER}"  # Cold water temperature (°C)
@@ -86,79 +102,9 @@ class Objects:
     VENTILATION = "ventilation[W K-1]"  # Ventilation losses (W/K)
     VENTILATION_COL = f"ventilation_{COLUMN}"
     VENTILATION_FACTOR = "ventilation_factor[h-1]"  # 1/h
+    VENTILATION_SPLIT = "ventilation_split"  # Ventilation split factor
     VERBOSE = "verbose"  # Verbose
     WEATHER = "weather"  # Weather data
     WIND_MODEL = "wind_model"  # Model chain (wind)
     WINDOWS = "windows"  # Windows
     YEARLY_DHW_DEMAND = "yearly_dhw_demand[m3 m-2 a-1]"  # Yearly DHW demand in m³ per m²
-    DTYPES = {
-        ID: object,
-        ACTIVE_HEATING: bool,
-        ACTIVE_COOLING: bool,
-        ACTIVE_GAINS_SOLAR: bool,
-        ACTIVE_GAINS_INTERNAL: bool,
-        ACTIVE_VENTILATION: bool,
-        ALTITUDE: int | float | np.number,
-        AREA: int | float | np.number,
-        AZIMUTH: int | float | np.number,
-        CAPACITANCE: int | float | np.number,
-        CORRECTION_FACTOR: float | int | np.number,
-        C_M: int | float | np.number,
-        DATETIMES: str,
-        DEMAND: int | float | np.number,
-        DHW_ACTIVITY: str,
-        DHW_DEMAND_PER_SIZE: str,
-        DWELLING_SIZE: int | float | np.number,
-        FILE: str,
-        FRAC_CONV_INTERNAL: float | int | np.number,
-        FRAC_RAD_SURFACE: float | int | np.number,
-        FRAC_RAD_MASS: float | int | np.number,
-        GAINS_INTERNAL: int | float | np.number | str,
-        GAINS_INTERNAL_COL: str,
-        GAINS_INTERNAL_PER_PERSON: int | float | np.number,
-        GAINS_SOLAR: int | float | np.number | str,
-        GRADIENT_SINK: int | float | np.number,
-        H_TR_EM: int | float | np.number,
-        H_TR_IS: int | float | np.number,
-        H_TR_MS: int | float | np.number,
-        H_TR_W: int | float | np.number,
-        H_VE: int | float | np.number,
-        HEIGHT: int | float | np.number,
-        HOUSEHOLD_TYPE: str,
-        HOLIDAYS_LOCATION: str,
-        HP_SINK: str,
-        HP_SOURCE: str,
-        HP_SYSTEM: str,
-        INHABITANTS: int | float | np.number,
-        LAT: int | float | np.number,
-        LOAD: int | float | np.number,
-        LOAD_BASE: int | float | np.number,
-        LOAD_MAX: int | float | np.number,
-        LON: int | float | np.number,
-        OCCUPATION: str,
-        OCCUPANTS: int,
-        ORIENTATION: int | float | np.number,
-        POWER_COOLING: int | float | np.number,
-        POWER_HEATING: int | float | np.number,
-        RESISTANCE: int | float | np.number,
-        SEASONAL_PEAK_DAY: int,
-        SEASONAL_VARIATION: float,
-        SIGMA: float | int | np.number,
-        SIGMA_5R1C_SURFACE: float | int | np.number,
-        SOURCE: str,
-        TEMP_WATER: int | float | np.number,
-        TEMP_WATER_COLD: int | float | np.number,
-        TEMP_WATER_HOT: int | float | np.number,
-        TEMP_INIT: int | float | np.number,
-        TEMP_MAX: int | float | np.number,
-        TEMP_MIN: int | float | np.number,
-        TEMP_SET: int | float | np.number,
-        TEMP_SINK: int | float | np.number,
-        TEMP_SUPPLY: int | float | np.number,
-        THERMAL_INERTIA: int | float | np.number,
-        TILT: int | float | np.number,
-        VENTILATION: int | float | np.number,
-        VERBOSE: bool,
-        WEATHER: str,
-        WINDOWS: str,
-    }
