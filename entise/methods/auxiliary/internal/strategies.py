@@ -1,13 +1,12 @@
-from abc import ABC
 import logging
 
 import numpy as np
 import pandas as pd
-import pvlib
 
+from entise.constants import Objects as O
+from entise.constants import Types
 from entise.core.base import Method
-from entise.core.base_auxiliary import AuxiliaryMethod, BaseSelector
-from entise.constants import Keys, SEP, Objects as O, Types, Columns
+from entise.core.base_auxiliary import AuxiliaryMethod
 
 log = logging.getLogger(__name__)
 
@@ -23,6 +22,7 @@ class InternalInactive(AuxiliaryMethod):
     containing internal gain values initialized to zeros. The class is an
     extension of the `AuxiliaryMethod` class.
     """
+
     required_timeseries = [O.WEATHER]
 
     def get_input_data(self, obj, data):
@@ -41,6 +41,7 @@ class InternalConstant(AuxiliaryMethod):
     designed to be used in scenarios where internal gains need to be modeled or
     analyzed.
     """
+
     required_keys = [O.GAINS_INTERNAL]
     required_timeseries = [O.WEATHER]
 
@@ -50,10 +51,9 @@ class InternalConstant(AuxiliaryMethod):
             gains_internal = float(gains_internal)
         except ValueError:
             pass
-        finally:
-            if isinstance(gains_internal, str):
-                # If a string key is given, assume it's a reference to a time series
-                return InternalTimeSeries().generate(obj, data)
+        if isinstance(gains_internal, str):
+            # If a string key is given, assume it's a reference to a time series
+            return InternalTimeSeries().generate(obj, data)
         return self.run(**self.get_input_data(obj, data))
 
     def get_input_data(self, obj, data):
@@ -64,8 +64,7 @@ class InternalConstant(AuxiliaryMethod):
 
     def run(self, gains_internal, weather):
         return pd.DataFrame(
-            {O.GAINS_INTERNAL: np.full(len(weather), gains_internal, dtype=np.float32)},
-            index=weather.index
+            {O.GAINS_INTERNAL: np.full(len(weather), gains_internal, dtype=np.float32)}, index=weather.index
         )
 
 
@@ -79,6 +78,7 @@ class InternalTimeSeries(AuxiliaryMethod):
     from the `AuxiliaryMethod` base class and relies heavily on specific keys and internal
     structures for its operations.
     """
+
     required_keys = [O.GAINS_INTERNAL_COL]
     optional_keys = [O.ID]
     required_timeseries = [O.GAINS_INTERNAL]
@@ -89,9 +89,8 @@ class InternalTimeSeries(AuxiliaryMethod):
             gains_internal = float(gains_internal)
         except ValueError:
             pass
-        finally:
-            if isinstance(gains_internal, O.DTYPES[O.GAINS_INTERNAL]) and not isinstance(gains_internal, str):
-                return InternalConstant().generate(obj, data)
+        if not isinstance(gains_internal, str):
+            return InternalConstant().generate(obj, data)
         return self.run(**self.get_input_data(obj, data))
 
     def get_input_data(self, obj, data):
@@ -113,8 +112,9 @@ class InternalTimeSeries(AuxiliaryMethod):
             internal_gains = internal_gains.loc[:, col]
         except KeyError:
             log.error('Internal gains column "%s" does not exist', col)
-            raise Warning(f'Neither explicit (column name) or implicit (column id) are specified.'
-                          f'Given input column: {col}')
+            raise Warning(
+                f"Neither explicit (column name) or implicit (column id) are specified." f"Given input column: {col}"
+            )
         return pd.DataFrame({O.GAINS_INTERNAL: internal_gains}, index=internal_gains.index)
 
 
@@ -127,6 +127,7 @@ class InternalOccupancy(Method):
     gains per person, and occupancy data over time. The result is returned as
     a timeseries data structure that reflects the internal gains.
     """
+
     name = "InternalGainsOccupancy"
     required_keys = [O.INHABITANTS, O.GAINS_INTERNAL_PER_PERSON]
     required_timeseries = [Types.OCCUPANCY]
@@ -143,7 +144,8 @@ class InternalOccupancy(Method):
 
 
 __all__ = [
-    name for name, obj in globals().items()
+    name
+    for name, obj in globals().items()
     if isinstance(obj, type)
     and issubclass(obj, AuxiliaryMethod)
     and obj is not AuxiliaryMethod  # exclude the base class
