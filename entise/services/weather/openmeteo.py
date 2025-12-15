@@ -22,7 +22,7 @@ FEATURES = {
     "temperature_2m": {
         "cf": "air_temperature",
         "unit": "C",
-        "cf_unit": "C",
+        "cf_unit": "C",  # Kelvin in CF, but due to usability we keep Celsius
         "default": True,
     },
     "relative_humidity_2m": {
