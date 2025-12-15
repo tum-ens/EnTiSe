@@ -23,7 +23,7 @@ def dummy_inputs():
     )
 
     windows = pd.DataFrame(
-        [{O.ID: "obj1", C.AREA: 10.0, C.TRANSMITTANCE: 0.7, C.SHADING: 1.0, C.TILT: 90.0, C.ORIENTATION: 180.0}]
+        [{O.ID: "obj1", C.AREA: 10.0, C.G_VALUE: 0.7, C.SHADING: 1.0, C.TILT: 90.0, C.ORIENTATION: 180.0}]
     )
 
     internal_gains = pd.DataFrame({"obj1": np.arange(24)}, index=pd.date_range("2025-01-01", periods=24, freq="h"))

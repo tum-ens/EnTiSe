@@ -333,7 +333,7 @@ def test_r5c1_with_windows(basic_5r1c_object, minimal_weather):
             {
                 O.ID: "test_obj",
                 C.AREA: 15.0,
-                C.TRANSMITTANCE: 0.7,
+                C.G_VALUE: 0.7,
                 C.SHADING: 1.0,
                 C.TILT: 90.0,
                 C.ORIENTATION: 180.0,

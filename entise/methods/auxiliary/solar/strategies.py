@@ -179,7 +179,7 @@ class SolarGainsPVLib(AuxiliaryMethod):
                 _POA_CACHE[poa_key] = poa
 
             # Compute window gains from POA
-            window_gains = poa * float(window[C.AREA]) * float(window[C.TRANSMITTANCE]) * float(window[C.SHADING])
+            window_gains = poa * float(window[C.AREA]) * float(window[C.G_VALUE]) * float(window[C.SHADING])
             total_solar_gains += window_gains.astype(np.float32, copy=False)
 
         return pd.DataFrame({O.GAINS_SOLAR: total_solar_gains}, index=weather.index)
