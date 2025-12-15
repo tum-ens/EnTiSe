@@ -1,8 +1,10 @@
 import logging
-from typing import Optional
+from typing import Optional, Tuple
+
 
 import numpy as np
 import pandas as pd
+
 
 from entise.constants import SEP, Types
 from entise.constants import Columns as C
@@ -12,26 +14,28 @@ from entise.core.base import Method
 from entise.core.utils import resolve_ts_or_scalar
 from entise.methods.auxiliary.internal.selector import InternalGains
 from entise.methods.auxiliary.solar.selector import SolarGains
+from entise.methods.auxiliary.ventilation.selector import Ventilation
 from entise.methods.auxiliary.ventilation.strategies import VentilationTimeSeries
 from entise.methods.hvac.defaults import (
-    DEFAULT_ACTIVE_COOLING,
-    DEFAULT_ACTIVE_HEATING,
-    DEFAULT_ACTIVE_INTERNAL_GAINS,
-    DEFAULT_ACTIVE_SOLAR_GAINS,
-    DEFAULT_ACTIVE_VENTILATION,
-    DEFAULT_FRAC_CONV_INTERNAL,
-    DEFAULT_FRAC_RAD_AW,
-    DEFAULT_POWER_COOLING,
-    DEFAULT_POWER_HEATING,
-    DEFAULT_SIGMA_7R2C_AW,
-    DEFAULT_SIGMA_7R2C_IW,
-    DEFAULT_T_EQ_ALPHA_SW,
-    DEFAULT_T_EQ_H_O,
-    DEFAULT_TEMP_INIT,
-    DEFAULT_TEMP_MAX,
-    DEFAULT_TEMP_MIN,
-    DEFAULT_VENTILATION,
-    DEFAULT_VENTILATION_SPLIT,
+DEFAULT_ACTIVE_COOLING,
+DEFAULT_ACTIVE_HEATING,
+DEFAULT_ACTIVE_INTERNAL_GAINS,
+DEFAULT_ACTIVE_SOLAR_GAINS,
+DEFAULT_ACTIVE_VENTILATION,
+DEFAULT_FRAC_CONV_INTERNAL,
+DEFAULT_FRAC_RAD_AW,
+DEFAULT_POWER_COOLING,
+DEFAULT_POWER_HEATING,
+DEFAULT_SIGMA_7R2C_AW,
+DEFAULT_SIGMA_7R2C_IW,
+DEFAULT_TEMP_INIT,
+DEFAULT_TEMP_MAX,
+DEFAULT_TEMP_MIN,
+DEFAULT_T_EQ_ALPHA_SW,
+DEFAULT_T_EQ_H_O,
+DEFAULT_VENTILATION,
+DEFAULT_VENTILATION_SPLIT,
+
 )
 
 logger = logging.getLogger(__name__)
@@ -48,69 +52,50 @@ class R7C2(Method):
 
     # Required RC & weather
     required_keys = [
-        O.R_1_AW,
-        O.C_1_AW,
-        O.R_1_IW,
-        O.C_1_IW,
-        O.R_ALPHA_STAR_IL,
-        O.R_ALPHA_STAR_AW,
-        O.R_ALPHA_STAR_IW,
-        O.R_REST_AW,
-        O.WEATHER,
+    O.R_1_AW, O.C_1_AW,
+    O.R_1_IW, O.C_1_IW,
+    O.R_ALPHA_STAR_IL, O.R_ALPHA_STAR_AW, O.R_ALPHA_STAR_IW,
+    O.R_REST_AW,
+    O.WEATHER,
     ]
 
     # Optional controls, splits, and auxiliaries
     optional_keys = [
-        # Controls
-        O.POWER_HEATING,
-        O.POWER_COOLING,
-        O.ACTIVE_HEATING,
-        O.ACTIVE_COOLING,
-        O.ACTIVE_GAINS_INTERNAL,
-        O.ACTIVE_GAINS_SOLAR,
-        O.ACTIVE_VENTILATION,
-        O.TEMP_INIT,
-        O.TEMP_MIN,
-        O.TEMP_MAX,
-        O.TEMP_SUPPLY,
-        # Geometry
-        O.AREA,
-        O.HEIGHT,
-        # Gains splits
-        O.FRAC_CONV_INTERNAL,
-        O.FRAC_RAD_AW,  # IW is derived
-        # HVAC sigma as three scalars (AW, IW, conv is derived)
-        O.SIGMA_7R2C_AW,
-        O.SIGMA_7R2C_IW,
-        # Ventilation
-        O.H_VE,
-        O.VENTILATION_SPLIT,
-        # Equivalent outdoor (sol-air)
-        O.T_EQ,
-        O.T_EQ_COL,
-        O.T_EQ_ALPHA_SW,
-        O.T_EQ_H_O,
-        # Timeseries
-        O.GAINS_INTERNAL,
-        O.GAINS_SOLAR,
-        O.VENTILATION,
+    # Controls
+    O.POWER_HEATING, O.POWER_COOLING,
+    O.ACTIVE_HEATING, O.ACTIVE_COOLING,
+    O.ACTIVE_GAINS_INTERNAL, O.ACTIVE_GAINS_SOLAR, O.ACTIVE_VENTILATION,
+    O.TEMP_INIT, O.TEMP_MIN, O.TEMP_MAX, O.TEMP_SUPPLY,
+    # Geometry
+    O.AREA, O.HEIGHT,
+    # Gains splits
+    O.FRAC_CONV_INTERNAL, O.FRAC_RAD_AW, # IW is derived
+    # HVAC sigma as three scalars (AW, IW, conv is derived)
+    O.SIGMA_7R2C_AW, O.SIGMA_7R2C_IW,
+    # Ventilation
+    O.H_VE, O.VENTILATION_SPLIT,
+    # Equivalent outdoor (sol-air)
+    O.T_EQ, O.T_EQ_COL, O.T_EQ_ALPHA_SW, O.T_EQ_H_O,
+    # Timeseries
+    O.GAINS_INTERNAL, O.GAINS_SOLAR, O.VENTILATION
     ]
 
     required_timeseries = [O.WEATHER]
-    optional_timeseries = [O.WINDOWS, O.GAINS_INTERNAL, O.GAINS_SOLAR, O.H_VE, O.T_EQ]  # Hint set of common auxiliaries
+    optional_timeseries = [O.WINDOWS, O.GAINS_INTERNAL, O.GAINS_SOLAR, O.H_VE, O.T_EQ] # Hint set of common auxiliaries
 
     output_summary = {
-        f"{Types.HEATING}{SEP}{C.DEMAND}[Wh]": "total heating demand",
-        f"{Types.HEATING}{SEP}{O.LOAD_MAX}[W]": "maximum heating load",
-        f"{Types.COOLING}{SEP}{C.DEMAND}[Wh]": "total cooling demand",
-        f"{Types.COOLING}{SEP}{O.LOAD_MAX}[W]": "maximum cooling load",
+    f"{Types.HEATING}{SEP}{C.DEMAND}[Wh]": "total heating demand",
+    f"{Types.HEATING}{SEP}{O.LOAD_MAX}[W]": "maximum heating load",
+    f"{Types.COOLING}{SEP}{C.DEMAND}[Wh]": "total cooling demand",
+    f"{Types.COOLING}{SEP}{O.LOAD_MAX}[W]": "maximum cooling load",
     }
 
     output_timeseries = {
-        C.TEMP_IN: "indoor air temperature",
-        f"{Types.HEATING}{SEP}{C.LOAD}[W]": "heating load",
-        f"{Types.COOLING}{SEP}{C.LOAD}[W]": "cooling load",
+    C.TEMP_IN: "indoor air temperature",
+    f"{Types.HEATING}{SEP}{C.LOAD}[W]": "heating load",
+    f"{Types.COOLING}{SEP}{C.LOAD}[W]": "cooling load",
     }
+
 
     def generate(self, obj: dict = None, data: dict = None, ts_type: str = Types.HVAC, **kwargs) -> dict:
         obj, data = self._process_kwargs(obj, data, **kwargs)
@@ -119,10 +104,11 @@ class R7C2(Method):
 
         temp_in, p_heat, p_cool = calculate_timeseries_7r2c(**data)
 
-        meta = data["meta"]
+        meta = data['meta']
         return self._format_output(
-            temp_in.round(3), p_heat.round().astype(int), p_cool.round().astype(int), meta["index"], meta["dt_s"]
+        temp_in.round(3), p_heat.round().astype(int), p_cool.round().astype(int), meta["index"], meta["dt_s"]
         )
+
 
     def _get_input_data(self, obj: dict, data: dict, method_type: str = Types.HVAC) -> tuple[dict, dict]:
         """
@@ -139,7 +125,9 @@ class R7C2(Method):
         data_out = self._prepare_data_tables(obj, data, method_type)
         return obj_out, data_out
 
+
     def _prepare_inputs(self, obj: dict, data: dict) -> dict:
+
         data = self._prepare_weather_cache(obj, data)
 
         # Add data for computation
@@ -153,12 +141,12 @@ class R7C2(Method):
             "index": index,
             "dt_s": float((index[1] - index[0]) / np.timedelta64(1, "s")),
         }
-        data_out["meta"] = meta
+        data_out['meta'] = meta
 
         # Gains (generate if active and missing)
-        data_out["series"] = {}
+        data_out['series'] = {}
         gains = self._compute_gains(obj, data)
-        data_out["series"]["gains"] = gains
+        data_out['series']['gains'] = gains
 
         # Ventilation → split into mechanical & infiltration
         ven_df = VentilationTimeSeries().generate(obj, data).squeeze()
@@ -166,7 +154,7 @@ class R7C2(Method):
         Hve_vent_series = ven_df * vent_split
         Hve_inf_series = ven_df * (1.0 - vent_split)
         ventilation = pd.concat([Hve_vent_series, Hve_inf_series], axis=1, keys=["Hve_vent", "Hve_inf"])
-        data_out["series"]["ventilation"] = ventilation
+        data_out['series']['ventilation'] = ventilation
 
         # Equivalent outdoor temperature series (T_eq)
         teq = obj.get(O.T_EQ)
@@ -177,19 +165,15 @@ class R7C2(Method):
             alpha_sw = float(obj.get(O.T_EQ_ALPHA_SW, DEFAULT_T_EQ_ALPHA_SW))
             h_o = float(obj.get(O.T_EQ_H_O, DEFAULT_T_EQ_H_O))
             if C.SOLAR_GHI not in weather.columns:
-                raise ValueError(
-                    f"Weather data must contain '{C.SOLAR_GHI}' column "
-                    f"to compute equivalent outdoor temperature 'T_eq'."
-                )
+                raise ValueError(f"Weather data must contain '{C.SOLAR_GHI}' column "            
+                f"to compute equivalent outdoor temperature 'T_eq'.")
             ghi = weather.get(C.SOLAR_GHI, None).astype(float)
             teq_series = weather[C.TEMP_AIR].astype(float) + alpha_sw * ghi / max(h_o, 1e-6)
-        data_out["series"]["T_eq"] = pd.DataFrame({"T_eq": teq_series}, index=index)
+        data_out['series']['T_eq'] = pd.DataFrame({"T_eq": teq_series}, index=index)
 
         # Controls
         temp_sup = obj.get(O.TEMP_SUPPLY, None)
-        temp_sup = (
-            resolve_ts_or_scalar(obj, data, O.TEMP_SUPPLY, index) if temp_sup is not None else weather[C.TEMP_AIR]
-        )
+        temp_sup = resolve_ts_or_scalar(obj, data, O.TEMP_SUPPLY, index) if temp_sup is not None else weather[C.TEMP_AIR]
         controls = {
             O.TEMP_MIN: resolve_ts_or_scalar(obj, data, O.TEMP_MIN, index, default=DEFAULT_TEMP_MIN),
             O.TEMP_MAX: resolve_ts_or_scalar(obj, data, O.TEMP_MAX, index, default=DEFAULT_TEMP_MAX),
@@ -200,7 +184,7 @@ class R7C2(Method):
             O.ACTIVE_COOLING: resolve_ts_or_scalar(obj, data, O.ACTIVE_COOLING, index, default=DEFAULT_ACTIVE_COOLING),
         }
         controls = pd.DataFrame(controls)
-        data_out["controls"] = controls
+        data_out['controls'] = controls
 
         # Calculate window transmission H_tr_w if windows are given
         H_tr_w = 0.0
@@ -214,8 +198,8 @@ class R7C2(Method):
 
         # Parameters
         volume = float(obj.get(O.AREA, Const.DEFAULT_AREA.value)) * float(obj.get(O.HEIGHT, Const.DEFAULT_HEIGHT.value))
-        rho_air = 1.2  # kg/m3
-        cp_air = 1000.0  # J/kgK
+        rho_air = 1.2 # kg/m3
+        cp_air = 1000.0 # J/kgK
         capacity_air = volume * rho_air * cp_air
         params = {
             O.TEMP_INIT: float(obj.get(O.TEMP_INIT, DEFAULT_TEMP_INIT)),
@@ -230,7 +214,7 @@ class R7C2(Method):
             O.H_TR_W: float(H_tr_w),
             O.CAPACITANCE_AIR: float(capacity_air),
         }
-        data_out["params"] = params
+        data_out['params'] = params
 
         # Splits (normalize defensively)
         sigma_aw = float(obj.get(O.SIGMA_7R2C_AW, DEFAULT_SIGMA_7R2C_AW))
@@ -243,16 +227,14 @@ class R7C2(Method):
             "sigma_conv": max(0.0, 1.0 - (sigma_aw + sigma_iw)),
             O.FRAC_CONV_INTERNAL: float(obj.get(O.FRAC_CONV_INTERNAL, DEFAULT_FRAC_CONV_INTERNAL)),
             O.FRAC_RAD_AW: f_aw,
-            "f_iw": 1.0 - f_aw,
+            "f_iw": 1.0 - f_aw
         }
-        data_out["splits"] = splits
+        data_out['splits'] = splits
 
         return data_out
 
     @staticmethod
-    def _format_output(
-        temp_in: pd.Series, p_heat: pd.Series, p_cool: pd.Series, index: pd.DatetimeIndex, dt_s: float
-    ) -> dict:
+    def _format_output(temp_in: pd.Series, p_heat: pd.Series, p_cool: pd.Series, index: pd.DatetimeIndex, dt_s: float) -> dict:
         E_h_Wh = float(np.trapezoid(p_heat.values, dx=dt_s) / 3600.0)
         E_c_Wh = float(np.trapezoid(p_cool.values, dx=dt_s) / 3600.0)
         summary = {
@@ -262,78 +244,66 @@ class R7C2(Method):
             f"{Types.COOLING}{SEP}{O.LOAD_MAX}[W]": float(max(p_cool.max(), 0.0)),
         }
 
-        df = pd.DataFrame(
-            {
-                C.TEMP_IN: temp_in,
-                f"{Types.HEATING}{SEP}{C.LOAD}[W]": p_heat,
-                f"{Types.COOLING}{SEP}{C.LOAD}[W]": p_cool,
-            },
-            index=index,
-        )
+        df = pd.DataFrame({
+        C.TEMP_IN: temp_in,
+            f"{Types.HEATING}{SEP}{C.LOAD}[W]": p_heat,
+            f"{Types.COOLING}{SEP}{C.LOAD}[W]": p_cool,
+        }, index=index)
         df.index.name = C.DATETIME
 
         return {"summary": summary, "timeseries": df}
+
 
     def _get_relevant_objects(self, obj: dict, method_type: str = Types.HVAC) -> dict:
         # TODO: Change this so that it takes the data from self.objects and make this for loops.
         #   This probably also means changing the lists to dicts and having default values as the value
         obj_out = {
-            O.ID: self.get_with_backup(obj, O.ID),
-            O.LAT: self.get_with_method_backup(obj, O.LAT, method_type),
-            O.LON: self.get_with_method_backup(obj, O.LON, method_type),
-            # Geometry (for air capacity)
-            O.AREA: self.get_with_method_backup(obj, O.AREA, method_type, Const.DEFAULT_AREA.value),
-            O.HEIGHT: self.get_with_method_backup(obj, O.HEIGHT, method_type, Const.DEFAULT_HEIGHT.value),
-            # Controls
-            O.ACTIVE_HEATING: self.get_with_method_backup(obj, O.ACTIVE_HEATING, method_type, DEFAULT_ACTIVE_HEATING),
-            O.ACTIVE_COOLING: self.get_with_method_backup(obj, O.ACTIVE_COOLING, method_type, DEFAULT_ACTIVE_COOLING),
-            O.ACTIVE_GAINS_INTERNAL: self.get_with_method_backup(
-                obj, O.ACTIVE_GAINS_INTERNAL, method_type, DEFAULT_ACTIVE_INTERNAL_GAINS
-            ),
-            O.ACTIVE_GAINS_SOLAR: self.get_with_method_backup(
-                obj, O.ACTIVE_GAINS_SOLAR, method_type, DEFAULT_ACTIVE_SOLAR_GAINS
-            ),
-            O.ACTIVE_VENTILATION: self.get_with_method_backup(
-                obj, O.ACTIVE_VENTILATION, method_type, DEFAULT_ACTIVE_VENTILATION
-            ),
-            O.POWER_HEATING: self.get_with_method_backup(obj, O.POWER_HEATING, method_type, DEFAULT_POWER_HEATING),
-            O.POWER_COOLING: self.get_with_method_backup(obj, O.POWER_COOLING, method_type, DEFAULT_POWER_COOLING),
-            O.TEMP_INIT: self.get_with_method_backup(obj, O.TEMP_INIT, method_type, DEFAULT_TEMP_INIT),
-            O.TEMP_MIN: self.get_with_method_backup(obj, O.TEMP_MIN, method_type, DEFAULT_TEMP_MIN),
-            O.TEMP_MAX: self.get_with_method_backup(obj, O.TEMP_MAX, method_type, DEFAULT_TEMP_MAX),
-            O.TEMP_SUPPLY: self.get_with_method_backup(obj, O.TEMP_SUPPLY, method_type),
-            # RC parameters (7R2C)
-            O.R_1_AW: self.get_with_method_backup(obj, O.R_1_AW, method_type),
-            O.C_1_AW: self.get_with_method_backup(obj, O.C_1_AW, method_type),
-            O.R_1_IW: self.get_with_method_backup(obj, O.R_1_IW, method_type),
-            O.C_1_IW: self.get_with_method_backup(obj, O.C_1_IW, method_type),
-            O.R_ALPHA_STAR_IL: self.get_with_method_backup(obj, O.R_ALPHA_STAR_IL, method_type),
-            O.R_ALPHA_STAR_AW: self.get_with_method_backup(obj, O.R_ALPHA_STAR_AW, method_type),
-            O.R_ALPHA_STAR_IW: self.get_with_method_backup(obj, O.R_ALPHA_STAR_IW, method_type),
-            O.R_REST_AW: self.get_with_method_backup(obj, O.R_REST_AW, method_type),
-            # Gains & splits
-            O.FRAC_CONV_INTERNAL: self.get_with_method_backup(
-                obj, O.FRAC_CONV_INTERNAL, method_type, DEFAULT_FRAC_CONV_INTERNAL
-            ),
-            O.FRAC_RAD_AW: self.get_with_method_backup(obj, O.FRAC_RAD_AW, method_type, DEFAULT_FRAC_RAD_AW),
-            O.SIGMA_7R2C_AW: self.get_with_method_backup(obj, O.SIGMA_7R2C_AW, method_type, DEFAULT_SIGMA_7R2C_AW),
-            O.SIGMA_7R2C_IW: self.get_with_method_backup(obj, O.SIGMA_7R2C_IW, method_type, DEFAULT_SIGMA_7R2C_IW),
-            # Ventilation
-            O.VENTILATION: self.get_with_method_backup(obj, O.VENTILATION, method_type, DEFAULT_VENTILATION),
-            O.VENTILATION_COL: self.get_with_method_backup(obj, O.VENTILATION_COL, method_type),
-            O.VENTILATION_SPLIT: self.get_with_method_backup(
-                obj, O.VENTILATION_SPLIT, method_type, DEFAULT_VENTILATION_SPLIT
-            ),
-            # Equivalent outdoor temperature (sol-air)
-            O.T_EQ: self.get_with_method_backup(obj, O.T_EQ, method_type),
-            O.T_EQ_COL: self.get_with_method_backup(obj, O.T_EQ_COL, method_type),
-            O.T_EQ_ALPHA_SW: self.get_with_method_backup(obj, O.T_EQ_ALPHA_SW, method_type, DEFAULT_T_EQ_ALPHA_SW),
-            O.T_EQ_H_O: self.get_with_method_backup(obj, O.T_EQ_H_O, method_type, DEFAULT_T_EQ_H_O),
-            # Timeseries references
-            O.WEATHER: self.get_with_method_backup(obj, O.WEATHER, method_type, O.WEATHER),
-            O.GAINS_INTERNAL: self.get_with_method_backup(obj, O.GAINS_INTERNAL, method_type),
-            O.GAINS_INTERNAL_COL: self.get_with_method_backup(obj, O.GAINS_INTERNAL_COL, method_type),
-            O.GAINS_SOLAR: self.get_with_method_backup(obj, O.GAINS_SOLAR, method_type),
+        O.ID: self.get_with_backup(obj, O.ID),
+        O.LAT: self.get_with_method_backup(obj, O.LAT, method_type),
+        O.LON: self.get_with_method_backup(obj, O.LON, method_type),
+        # Geometry (for air capacity)
+        O.AREA: self.get_with_method_backup(obj, O.AREA, method_type, Const.DEFAULT_AREA.value),
+        O.HEIGHT: self.get_with_method_backup(obj, O.HEIGHT, method_type, Const.DEFAULT_HEIGHT.value),
+        # Controls
+        O.ACTIVE_HEATING: self.get_with_method_backup(obj, O.ACTIVE_HEATING, method_type, DEFAULT_ACTIVE_HEATING),
+        O.ACTIVE_COOLING: self.get_with_method_backup(obj, O.ACTIVE_COOLING, method_type, DEFAULT_ACTIVE_COOLING),
+        O.ACTIVE_GAINS_INTERNAL: self.get_with_method_backup(obj, O.ACTIVE_GAINS_INTERNAL, method_type, DEFAULT_ACTIVE_INTERNAL_GAINS),
+        O.ACTIVE_GAINS_SOLAR: self.get_with_method_backup(obj, O.ACTIVE_GAINS_SOLAR, method_type, DEFAULT_ACTIVE_SOLAR_GAINS),
+        O.ACTIVE_VENTILATION: self.get_with_method_backup(obj, O.ACTIVE_VENTILATION, method_type, DEFAULT_ACTIVE_VENTILATION),
+        O.POWER_HEATING: self.get_with_method_backup(obj, O.POWER_HEATING, method_type, DEFAULT_POWER_HEATING),
+        O.POWER_COOLING: self.get_with_method_backup(obj, O.POWER_COOLING, method_type, DEFAULT_POWER_COOLING),
+        O.TEMP_INIT: self.get_with_method_backup(obj, O.TEMP_INIT, method_type, DEFAULT_TEMP_INIT),
+        O.TEMP_MIN: self.get_with_method_backup(obj, O.TEMP_MIN, method_type, DEFAULT_TEMP_MIN),
+        O.TEMP_MAX: self.get_with_method_backup(obj, O.TEMP_MAX, method_type, DEFAULT_TEMP_MAX),
+        O.TEMP_SUPPLY: self.get_with_method_backup(obj, O.TEMP_SUPPLY, method_type),
+        # RC parameters (7R2C)
+        O.R_1_AW: self.get_with_method_backup(obj, O.R_1_AW, method_type),
+        O.C_1_AW: self.get_with_method_backup(obj, O.C_1_AW, method_type),
+        O.R_1_IW: self.get_with_method_backup(obj, O.R_1_IW, method_type),
+        O.C_1_IW: self.get_with_method_backup(obj, O.C_1_IW, method_type),
+        O.R_ALPHA_STAR_IL: self.get_with_method_backup(obj, O.R_ALPHA_STAR_IL, method_type),
+        O.R_ALPHA_STAR_AW: self.get_with_method_backup(obj, O.R_ALPHA_STAR_AW, method_type),
+        O.R_ALPHA_STAR_IW: self.get_with_method_backup(obj, O.R_ALPHA_STAR_IW, method_type),
+        O.R_REST_AW: self.get_with_method_backup(obj, O.R_REST_AW, method_type),
+        # Gains & splits
+        O.FRAC_CONV_INTERNAL: self.get_with_method_backup(obj, O.FRAC_CONV_INTERNAL, method_type, DEFAULT_FRAC_CONV_INTERNAL),
+        O.FRAC_RAD_AW: self.get_with_method_backup(obj, O.FRAC_RAD_AW, method_type, DEFAULT_FRAC_RAD_AW),
+        O.SIGMA_7R2C_AW: self.get_with_method_backup(obj, O.SIGMA_7R2C_AW, method_type, DEFAULT_SIGMA_7R2C_AW),
+        O.SIGMA_7R2C_IW: self.get_with_method_backup(obj, O.SIGMA_7R2C_IW, method_type, DEFAULT_SIGMA_7R2C_IW),
+        # Ventilation
+        O.VENTILATION: self.get_with_method_backup(obj, O.VENTILATION, method_type, DEFAULT_VENTILATION),
+        O.VENTILATION_COL: self.get_with_method_backup(obj, O.VENTILATION_COL, method_type),
+        O.VENTILATION_SPLIT: self.get_with_method_backup(obj, O.VENTILATION_SPLIT, method_type, DEFAULT_VENTILATION_SPLIT),
+        # Equivalent outdoor temperature (sol-air)
+        O.T_EQ: self.get_with_method_backup(obj, O.T_EQ, method_type),
+        O.T_EQ_COL: self.get_with_method_backup(obj, O.T_EQ_COL, method_type),
+        O.T_EQ_ALPHA_SW: self.get_with_method_backup(obj, O.T_EQ_ALPHA_SW, method_type, DEFAULT_T_EQ_ALPHA_SW),
+        O.T_EQ_H_O: self.get_with_method_backup(obj, O.T_EQ_H_O, method_type, DEFAULT_T_EQ_H_O),
+        # Timeseries references
+        O.WEATHER: self.get_with_method_backup(obj, O.WEATHER, method_type, O.WEATHER),
+        O.GAINS_INTERNAL: self.get_with_method_backup(obj, O.GAINS_INTERNAL, method_type),
+        O.GAINS_INTERNAL_COL: self.get_with_method_backup(obj, O.GAINS_INTERNAL_COL, method_type),
+        O.GAINS_SOLAR: self.get_with_method_backup(obj, O.GAINS_SOLAR, method_type),
         }
 
         # Future possible code
@@ -347,6 +317,7 @@ class R7C2(Method):
         # obj_out[key] = obj_out.get(key)
 
         return {k: v for k, v in obj_out.items() if v is not None}
+
 
     def _prepare_data_tables(self, obj: dict, data: dict, method_type: str = Types.HVAC) -> dict:
         data_out = {}
@@ -366,6 +337,7 @@ class R7C2(Method):
 
         return {k: v for k, v in data_out.items() if v is not None}
 
+
     def _prepare_weather_cache(self, obj: dict, data: dict, method_type: str = Types.HVAC) -> dict:
         weather_key = self.get_with_method_backup(obj, O.WEATHER, method_type, O.WEATHER)
         weather_cached = _WEATHER_CACHE.get(weather_key)
@@ -381,6 +353,7 @@ class R7C2(Method):
 
         return data
 
+
     @staticmethod
     def _compute_gains(obj: dict, data: dict) -> pd.DataFrame:
         g_int_df = InternalGains().generate(obj, data)
@@ -389,9 +362,7 @@ class R7C2(Method):
         return pd.concat([g_int_df, g_sol_df], axis=1, keys=["g_int", "g_sol"])
 
 
-def calculate_timeseries_7r2c(
-    meta: dict, series: dict, controls: pd.DataFrame, params: dict, splits: dict
-) -> tuple[pd.Series, pd.Series, pd.Series]:
+def calculate_timeseries_7r2c(meta: dict, series: dict, controls: pd.DataFrame, params: dict, splits: dict) -> tuple[pd.Series, pd.Series, pd.Series]:
     """Time loop with free-float → setpoint/clamp logic (skeleton)."""
 
     idx: pd.DatetimeIndex = meta["index"]
@@ -469,38 +440,14 @@ def calculate_timeseries_7r2c(
     phi_conv_arr, phi_aw_arr, phi_iw_arr = split_gains_7r2c(g_int_arr, g_sol_arr, f_conv_int, f_rad_aw, f_rad_iw)
 
     # Precompute optimization constants for constant ventilation case
-    Y_tset_const = calc_y_tset_optim(
-        inv_R_1_aw,
-        inv_R_1_iw,
-        inv_R_a_il,
-        inv_R_a_aw,
-        inv_R_a_iw,
-        inv_R_r_aw,
-        C_1_aw,
-        C_1_iw,
-        sigma_aw,
-        sigma_iw,
-        sigma_conv,
-        dt_s,
-    )
+    Y_tset_const = calc_y_tset_optim(inv_R_1_aw, inv_R_1_iw, inv_R_a_il, inv_R_a_aw, inv_R_a_iw, inv_R_r_aw,
+                                     C_1_aw, C_1_iw, sigma_aw, sigma_iw, sigma_conv, dt_s)
     if np.allclose(Hve_vent_arr, Hve_vent_arr[0]) and np.allclose(Hve_inf_arr, Hve_inf_arr[0]):
-        Y_phiset_const = calc_y_phiset_optim(
-            inv_R_1_aw,
-            inv_R_1_iw,
-            inv_R_a_il,
-            inv_R_a_aw,
-            inv_R_a_iw,
-            inv_R_r_aw,
-            C_1_aw,
-            C_1_iw,
-            C_air,
-            Hve_inf_arr[0],
-            Hve_vent_arr[0],
-            Htr_w,
-            dt_s,
-        )
+        Y_phiset_const = calc_y_phiset_optim(inv_R_1_aw, inv_R_1_iw, inv_R_a_il, inv_R_a_aw, inv_R_a_iw, inv_R_r_aw,
+                                             C_1_aw, C_1_iw, C_air, Hve_inf_arr[0], Hve_vent_arr[0], Htr_w, dt_s)
     else:
         Y_phiset_const = None
+
 
     for t in range(1, n_len):
         T_out = T_out_arr[t]
@@ -525,71 +472,20 @@ def calculate_timeseries_7r2c(
 
         # 1) Free-float (Q_hc=0)
         sol_free = solve_step_phiset_7r2c_optim(
-            inv_R_1_aw,
-            inv_R_1_iw,
-            inv_R_a_il,
-            inv_R_a_aw,
-            inv_R_a_iw,
-            inv_R_r_aw,
-            C_1_aw,
-            C_1_iw,
-            C_air,
-            Hve_vent,
-            Hve_inf,
-            Htr_w,
-            T_out,
-            T_eq,
-            T_sup,
-            Ta,
-            Tm_aw,
-            Tm_iw,
-            phi_conv,
-            phi_aw,
-            phi_iw,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            dt_s,
-            Y_phiset_const,
-        )
-        Ta_free = float(sol_free[3])
-        Tm_aw_free = float(sol_free[0])
-        Tm_iw_free = float(sol_free[6])
+            inv_R_1_aw, inv_R_1_iw, inv_R_a_il, inv_R_a_aw, inv_R_a_iw, inv_R_r_aw,
+            C_1_aw, C_1_iw, C_air, Hve_vent, Hve_inf, Htr_w,
+            T_out, T_eq, T_sup, Ta, Tm_aw, Tm_iw,
+            phi_conv, phi_aw, phi_iw, 0.0, 0.0, 0.0, 0.0, dt_s, Y_phiset_const)
+        Ta_free = float(sol_free[3]); Tm_aw_free = float(sol_free[0]); Tm_iw_free = float(sol_free[6])
 
         # 2) Check against setpoints and clamp if necessary
         Q = 0.0
         # Heating
         if Ta_free < T_min and on_heat:
             sol_tset = solve_step_tset_7r2c_optim(
-                inv_R_1_aw,
-                inv_R_1_iw,
-                inv_R_a_il,
-                inv_R_a_aw,
-                inv_R_a_iw,
-                inv_R_r_aw,
-                C_1_aw,
-                C_1_iw,
-                C_air,
-                sigma_aw,
-                sigma_iw,
-                sigma_conv,
-                Hve_vent,
-                Hve_inf,
-                Htr_w,
-                T_out,
-                T_eq,
-                T_sup,
-                T_min,
-                Ta,
-                Tm_aw,
-                Tm_iw,
-                phi_conv,
-                phi_aw,
-                phi_iw,
-                dt_s,
-                Y_tset_const,
-            )
+                inv_R_1_aw, inv_R_1_iw, inv_R_a_il, inv_R_a_aw, inv_R_a_iw, inv_R_r_aw,
+                C_1_aw, C_1_iw, C_air, sigma_aw, sigma_iw, sigma_conv, Hve_vent, Hve_inf, Htr_w,
+                T_out, T_eq, T_sup, T_min, Ta, Tm_aw, Tm_iw, phi_conv, phi_aw, phi_iw, dt_s, Y_tset_const)
             Q_req = float(sol_tset[4])
             Q, clamped = clamp_power(Q_req, on_heat, on_cool, P_h_max, P_c_max)
             if clamped:
@@ -597,68 +493,19 @@ def calculate_timeseries_7r2c(
                 Q_hk_aw = Q * sigma_aw
                 Q_hk_kon = Q * sigma_conv
                 sol_phi = solve_step_phiset_7r2c_optim(
-                    inv_R_1_aw,
-                    inv_R_1_iw,
-                    inv_R_a_il,
-                    inv_R_a_aw,
-                    inv_R_a_iw,
-                    inv_R_r_aw,
-                    C_1_aw,
-                    C_1_iw,
-                    C_air,
-                    Hve_vent,
-                    Hve_inf,
-                    Htr_w,
-                    T_out,
-                    T_eq,
-                    T_sup,
-                    Ta,
-                    Tm_aw,
-                    Tm_iw,
-                    phi_conv,
-                    phi_aw,
-                    phi_iw,
-                    Q,
-                    Q_hk_iw,
-                    Q_hk_aw,
-                    Q_hk_kon,
-                    dt_s,
-                    Y_phiset_const,
-                )
+                    inv_R_1_aw, inv_R_1_iw, inv_R_a_il, inv_R_a_aw, inv_R_a_iw, inv_R_r_aw,
+                    C_1_aw, C_1_iw, C_air, Hve_vent, Hve_inf, Htr_w,
+                    T_out, T_eq, T_sup, Ta, Tm_aw, Tm_iw,
+                    phi_conv, phi_aw, phi_iw, Q, Q_hk_iw, Q_hk_aw, Q_hk_kon, dt_s, Y_phiset_const)
                 Tm_aw, Ta, Tm_iw = float(sol_phi[0]), float(sol_phi[3]), float(sol_phi[6])
             else:
                 Tm_aw, Ta, Tm_iw = float(sol_tset[0]), float(sol_tset[3]), float(sol_tset[6])
         # Cooling
         elif Ta_free > T_max and on_cool:
             sol_tset = solve_step_tset_7r2c_optim(
-                inv_R_1_aw,
-                inv_R_1_iw,
-                inv_R_a_il,
-                inv_R_a_aw,
-                inv_R_a_iw,
-                inv_R_r_aw,
-                C_1_aw,
-                C_1_iw,
-                C_air,
-                sigma_aw,
-                sigma_iw,
-                sigma_conv,
-                Hve_vent,
-                Hve_inf,
-                Htr_w,
-                T_out,
-                T_eq,
-                T_sup,
-                T_max,
-                Ta,
-                Tm_aw,
-                Tm_iw,
-                phi_conv,
-                phi_aw,
-                phi_iw,
-                dt_s,
-                Y_tset_const,
-            )
+                inv_R_1_aw, inv_R_1_iw, inv_R_a_il, inv_R_a_aw, inv_R_a_iw, inv_R_r_aw,
+                C_1_aw, C_1_iw, C_air, sigma_aw, sigma_iw, sigma_conv, Hve_vent, Hve_inf, Htr_w,
+                T_out, T_eq, T_sup, T_max, Ta, Tm_aw, Tm_iw, phi_conv, phi_aw, phi_iw, dt_s, Y_tset_const)
             Q_req = float(sol_tset[4])
             Q, clamped = clamp_power(Q_req, on_heat, on_cool, P_h_max, P_c_max)
             if clamped:
@@ -666,34 +513,10 @@ def calculate_timeseries_7r2c(
                 Q_hk_aw = Q * sigma_aw
                 Q_hk_kon = Q * sigma_conv
                 sol_phi = solve_step_phiset_7r2c_optim(
-                    inv_R_1_aw,
-                    inv_R_1_iw,
-                    inv_R_a_il,
-                    inv_R_a_aw,
-                    inv_R_a_iw,
-                    inv_R_r_aw,
-                    C_1_aw,
-                    C_1_iw,
-                    C_air,
-                    Hve_vent,
-                    Hve_inf,
-                    Htr_w,
-                    T_out,
-                    T_eq,
-                    T_sup,
-                    Ta,
-                    Tm_aw,
-                    Tm_iw,
-                    phi_conv,
-                    phi_aw,
-                    phi_iw,
-                    Q,
-                    Q_hk_iw,
-                    Q_hk_aw,
-                    Q_hk_kon,
-                    dt_s,
-                    Y_phiset_const,
-                )
+                    inv_R_1_aw, inv_R_1_iw, inv_R_a_il, inv_R_a_aw, inv_R_a_iw, inv_R_r_aw,
+                    C_1_aw, C_1_iw, C_air, Hve_vent, Hve_inf, Htr_w,
+                    T_out, T_eq, T_sup, Ta, Tm_aw, Tm_iw,
+                    phi_conv, phi_aw, phi_iw, Q, Q_hk_iw, Q_hk_aw, Q_hk_kon, dt_s, Y_phiset_const)
                 Tm_aw, Ta, Tm_iw = float(sol_phi[0]), float(sol_phi[3]), float(sol_phi[6])
             else:
                 Tm_aw, Ta, Tm_iw = float(sol_tset[0]), float(sol_tset[3]), float(sol_tset[6])
@@ -705,6 +528,7 @@ def calculate_timeseries_7r2c(
         Qh_arr[t] = max(Q, 0.0)
         Qc_arr[t] = max(-Q, 0.0)
 
+
     T_in = pd.Series(T_in_arr, index=idx, dtype=float)
     Q_heat = pd.Series(Qh_arr, index=idx, dtype=float)
     Q_cool = pd.Series(Qc_arr, index=idx, dtype=float)
@@ -712,9 +536,8 @@ def calculate_timeseries_7r2c(
     return T_in, Q_heat, Q_cool
 
 
-def split_gains_7r2c(
-    g_int: np.ndarray, g_sol: np.ndarray, f_conv: float, f_aw: float, f_iw: float
-) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+def split_gains_7r2c(g_int: np.ndarray, g_sol: np.ndarray, f_conv: float, f_aw: float, f_iw: float) \
+        -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Vectorised split of internal & solar gains into convective and radiant parts."""
     g_int = np.asarray(g_int, dtype=float)
     g_sol = np.asarray(g_sol, dtype=float)
@@ -742,146 +565,49 @@ def clamp_power(Q_req: float, on_h: bool, on_c: bool, P_h_max: float, P_c_max: f
         return Q, (Q > Q_req)
 
 
-def solve_step_tset_7r2c(
-    R_1_aw: float,
-    R_1_iw: float,
-    R_alpha_star_il: float,
-    R_alpha_star_aw: float,
-    R_alpha_star_iw: float,
-    R_rest_aw: float,
-    C_1_aw: float,
-    C_1_iw: float,
-    C_air: float,
-    sigma_aw: float,
-    sigma_iw: float,
-    sigma_conv: float,
-    Hve_vent: float,
-    Hve_inf: float,
-    Htr_w: float,
-    T_out: float,
-    T_eq: float,
-    T_sup: float,
-    T_set: float,
-    Ta_prev: float,
-    Tm_aw_prev: float,
-    Tm_iw_prev: float,
-    phi_conv: float,
-    phi_aw: float,
-    phi_iw: float,
-    tau: float,
-    Y: Optional[np.ndarray] = None,
-) -> np.ndarray:
+def solve_step_tset_7r2c(R_1_aw: float, R_1_iw: float,
+        R_alpha_star_il: float, R_alpha_star_aw: float, R_alpha_star_iw: float, R_rest_aw: float,
+        C_1_aw: float, C_1_iw: float, C_air: float,
+        sigma_aw: float, sigma_iw: float, sigma_conv: float,
+        Hve_vent: float, Hve_inf: float, Htr_w: float,
+        T_out: float, T_eq: float, T_sup: float, T_set: float,
+        Ta_prev: float, Tm_aw_prev: float, Tm_iw_prev: float,
+        phi_conv: float, phi_aw: float, phi_iw: float,
+        tau: float, Y: Optional[np.ndarray] = None,
+    ) -> np.ndarray:
     """One-step 7R2C solve in setpoint mode (compute required HVAC load).
 
     Returns:
     np.ndarray: [Tm_aw, Ts_aw, T_lu_star, T_air=T_set, Q_hc_req, Ts_iw, Tm_iw]
     """
     if Y is None:
-        Y = calc_y_tset(
-            R_1_aw,
-            R_1_iw,
-            R_alpha_star_il,
-            R_alpha_star_aw,
-            R_alpha_star_iw,
-            R_rest_aw,
-            C_1_aw,
-            C_1_iw,
-            sigma_aw,
-            sigma_iw,
-            sigma_conv,
-            tau,
-        )
+        Y = calc_y_tset(R_1_aw, R_1_iw, R_alpha_star_il, R_alpha_star_aw, R_alpha_star_iw, R_rest_aw,
+                        C_1_aw, C_1_iw, sigma_aw, sigma_iw, sigma_conv, tau)
 
-    q = calc_q_tset(
-        R_rest_aw,
-        R_alpha_star_il,
-        Hve_inf,
-        Hve_vent,
-        C_1_aw,
-        C_1_iw,
-        C_air,
-        T_set,
-        T_eq,
-        T_out,
-        T_sup,
-        Tm_aw_prev,
-        Ta_prev,
-        Tm_iw_prev,
-        phi_conv,
-        phi_aw,
-        phi_iw,
-        tau,
-    )
+    q = calc_q_tset(R_rest_aw, R_alpha_star_il, Hve_inf, Hve_vent, C_1_aw, C_1_iw, C_air,
+                    T_set, T_eq, T_out, T_sup, Tm_aw_prev, Ta_prev, Tm_iw_prev,
+                    phi_conv, phi_aw, phi_iw, tau)
 
     return solve_y_tset_7r2c(Y, q, T_set)
 
 
-def solve_step_tset_7r2c_optim(
-    inv_R_1_aw: float,
-    inv_R_1_iw: float,
-    inv_R_a_il: float,
-    inv_R_a_aw: float,
-    inv_R_a_iw: float,
-    inv_R_r_aw: float,
-    C_1_aw: float,
-    C_1_iw: float,
-    C_air: float,
-    sigma_aw: float,
-    sigma_iw: float,
-    sigma_conv: float,
-    Hve_vent: float,
-    Hve_inf: float,
-    Htr_w: float,
-    T_out: float,
-    T_eq: float,
-    T_sup: float,
-    T_set: float,
-    Ta_prev: float,
-    Tm_aw_prev: float,
-    Tm_iw_prev: float,
-    phi_conv: float,
-    phi_aw: float,
-    phi_iw: float,
-    tau: float,
-    Y: Optional[np.ndarray] = None,
-) -> np.ndarray:
+def solve_step_tset_7r2c_optim(inv_R_1_aw: float, inv_R_1_iw: float,
+                            inv_R_a_il: float, inv_R_a_aw: float, inv_R_a_iw: float, inv_R_r_aw: float,
+                            C_1_aw: float, C_1_iw: float, C_air: float,
+                            sigma_aw: float, sigma_iw: float, sigma_conv: float,
+                            Hve_vent: float, Hve_inf: float, Htr_w: float,
+                            T_out: float, T_eq: float, T_sup: float, T_set: float,
+                            Ta_prev: float, Tm_aw_prev: float, Tm_iw_prev: float,
+                            phi_conv: float, phi_aw: float, phi_iw: float,
+                            tau: float, Y: Optional[np.ndarray] = None,
+    ) -> np.ndarray:
     if Y is None:
-        Y = calc_y_tset_optim(
-            inv_R_1_aw,
-            inv_R_1_iw,
-            inv_R_a_il,
-            inv_R_a_aw,
-            inv_R_a_iw,
-            inv_R_r_aw,
-            C_1_aw,
-            C_1_iw,
-            sigma_aw,
-            sigma_iw,
-            sigma_conv,
-            tau,
-        )
+        Y = calc_y_tset_optim(inv_R_1_aw, inv_R_1_iw, inv_R_a_il, inv_R_a_aw, inv_R_a_iw, inv_R_r_aw,
+                              C_1_aw, C_1_iw, sigma_aw, sigma_iw, sigma_conv, tau)
 
-    q = calc_q_tset_optim(
-        inv_R_r_aw,
-        inv_R_a_il,
-        Hve_inf,
-        Htr_w,
-        Hve_vent,
-        C_1_aw,
-        C_1_iw,
-        C_air,
-        T_set,
-        T_eq,
-        T_out,
-        T_sup,
-        Tm_aw_prev,
-        Ta_prev,
-        Tm_iw_prev,
-        phi_conv,
-        phi_aw,
-        phi_iw,
-        tau,
-    )
+    q = calc_q_tset_optim(inv_R_r_aw, inv_R_a_il, Hve_inf, Htr_w, Hve_vent, C_1_aw, C_1_iw, C_air,
+                          T_set, T_eq, T_out, T_sup, Tm_aw_prev, Ta_prev, Tm_iw_prev,
+                          phi_conv, phi_aw, phi_iw, tau)
 
     return solve_y_tset_7r2c(Y, q, T_set)
 
@@ -893,151 +619,49 @@ def solve_y_tset_7r2c(Y, q, T_set: float) -> np.ndarray:
     return np.array([y[0], y[1], y[2], T_set, y[3], y[4], y[5]], dtype=float)
 
 
-def solve_step_phiset_7r2c(
-    R_1_aw: float,
-    R_1_iw: float,
-    R_alpha_star_il: float,
-    R_alpha_star_aw: float,
-    R_alpha_star_iw: float,
-    R_rest_aw: float,
-    C_1_aw: float,
-    C_1_iw: float,
-    C_air: float,
-    Hve_vent: float,
-    Hve_inf: float,
-    Htr_w: float,
-    T_out: float,
-    T_eq: float,
-    T_sup: float,
-    Ta_prev: float,
-    Tm_aw_prev: float,
-    Tm_iw_prev: float,
-    phi_conv: float,
-    phi_aw: float,
-    phi_iw: float,
-    Q_hc: float,
-    Q_hk_iw: float,
-    Q_hk_aw: float,
-    Q_hk_kon: float,
-    tau: float,
-    Y: Optional[np.ndarray] = None,
-) -> np.ndarray:
+def solve_step_phiset_7r2c(R_1_aw: float, R_1_iw: float,
+                        R_alpha_star_il: float, R_alpha_star_aw: float, R_alpha_star_iw: float, R_rest_aw: float,
+                        C_1_aw: float, C_1_iw: float, C_air: float,
+                        Hve_vent: float, Hve_inf: float, Htr_w: float,
+                        T_out: float, T_eq: float, T_sup: float,
+                        Ta_prev: float, Tm_aw_prev: float, Tm_iw_prev: float,
+                        phi_conv: float, phi_aw: float, phi_iw: float,
+                        Q_hc: float, Q_hk_iw: float, Q_hk_aw: float, Q_hk_kon: float,
+                        tau: float, Y: Optional[np.ndarray] = None,
+    ) -> np.ndarray:
     """One-step 7R2C solve in applied‑load mode (compute resultant temperatures).
 
     Returns:
     np.ndarray: [Tm_aw, Ts_aw, T_lu_star, T_air, Q_hc, Ts_iw, Tm_iw]
     """
     if Y is None:
-        Y = calc_y_phiset(
-            R_1_aw,
-            R_1_iw,
-            R_alpha_star_il,
-            R_alpha_star_aw,
-            R_alpha_star_iw,
-            R_rest_aw,
-            C_1_aw,
-            C_1_iw,
-            C_air,
-            Hve_inf,
-            Hve_vent,
-            Htr_w,
-            tau,
-        )
+        Y = calc_y_phiset(R_1_aw, R_1_iw, R_alpha_star_il, R_alpha_star_aw, R_alpha_star_iw, R_rest_aw,
+                          C_1_aw, C_1_iw, C_air, Hve_inf, Hve_vent, Htr_w, tau)
 
-    q = calc_q_phiset(
-        R_rest_aw,
-        Hve_inf,
-        Hve_vent,
-        Htr_w,
-        C_1_aw,
-        C_1_iw,
-        C_air,
-        Q_hk_aw,
-        Q_hk_iw,
-        Q_hk_kon,
-        T_eq,
-        T_out,
-        T_sup,
-        Tm_aw_prev,
-        Ta_prev,
-        Tm_iw_prev,
-        phi_conv,
-        phi_aw,
-        phi_iw,
-        tau,
-    )
+    q = calc_q_phiset(R_rest_aw, Hve_inf, Hve_vent, Htr_w, C_1_aw, C_1_iw, C_air,
+                      Q_hk_aw, Q_hk_iw, Q_hk_kon, T_eq, T_out, T_sup, Tm_aw_prev, Ta_prev, Tm_iw_prev,
+                      phi_conv, phi_aw, phi_iw, tau)
 
     return solve_y_phiset_7r2c(Y, q, Q_hc)
 
 
-def solve_step_phiset_7r2c_optim(
-    inv_R_1_aw: float,
-    inv_R_1_iw: float,
-    inv_R_a_il: float,
-    inv_R_a_aw: float,
-    inv_R_a_iw: float,
-    inv_R_r_aw: float,
-    C_1_aw: float,
-    C_1_iw: float,
-    C_air: float,
-    Hve_vent: float,
-    Hve_inf: float,
-    H_tr_w: float,
-    T_out: float,
-    T_eq: float,
-    T_sup: float,
-    Ta_prev: float,
-    Tm_aw_prev: float,
-    Tm_iw_prev: float,
-    phi_conv: float,
-    phi_aw: float,
-    phi_iw: float,
-    Q_hc: float,
-    Q_hk_iw: float,
-    Q_hk_aw: float,
-    Q_hk_kon: float,
-    tau: float,
-    Y: Optional[np.ndarray] = None,
-) -> np.ndarray:
+def solve_step_phiset_7r2c_optim(inv_R_1_aw: float, inv_R_1_iw: float,
+                                inv_R_a_il: float, inv_R_a_aw: float, inv_R_a_iw: float, inv_R_r_aw: float,
+                                C_1_aw: float, C_1_iw: float, C_air: float,
+                                Hve_vent: float, Hve_inf: float, H_tr_w: float,
+                                T_out: float, T_eq: float, T_sup: float,
+                                Ta_prev: float, Tm_aw_prev: float, Tm_iw_prev: float,
+                                phi_conv: float, phi_aw: float, phi_iw: float,
+                                Q_hc: float, Q_hk_iw: float, Q_hk_aw: float, Q_hk_kon: float,
+                                tau: float, Y: Optional[np.ndarray] = None,
+    ) -> np.ndarray:
     if Y is None:
-        Y = calc_y_phiset_optim(
-            inv_R_1_aw,
-            inv_R_1_iw,
-            inv_R_a_il,
-            inv_R_a_aw,
-            inv_R_a_iw,
-            inv_R_r_aw,
-            C_1_aw,
-            C_1_iw,
-            C_air,
-            Hve_inf,
-            Hve_vent,
-            H_tr_w,
-            tau,
-        )
+        Y = calc_y_phiset_optim(inv_R_1_aw, inv_R_1_iw, inv_R_a_il, inv_R_a_aw, inv_R_a_iw, inv_R_r_aw,
+                                C_1_aw, C_1_iw, C_air, Hve_inf, Hve_vent, H_tr_w, tau)
 
-    q = calc_q_phiset_optim(
-        inv_R_r_aw,
-        Hve_inf,
-        Hve_vent,
-        H_tr_w,
-        C_1_aw,
-        C_1_iw,
-        C_air,
-        Q_hk_aw,
-        Q_hk_iw,
-        Q_hk_kon,
-        T_eq,
-        T_out,
-        T_sup,
-        Tm_aw_prev,
-        Ta_prev,
-        Tm_iw_prev,
-        phi_conv,
-        phi_aw,
-        phi_iw,
-        tau,
-    )
+    q = calc_q_phiset_optim(inv_R_r_aw, Hve_inf, Hve_vent, H_tr_w, C_1_aw, C_1_iw, C_air,
+                            Q_hk_aw, Q_hk_iw, Q_hk_kon, T_eq, T_out, T_sup, Tm_aw_prev, Ta_prev, Tm_iw_prev,
+                            phi_conv, phi_aw, phi_iw, tau)
 
     return solve_y_phiset_7r2c(Y, q, Q_hc)
 
@@ -1049,20 +673,8 @@ def solve_y_phiset_7r2c(Y, q, Q_hc: float) -> np.ndarray:
     return np.array([y[0], y[1], y[2], y[3], Q_hc, y[4], y[5]], dtype=float)
 
 
-def calc_y_tset(
-    R_1_aw,
-    R_1_iw,
-    R_alpha_star_il,
-    R_alpha_star_aw,
-    R_alpha_star_iw,
-    R_rest_aw,
-    C_1_aw,
-    C_1_iw,
-    sigma_aw,
-    sigma_iw,
-    sigma_conv,
-    tau,
-):
+def calc_y_tset(R_1_aw, R_1_iw, R_alpha_star_il, R_alpha_star_aw, R_alpha_star_iw, R_rest_aw,
+                C_1_aw, C_1_iw, sigma_aw, sigma_iw, sigma_conv, tau):
     """Calculate Y matrix for 7R2C setpoint mode."""
     # Precompute conductances (1/R) — speeds things up
     inv_R_1_aw = 1.0 / R_1_aw
@@ -1072,36 +684,12 @@ def calc_y_tset(
     inv_R_a_iw = 1.0 / R_alpha_star_iw
     inv_R_r_aw = 1.0 / R_rest_aw
 
-    return calc_y_tset_optim(
-        inv_R_1_aw,
-        inv_R_1_iw,
-        inv_R_a_il,
-        inv_R_a_aw,
-        inv_R_a_iw,
-        inv_R_r_aw,
-        C_1_aw,
-        C_1_iw,
-        sigma_aw,
-        sigma_iw,
-        sigma_conv,
-        tau,
-    )
+    return calc_y_tset_optim(inv_R_1_aw, inv_R_1_iw, inv_R_a_il, inv_R_a_aw, inv_R_a_iw, inv_R_r_aw,
+                             C_1_aw, C_1_iw, sigma_aw, sigma_iw, sigma_conv, tau)
 
 
-def calc_y_tset_optim(
-    inv_R_1_aw,
-    inv_R_1_iw,
-    inv_R_a_il,
-    inv_R_a_aw,
-    inv_R_a_iw,
-    inv_R_r_aw,
-    C_1_aw,
-    C_1_iw,
-    sigma_aw,
-    sigma_iw,
-    sigma_conv,
-    tau,
-):
+def calc_y_tset_optim(inv_R_1_aw, inv_R_1_iw, inv_R_a_il, inv_R_a_aw, inv_R_a_iw, inv_R_r_aw,
+                      C_1_aw, C_1_iw, sigma_aw, sigma_iw, sigma_conv, tau):
     """Calculate Y matrix for 7R2C setpoint mode in optimized way."""
     # Build Y (6x6)
     Y = np.zeros((6, 6), dtype=np.float64)
@@ -1127,7 +715,7 @@ def calc_y_tset_optim(
 
     # Row 4 (theta_s_iw)
     Y[4, 2] = inv_R_a_iw
-    Y[4, 3] = sigma_iw  # Q_hc radiant to IW surface
+    Y[4, 3] = sigma_iw # Q_hc radiant to IW surface
     Y[4, 4] = -(inv_R_a_iw + inv_R_1_iw)
     Y[4, 5] = inv_R_1_iw
 
@@ -1137,75 +725,20 @@ def calc_y_tset_optim(
 
     return Y
 
-
-def calc_q_tset(
-    R_rest_aw,
-    R_alpha_star_il,
-    Hve_inf,
-    Hve_vent,
-    Htr_w,
-    C_1_aw,
-    C_1_iw,
-    C_air,
-    T_set,
-    T_eq,
-    T_out,
-    T_sup,
-    Tm_aw_prev,
-    Ta_prev,
-    Tm_iw_prev,
-    phi_conv,
-    phi_aw,
-    phi_iw,
-    tau,
-):
+def calc_q_tset(R_rest_aw, R_alpha_star_il, Hve_inf, Hve_vent, Htr_w, C_1_aw, C_1_iw, C_air,
+                T_set, T_eq, T_out, T_sup, Tm_aw_prev, Ta_prev, Tm_iw_prev,
+                phi_conv, phi_aw, phi_iw, tau):
     """Calculate q matrix for 7R2C setpoint mode."""
     inv_R_rest_aw = 1.0 / R_rest_aw
     inv_R_a_il = 1.0 / R_alpha_star_il
-    return calc_q_tset_optim(
-        inv_R_rest_aw,
-        inv_R_a_il,
-        Hve_inf,
-        Hve_vent,
-        Htr_w,
-        C_1_aw,
-        C_1_iw,
-        C_air,
-        T_set,
-        T_eq,
-        T_out,
-        T_sup,
-        Tm_aw_prev,
-        Ta_prev,
-        Tm_iw_prev,
-        phi_conv,
-        phi_aw,
-        phi_iw,
-        tau,
-    )
+    return calc_q_tset_optim(inv_R_rest_aw, inv_R_a_il, Hve_inf, Hve_vent, Htr_w, C_1_aw, C_1_iw, C_air,
+                             T_set, T_eq, T_out, T_sup, Tm_aw_prev, Ta_prev, Tm_iw_prev,
+                             phi_conv, phi_aw, phi_iw, tau)
 
 
-def calc_q_tset_optim(
-    inv_R_r_aw,
-    inv_R_a_il,
-    Hve_inf,
-    Hve_vent,
-    Htr_w,
-    C_1_aw,
-    C_1_iw,
-    C_air,
-    T_set,
-    T_eq,
-    T_out,
-    T_sup,
-    Tm_aw_prev,
-    Ta_prev,
-    Tm_iw_prev,
-    phi_conv,
-    phi_aw,
-    phi_iw,
-    tau,
-):
+def calc_q_tset_optim(inv_R_r_aw, inv_R_a_il, Hve_inf, Hve_vent, Htr_w, C_1_aw, C_1_iw, C_air,
+                      T_set, T_eq, T_out, T_sup, Tm_aw_prev, Ta_prev, Tm_iw_prev,
+                      phi_conv, phi_aw, phi_iw, tau):
     """Calculate q matrix for 7R2C setpoint mode in optimized way."""
     q = np.zeros(6, dtype=np.float64)
 
@@ -1237,21 +770,8 @@ def calc_q_tset_optim(
     return q
 
 
-def calc_y_phiset(
-    R_1_aw,
-    R_1_iw,
-    R_alpha_star_il,
-    R_alpha_star_aw,
-    R_alpha_star_iw,
-    R_rest_aw,
-    C_1_aw,
-    C_1_iw,
-    C_air,
-    Hve_inf,
-    Hve_vent,
-    Htr_w,
-    tau,
-):
+def calc_y_phiset(R_1_aw, R_1_iw, R_alpha_star_il, R_alpha_star_aw, R_alpha_star_iw, R_rest_aw, C_1_aw, C_1_iw, C_air,
+                  Hve_inf, Hve_vent, Htr_w, tau):
     """Calculate Y matrix for 7R2C setpoint mode."""
     # Precompute conductances (1/R) — speeds things up
     inv_R_1_aw = 1.0 / R_1_aw
@@ -1263,38 +783,12 @@ def calc_y_phiset(
     Hve_inf = float(Hve_inf)
     Hve_vent = float(Hve_vent)
 
-    return calc_y_phiset_optim(
-        inv_R_1_aw,
-        inv_R_1_iw,
-        inv_R_a_il,
-        inv_R_a_aw,
-        inv_R_a_iw,
-        inv_R_r_aw,
-        C_1_aw,
-        C_1_iw,
-        C_air,
-        Hve_inf,
-        Hve_vent,
-        Htr_w,
-        tau,
-    )
+    return calc_y_phiset_optim(inv_R_1_aw, inv_R_1_iw, inv_R_a_il, inv_R_a_aw, inv_R_a_iw, inv_R_r_aw,
+                               C_1_aw, C_1_iw, C_air, Hve_inf, Hve_vent, Htr_w, tau)
 
 
-def calc_y_phiset_optim(
-    inv_R_1_aw,
-    inv_R_1_iw,
-    inv_R_a_il,
-    inv_R_a_aw,
-    inv_R_a_iw,
-    inv_R_r_aw,
-    C_1_aw,
-    C_1_iw,
-    C_air,
-    Hve_inf,
-    Hve_vent,
-    Htr_w,
-    tau,
-):
+def calc_y_phiset_optim(inv_R_1_aw, inv_R_1_iw, inv_R_a_il, inv_R_a_aw, inv_R_a_iw, inv_R_r_aw,
+                        C_1_aw, C_1_iw, C_air, Hve_inf, Hve_vent, Htr_w, tau):
     """Calculate Y matrix for 7R2C setpoint mode in optimized way."""
     # Build Y (6x6)
     Y = np.zeros((6, 6), dtype=np.float64)
@@ -1331,75 +825,18 @@ def calc_y_phiset_optim(
     return Y
 
 
-def calc_q_phiset(
-    R_rest_aw,
-    Hve_inf,
-    Hve_vent,
-    Htr_w,
-    C_1_aw,
-    C_1_iw,
-    C_air,
-    Q_hk_aw,
-    Q_hk_iw,
-    Q_hk_kon,
-    T_eq,
-    T_out,
-    T_sup,
-    Tm_aw_prev,
-    Ta_prev,
-    Tm_iw_prev,
-    phi_conv,
-    phi_aw,
-    phi_iw,
-    tau,
-):
+def calc_q_phiset(R_rest_aw, Hve_inf, Hve_vent, Htr_w, C_1_aw, C_1_iw, C_air,
+                  Q_hk_aw, Q_hk_iw, Q_hk_kon, T_eq, T_out, T_sup, Tm_aw_prev, Ta_prev, Tm_iw_prev,
+                  phi_conv, phi_aw, phi_iw, tau):
     inv_R_rest_aw = 1.0 / R_rest_aw
-    return calc_q_phiset_optim(
-        inv_R_rest_aw,
-        Hve_inf,
-        Hve_vent,
-        Htr_w,
-        C_1_aw,
-        C_1_iw,
-        C_air,
-        Q_hk_aw,
-        Q_hk_iw,
-        Q_hk_kon,
-        T_eq,
-        T_out,
-        T_sup,
-        Tm_aw_prev,
-        Ta_prev,
-        Tm_iw_prev,
-        phi_conv,
-        phi_aw,
-        phi_iw,
-        tau,
-    )
+    return calc_q_phiset_optim(inv_R_rest_aw, Hve_inf, Hve_vent, Htr_w, C_1_aw, C_1_iw, C_air,
+                               Q_hk_aw, Q_hk_iw, Q_hk_kon, T_eq, T_out, T_sup, Tm_aw_prev, Ta_prev, Tm_iw_prev,
+                               phi_conv, phi_aw, phi_iw, tau)
 
 
-def calc_q_phiset_optim(
-    inv_R_r_aw,
-    Hve_inf,
-    Hve_vent,
-    Htr_w,
-    C_1_aw,
-    C_1_iw,
-    C_air,
-    Q_hk_aw,
-    Q_hk_iw,
-    Q_hk_kon,
-    T_eq,
-    T_out,
-    T_sup,
-    Tm_aw_prev,
-    Ta_prev,
-    Tm_iw_prev,
-    phi_conv,
-    phi_aw,
-    phi_iw,
-    tau,
-):
+def calc_q_phiset_optim(inv_R_r_aw, Hve_inf, Hve_vent, Htr_w, C_1_aw, C_1_iw, C_air,
+                        Q_hk_aw, Q_hk_iw, Q_hk_kon, T_eq, T_out, T_sup, Tm_aw_prev, Ta_prev, Tm_iw_prev,
+                        phi_conv, phi_aw, phi_iw, tau):
     q = np.zeros(6, dtype=np.float64)
 
     # Row 0 (theta_m_aw)
