@@ -39,9 +39,6 @@ print("Loaded data keys:", list(data.keys()))
 # Instantiate and configure the generator
 gen = TimeSeriesGenerator()
 
-# Define the building ID to process and visualize
-building_id = 31991690  # Select the object you want to simulate
-
 gen.add_objects(objects)
 
 # Generate time series
@@ -53,6 +50,9 @@ summary_kwh = (summary / 1000).round(0).astype(int)
 summary_kwh.rename(columns=lambda x: x.replace("[W]", "[kW]").replace("[Wh]", "[kWh]"), inplace=True)
 print(summary_kwh.to_string())
 
+# Define the building ID to process and visualize
+building_id = summary.index[0]  # Change index to visualize different buildings
+
 # Visualize results for the processed building
 # Note: We're using the same building_id as defined above
 building_data = df[building_id][Types.HVAC]
@@ -63,8 +63,7 @@ fig, ax1 = plt.subplots(figsize=(15, 6))
 # Solar radiation plot (GHI) with separate y-axis
 ax2 = ax1.twinx()
 ax2.plot(
-    building_data.index, data["weather"][Cols.SOLAR_GHI],
-    label="Solar Radiation (GHI)", color="tab:orange", alpha=0.3
+    building_data.index, data["weather"][Cols.SOLAR_GHI], label="Solar Radiation (GHI)", color="tab:orange", alpha=0.3
 )
 ax2.set_ylabel("Solar Radiation (W/m²)")
 ax2.legend(loc="upper right")
@@ -115,8 +114,7 @@ fig, ax1 = plt.subplots(figsize=(15, 6))
 
 # Plot outdoor temperature on left y-axis
 air_temp = data["weather"][f"{Cols.TEMP_AIR}@2m"]
-ax1.plot(building_data.index, air_temp
-         , label="Outdoor Temp", color="tab:cyan", alpha=0.7)
+ax1.plot(building_data.index, air_temp, label="Outdoor Temp", color="tab:cyan", alpha=0.7)
 
 ax1.set_ylabel("Outdoor Temp (°C)")
 ax1.set_ylim(air_temp.min().round() - 2, air_temp.max().round() + 2)
