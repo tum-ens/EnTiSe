@@ -59,7 +59,7 @@ def test_r7c2_basic_generation(basic_7r2c_object, minimal_weather):
     assert "summary" in result
     assert "timeseries" in result
     assert isinstance(result["timeseries"], pd.DataFrame)
-    assert len(result["timeseries"]) == 24
+    assert len(result["timeseries"]) == len(minimal_weather)
 
 
 def test_r7c2_output_columns(basic_7r2c_object, minimal_weather):

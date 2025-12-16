@@ -1,4 +1,4 @@
-id,area[m2],transmittance[W m-2 K-1],orientation[degree],tilt[degree],shading[1]
+id,area[m2],g_value[1],orientation[degree],tilt[degree],shading[1]
 367791,93.6,0.85,90,90,0.7
 367791,115.2,0.85,180,90,0.7
 367791,93.6,0.85,270,90,0.7
