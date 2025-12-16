@@ -452,7 +452,7 @@ def calculate_timeseries_7r2c(meta: dict, series: dict, controls: pd.DataFrame, 
 
     # Initial states (air and two masses)
     Ta = T_init
-    Tm_aw = T_init
+    Tm_aw = (3 * T_init - T_out_arr[0]) / 4  # Simplified initial guess
     Tm_iw = T_init
 
     T_in_arr = np.empty(n_len, dtype=float)
