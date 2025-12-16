@@ -5,14 +5,15 @@ This module contains functions for handling water temperature data
 used by the Jordan & Vajen DHW method.
 """
 
-import os
 import logging
-from typing import Dict, Any, Union
+import os
+from typing import Any, Dict, Union
 
 import pandas as pd
 
-from entise.constants import Columns as C, Objects as O
 import entise.methods.dhw.defaults as defaults
+from entise.constants import Columns as C
+from entise.constants import Objects as O
 from entise.methods.dhw.jordanvajen.utils import _get_data_path
 
 logger = logging.getLogger(__name__)
@@ -90,7 +91,7 @@ def _get_water_temp_cold(obj: Dict[str, Any], data: Dict[str, Any], df: pd.DataF
 
         try:
             # Load VDI4655 cold water temperature data
-            path = _get_data_path('shared', 'cold_water_temp_vdi4655.csv')
+            path = _get_data_path("shared", "cold_water_temp_vdi4655.csv")
             logger.debug(f"Loading cold water temperature data from {path}")
 
             if not os.path.exists(path):
@@ -100,7 +101,9 @@ def _get_water_temp_cold(obj: Dict[str, Any], data: Dict[str, Any], df: pd.DataF
 
             # Validate required columns
             if C.MONTH not in water_temp_data.columns or O.TEMP_WATER_COLD not in water_temp_data.columns:
-                raise ValueError(f"Cold water temperature data missing required columns: {C.MONTH} or {O.TEMP_WATER_COLD}")
+                raise ValueError(
+                    f"Cold water temperature data missing required columns: {C.MONTH} or {O.TEMP_WATER_COLD}"
+                )
 
             # Extract months from datetime index and match with water temperature data
             months = pd.Series(df.index.month, index=df.index)
@@ -108,13 +111,19 @@ def _get_water_temp_cold(obj: Dict[str, Any], data: Dict[str, Any], df: pd.DataF
 
             # Check if any NaN values in the result
             if water_temp.isna().any():
-                logger.warning(f"Some cold water temperatures could not be determined. Using default value {defaults.DEFAULT_TEMP_COLD}°C.")
+                logger.warning(
+                    f"Some cold water temperatures could not be determined. Using default value {defaults.DEFAULT_TEMP_COLD}°C."
+                )
                 water_temp = water_temp.fillna(defaults.DEFAULT_TEMP_COLD)
 
-            logger.info(f"Using VDI4655 cold water temperatures: min={water_temp.min():.1f}°C, max={water_temp.max():.1f}°C")
+            logger.info(
+                f"Using VDI4655 cold water temperatures: min={water_temp.min():.1f}°C, max={water_temp.max():.1f}°C"
+            )
 
         except Exception as e:
-            logger.error(f"Error getting cold water temperature: {str(e)}. Using default value {defaults.DEFAULT_TEMP_COLD}°C.")
+            logger.error(
+                f"Error getting cold water temperature: {str(e)}. Using default value {defaults.DEFAULT_TEMP_COLD}°C."
+            )
             water_temp = pd.Series(defaults.DEFAULT_TEMP_COLD, index=df.index)
 
     # Convert to Series if it's a scalar
@@ -199,7 +208,7 @@ def _get_water_temperatures(obj: Dict[str, Any], data: Dict[str, Any], weather: 
 
     # Convert index to datetime with consistent timezone
     df.index = pd.to_datetime(df.index, utc=True)
-    if hasattr(weather[C.DATETIME].iloc[0], 'tz') and weather[C.DATETIME].iloc[0].tz is not None:
+    if hasattr(weather[C.DATETIME].iloc[0], "tz") and weather[C.DATETIME].iloc[0].tz is not None:
         df.index = df.index.tz_convert(weather[C.DATETIME].iloc[0].tz)
 
     # Get cold and hot water temperatures
@@ -210,6 +219,8 @@ def _get_water_temperatures(obj: Dict[str, Any], data: Dict[str, Any], weather: 
     if (df[O.TEMP_WATER_HOT] <= df[O.TEMP_WATER_COLD]).any():
         logger.warning("Hot water temperature is not greater than cold water temperature for some timestamps")
 
-    logger.info(f"Water temperatures: cold={df[O.TEMP_WATER_COLD].mean():.1f}°C, hot={df[O.TEMP_WATER_HOT].mean():.1f}°C")
+    logger.info(
+        f"Water temperatures: cold={df[O.TEMP_WATER_COLD].mean():.1f}°C, hot={df[O.TEMP_WATER_HOT].mean():.1f}°C"
+    )
 
     return df

@@ -1,6 +1,8 @@
 from abc import ABC, abstractmethod
-from typing import List, Dict
+from typing import Dict, List
+
 import pandas as pd
+
 
 class AuxiliaryMethod(ABC):
     name: str
@@ -41,7 +43,7 @@ class BaseSelector:
         # Sort strategies: most specific (most requirements) first
         sorted_strategies = sorted(
             self.strategies,
-            key=lambda s: -(len(getattr(s, "required_keys", [])) + len(getattr(s, "required_timeseries", [])))
+            key=lambda s: -(len(getattr(s, "required_keys", [])) + len(getattr(s, "required_timeseries", []))),
         )
 
         for strategy in sorted_strategies:
@@ -58,6 +60,3 @@ class BaseSelector:
         has_required_ts = all(k in data and data[k] is not None for k in strategy.required_timeseries)
 
         return has_required_keys and has_required_ts
-
-
-

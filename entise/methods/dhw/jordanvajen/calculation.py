@@ -6,18 +6,23 @@ to generate DHW demand time series.
 """
 
 import logging
-from typing import Dict, List, Tuple, Union, Any, Optional
+from typing import Any, Dict, Tuple, Union
 
+import holidays
 import numpy as np
 import pandas as pd
-import holidays
 
-from entise.constants import Columns as C, Objects as O, Keys as K, Types
 import entise.methods.dhw.defaults as defaults
+from entise.constants import Columns as C
+from entise.constants import Objects as O
 from entise.methods.dhw.jordanvajen.utils import (
-    SECONDS_PER_MINUTE, MINUTES_PER_HOUR, HOURS_PER_DAY, DAYS_PER_YEAR,
-    SECONDS_PER_HOUR, SECONDS_PER_DAY, SEASONAL_FACTOR,
-    _convert_time_to_seconds_of_day, _find_nearest_activity_times, _sample_event_volumes
+    DAYS_PER_YEAR,
+    SEASONAL_FACTOR,
+    SECONDS_PER_HOUR,
+    SECONDS_PER_MINUTE,
+    _convert_time_to_seconds_of_day,
+    _find_nearest_activity_times,
+    _sample_event_volumes,
 )
 
 logger = logging.getLogger(__name__)
@@ -30,7 +35,7 @@ def _calculate_volume_timeseries(
     sigma_rel: Dict[str, float],
     daily_demand: Union[float, pd.Series],
     index: pd.DatetimeIndex,
-    rng: np.random.Generator
+    rng: np.random.Generator,
 ) -> pd.Series:
     """
     Generate a DHW volume time series using vectorized inverse sampling.
@@ -88,11 +93,7 @@ def _calculate_volume_timeseries(
 
     # Pre-compute seconds‐of‐day for each timestamp
     logger.debug(f"Converting {len(index)} timestamps to seconds of day")
-    seconds_of_day = (
-        index.dt.hour * SECONDS_PER_HOUR +
-        index.dt.minute * SECONDS_PER_MINUTE +
-        index.dt.second
-    )
+    seconds_of_day = index.dt.hour * SECONDS_PER_HOUR + index.dt.minute * SECONDS_PER_MINUTE + index.dt.second
 
     # Pre-compute per‐timestamp daily weight by matching each ts to its date
     if isinstance(daily_demand, pd.Series):
@@ -122,8 +123,10 @@ def _calculate_volume_timeseries(
 
         # Compute number of events N
         N = int(round(annual_volumes[event] / mean_flows[event]))
-        logger.debug(f"Event type '{event}': {N} events, annual volume={annual_volumes[event]:.1f} L, "
-                    f"mean flow={mean_flows[event]:.1f} L/event")
+        logger.debug(
+            f"Event type '{event}': {N} events, annual volume={annual_volumes[event]:.1f} L, "
+            f"mean flow={mean_flows[event]:.1f} L/event"
+        )
 
         # Skip if no events
         if N <= 0:
@@ -134,11 +137,7 @@ def _calculate_volume_timeseries(
         activity_times = _convert_time_to_seconds_of_day(df_ev[C.TIME])
 
         # Apply probability_day × seasonal × holiday weighting before normalization
-        weighted_probs = (
-            df_ev[C.PROBABILITY].values *
-            df_ev[C.PROBABILITY_DAY].values *
-            df_ev[SEASONAL_FACTOR].values
-        )
+        weighted_probs = df_ev[C.PROBABILITY].values * df_ev[C.PROBABILITY_DAY].values * df_ev[SEASONAL_FACTOR].values
 
         # Find nearest activity time for each timestamp
         idxs, order = _find_nearest_activity_times(activity_times, seconds_of_day)
@@ -163,7 +162,7 @@ def _calculate_volume_timeseries(
         # Inverse‐sample event positions using CDF
         cdf = np.cumsum(probs)
         r = rng.random(N)
-        positions = np.searchsorted(cdf, r, side='right')
+        positions = np.searchsorted(cdf, r, side="right")
 
         # Sample per-event volumes from truncated normal distribution
         volumes = _sample_event_volumes(mean_flows[event], sigma_rel[event], N, rng)
@@ -189,9 +188,11 @@ def _calculate_volume_timeseries(
 
     # Create Series with timestamp index
     result = pd.Series(flat, index=index)
-    logger.debug(f"Created time series with {len(result)} points, "
-                f"total volume={result.sum():.1f} L, "
-                f"non-zero points={(result > 0).sum()} ({(result > 0).sum()/len(result)*100:.1f}%)")
+    logger.debug(
+        f"Created time series with {len(result)} points, "
+        f"total volume={result.sum():.1f} L, "
+        f"non-zero points={(result > 0).sum()} ({(result > 0).sum()/len(result)*100:.1f}%)"
+    )
 
     return result
 
@@ -201,7 +202,7 @@ def _calculate_timeseries(
     activity_data: pd.DataFrame,
     daily_demand: Union[float, pd.Series],
     water_temp: pd.DataFrame,
-    obj: Dict[str, Any]
+    obj: Dict[str, Any],
 ) -> Tuple[pd.Series, pd.Series]:
     """
     Generate DHW demand time series using stochastic inverse sampling.
@@ -290,44 +291,43 @@ def _calculate_timeseries(
     end_date = index.iat[-1].date()
     days_in_simulation = (end_date - start_date).days + 1
     years_in_simulation = days_in_simulation / DAYS_PER_YEAR
-    logger.info(f"Simulation period: {start_date} to {end_date} ({days_in_simulation} days, {years_in_simulation:.2f} years)")
+    logger.info(
+        f"Simulation period: {start_date} to {end_date} ({days_in_simulation} days, {years_in_simulation:.2f} years)"
+    )
 
     # Determine weekdays
-    days = pd.DataFrame({C.DATE: pd.date_range(start_date, end_date, freq='D')})
+    days = pd.DataFrame({C.DATE: pd.date_range(start_date, end_date, freq="D")})
     days[C.DAY_OF_WEEK] = days[C.DATE].dt.weekday
     logger.debug(f"Created calendar with {len(days)} days")
 
     # Cross-join only matching weekday rows
     # `activity_data.day` is 0=Mon…6=Sun
-    events = days.merge(
-        activity_data,
-        left_on=C.DAY_OF_WEEK,
-        right_on=C.DAY_OF_WEEK,
-        how='inner'
-    )
+    events = days.merge(activity_data, left_on=C.DAY_OF_WEEK, right_on=C.DAY_OF_WEEK, how="inner")
     logger.debug(f"Created events DataFrame with {len(events)} rows after day-of-week matching")
 
     # Include seasonal factor (sine wave)
     seasonal_var = obj.get(O.SEASONAL_VARIATION, defaults.DEFAULT_SEASONAL_VARIATION)
     seasonal_peak = obj.get(O.SEASONAL_PEAK_DAY, defaults.DEFAULT_SEASONAL_PEAK_DAY)
-    events['dayofyear'] = events[C.DATE].dt.dayofyear
-    events[SEASONAL_FACTOR] = (1 + seasonal_var * np.cos(2 * np.pi * (events['dayofyear'] - seasonal_peak) / DAYS_PER_YEAR))
+    events["dayofyear"] = events[C.DATE].dt.dayofyear
+    events[SEASONAL_FACTOR] = 1 + seasonal_var * np.cos(
+        2 * np.pi * (events["dayofyear"] - seasonal_peak) / DAYS_PER_YEAR
+    )
     logger.info(f"Applied seasonal variation: amplitude={seasonal_var:.2f}, peak day={seasonal_peak}")
 
     # Holiday suppression (treat holidays as Sundays)
     location = obj.get(O.HOLIDAYS_LOCATION, [])
     if isinstance(location, str) and location.strip():
-        location = location.split(',')
+        location = location.split(",")
         country = location[-1].strip()
         subdiv = location[0].strip() if len(location) > 1 else None
 
         try:
-            holiday_dates = set(holidays.country_holidays(
-                country=country,
-                subdiv=subdiv,
-                years=index.dt.year.unique()
-            ).keys())
-            logger.info(f"Applied holiday suppression for {country}{f', {subdiv}' if subdiv else ''}: {len(holiday_dates)} holidays")
+            holiday_dates = set(
+                holidays.country_holidays(country=country, subdiv=subdiv, years=index.dt.year.unique()).keys()
+            )
+            logger.info(
+                f"Applied holiday suppression for {country}{f', {subdiv}' if subdiv else ''}: {len(holiday_dates)} holidays"
+            )
         except (KeyError, ValueError) as e:
             logger.warning(f"Invalid holiday location: {location}. Error: {str(e)}")
             holiday_dates = set()
@@ -353,8 +353,7 @@ def _calculate_timeseries(
     if isinstance(daily_demand, pd.Series):
         # Filter to dates within the simulation period
         daily_demand_filtered = daily_demand[
-            (daily_demand.index.date >= start_date) &
-            (daily_demand.index.date <= end_date)
+            (daily_demand.index.date >= start_date) & (daily_demand.index.date <= end_date)
         ]
         total_annual_demand = daily_demand_filtered.sum() * DAYS_PER_YEAR / days_in_simulation
         logger.info(f"Calculated total annual demand from daily demand series: {total_annual_demand:.1f} L/year")
@@ -389,12 +388,16 @@ def _calculate_timeseries(
             mean_flows[event] = group[C.FLOW_RATE].iloc[0] * group[C.DURATION].iloc[0]  # liters per event
             sigma_rel[event] = group[C.FLOW_RATE_SIGMA].iloc[0] / group[C.FLOW_RATE].iloc[0]  # relative sigma
 
-            logger.info(f"Event type '{event}': probability_day={prob_day:.4f}, annual volume={annual_volumes[event]:.1f} L, "
-                       f"mean flow={mean_flows[event]:.1f} L/event, sigma_rel={sigma_rel[event]:.4f}")
+            logger.info(
+                f"Event type '{event}': probability_day={prob_day:.4f}, annual volume={annual_volumes[event]:.1f} L, "
+                f"mean flow={mean_flows[event]:.1f} L/event, sigma_rel={sigma_rel[event]:.4f}"
+            )
     else:
         # If probability_day is not available, distribute evenly
         event_count = len(event_groups)
-        logger.warning(f"probability_day column not found in activity data. Distributing demand evenly across {event_count} event types.")
+        logger.warning(
+            f"probability_day column not found in activity data. Distributing demand evenly across {event_count} event types."
+        )
 
         for event, group in event_groups:
             annual_volumes[event] = total_annual_demand / event_count
@@ -403,51 +406,46 @@ def _calculate_timeseries(
             mean_flows[event] = group[C.FLOW_RATE].iloc[0] * group[C.DURATION].iloc[0]  # liters per event
             sigma_rel[event] = group[C.FLOW_RATE_SIGMA].iloc[0] / group[C.FLOW_RATE].iloc[0]  # relative sigma
 
-            logger.info(f"Event type '{event}': annual volume={annual_volumes[event]:.1f} L, "
-                       f"mean flow={mean_flows[event]:.1f} L/event, sigma_rel={sigma_rel[event]:.4f}")
+            logger.info(
+                f"Event type '{event}': annual volume={annual_volumes[event]:.1f} L, "
+                f"mean flow={mean_flows[event]:.1f} L/event, sigma_rel={sigma_rel[event]:.4f}"
+            )
 
     # Generate volume time series using vectorized inverse sampling
     logger.info("Generating volume time series using vectorized inverse sampling")
-    ts_volume = _calculate_volume_timeseries(
-        events,
-        annual_volumes,
-        mean_flows,
-        sigma_rel,
-        daily_demand,
-        index,
-        rng
-    )
+    ts_volume = _calculate_volume_timeseries(events, annual_volumes, mean_flows, sigma_rel, daily_demand, index, rng)
 
     # Scale to match total annual demand
-    ts_volume *= total_annual_demand/ts_volume.sum()
+    ts_volume *= total_annual_demand / ts_volume.sum()
     logger.debug(f"Scaled volume time series to match total annual demand: {total_annual_demand:.1f} L")
 
     # Log volume statistics
     volume_stats = {
-        'total': ts_volume.sum(),
-        'mean': ts_volume.mean(),
-        'max': ts_volume.max(),
-        'min': ts_volume.min(),
-        'non_zero': (ts_volume > 0).sum(),
-        'zero': (ts_volume == 0).sum()
+        "total": ts_volume.sum(),
+        "mean": ts_volume.mean(),
+        "max": ts_volume.max(),
+        "min": ts_volume.min(),
+        "non_zero": (ts_volume > 0).sum(),
+        "zero": (ts_volume == 0).sum(),
     }
-    logger.info(f"Volume time series statistics: total={volume_stats['total']:.1f} L, "
-               f"mean={volume_stats['mean']:.3f} L, max={volume_stats['max']:.3f} L, "
-               f"non-zero points: {volume_stats['non_zero']} ({volume_stats['non_zero']/len(ts_volume)*100:.1f}%)")
+    logger.info(
+        f"Volume time series statistics: total={volume_stats['total']:.1f} L, "
+        f"mean={volume_stats['mean']:.3f} L, max={volume_stats['max']:.3f} L, "
+        f"non-zero points: {volume_stats['non_zero']} ({volume_stats['non_zero']/len(ts_volume)*100:.1f}%)"
+    )
 
     # Calculate energy demand
     delta_t = temp_hot - temp_cold
-    energy_factor = defaults.DEFAULT_DENSITY_WATER / 1000 * defaults.DEFAULT_SPECIFIC_HEAT_WATER * delta_t / 3600  # Convert to Wh
+    energy_factor = (
+        defaults.DEFAULT_DENSITY_WATER / 1000 * defaults.DEFAULT_SPECIFIC_HEAT_WATER * delta_t / 3600
+    )  # Convert to Wh
     ts_energy = ts_volume * energy_factor
 
     # Log energy statistics
-    energy_stats = {
-        'total': ts_energy.sum(),
-        'mean': ts_energy.mean(),
-        'max': ts_energy.max(),
-        'min': ts_energy.min()
-    }
-    logger.info(f"Energy time series statistics: total={energy_stats['total']:.1f} Wh, "
-               f"mean={energy_stats['mean']:.3f} Wh, max={energy_stats['max']:.3f} Wh")
+    energy_stats = {"total": ts_energy.sum(), "mean": ts_energy.mean(), "max": ts_energy.max(), "min": ts_energy.min()}
+    logger.info(
+        f"Energy time series statistics: total={energy_stats['total']:.1f} Wh, "
+        f"mean={energy_stats['mean']:.3f} Wh, max={energy_stats['max']:.3f} Wh"
+    )
 
     return ts_volume.round(3), ts_energy.round().astype(int)

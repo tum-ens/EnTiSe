@@ -18,7 +18,8 @@ import pandas as pd
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
 # Import the new TimeSeriesGenerator
-from entise.constants import Types, Columns as C
+from entise.constants import Columns as C
+from entise.constants import Types
 from entise.core.generator import TimeSeriesGenerator
 
 # Load data
@@ -54,8 +55,8 @@ summary, df = gen.generate(data, workers=1)
 # Print summary
 print("Summary:")
 summary_mwh = summary.copy()
-summary_mwh['wind:generation[Wh]'] /= 1e6  # Convert Wh to MWh
-summary_mwh['wind:maximum_generation[W]'] /= 1e6  # Convert W to MW
+summary_mwh["wind:generation[Wh]"] /= 1e6  # Convert Wh to MWh
+summary_mwh["wind:maximum_generation[W]"] /= 1e6  # Convert W to MW
 summary_mwh.columns = [col.replace("[W", "[MW") for col in summary_mwh.columns]
 summary_mwh = summary_mwh.astype(float).round(2)
 print(summary_mwh.to_string())

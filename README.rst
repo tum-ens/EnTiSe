@@ -5,21 +5,7 @@ EnTiSe
 
 A simple tool for generating time series data related to energy systems and building operations.
 
-.. list-table::
-   :widths: auto
-
-   * - License
-     - |badge_license|
-   * - Package
-     - |badge_pypi| |badge_python|
-   * - Build Status
-     - |badge_github_actions| |badge_gitlab_ci|
-   * - Documentation
-     - |badge_documentation|
-   * - Development
-     - |badge_issue_open| |badge_issue_closes| |badge_pr_open| |badge_pr_closes|
-   * - Community
-     - |badge_contributing| |badge_contributors| |badge_repo_counts|
+|badge_license| |badge_pypi| |badge_python| |badge_documentation|
 
 .. contents::
     :depth: 1
@@ -87,6 +73,7 @@ Repository Structure
   - **core/**: Core functionality and base classes.
   - **data/**: Data files and data handling utilities.
   - **methods/**: Implementation of various time series generation methods.
+  - **services/**: Auxiliary services supporting the core functionality.
 - **tests/**: Folder for tests; structured by functionality.
 - **docs/**: Documentation source files.
 - **examples/**: Example scripts demonstrating usage of the package.
@@ -102,7 +89,7 @@ EnTiSe provides two flexible ways to generate time series data:
 Batch Processing
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-For generating multiple time series at once:
+For generating multiple time series at once, you can use the `TimeSeriesGenerator` and either add objects one by one or in bulk using DataFrames or dictionaries:
 
 .. code-block:: python
 
@@ -134,7 +121,7 @@ For generating multiple time series at once:
 Direct Method Access
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-For working with individual methods directly:
+For more granular access you can work with the methods directly:
 
 .. code-block:: python
 
@@ -163,21 +150,23 @@ EnTiSe supports generating time series for the following types:
 
 Integrated:
 
+- Electricity demand
 - Domestic Hot Water (DHW)
+- Heat pump (COP)
 - HVAC (Heating, Ventilation, and Air Conditioning)
+- Mobility (transportation-related data)
 - Occupancy data
 - Solar Photovoltaic (PV)
+- Wind energy
 
 Planned:
 
-- Concentrated Solar Power (CSP)
-- Electricity demand or supply
+- Concentrated Solar Power (CSP) (https://oemof-thermal.readthedocs.io/en/latest/concentrating_solar_power.html)
 - Geothermal energy
-- Hydroelectric power
-- Mobility (transportation-related data)
+- Hydroelectric power (https://github.com/IdahoLabResearch/HydroGenerate or https://github.com/9505-PNNL/wmpy_power or https://www.theoj.org/joss-papers/joss.03294/10.21105.joss.03294.pdf)
+- Solar thermal (https://oemof-thermal.readthedocs.io or https://www.theoj.org/joss-papers/joss.03294/10.21105.joss.03294.pdf)
 - Tidal energy
 - Wave energy
-- Wind energy
 
 Documentation
 ==============

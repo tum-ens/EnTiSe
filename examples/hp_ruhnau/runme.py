@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-from entise.constants import Types, SEP
+from entise.constants import SEP, Types
 from entise.core.generator import TimeSeriesGenerator
 
 # Load data

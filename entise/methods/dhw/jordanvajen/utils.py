@@ -5,6 +5,7 @@ This module contains general utility functions used by the Jordan & Vajen DHW me
 """
 
 import os
+
 import numpy as np
 import pandas as pd
 
@@ -16,7 +17,7 @@ DAYS_PER_YEAR = 365.0
 SECONDS_PER_HOUR = SECONDS_PER_MINUTE * MINUTES_PER_HOUR
 SECONDS_PER_DAY = SECONDS_PER_HOUR * HOURS_PER_DAY
 LITERS_PER_M3 = 1000.0
-JOULES_TO_WATT_HOURS = 1/3600.0
+JOULES_TO_WATT_HOURS = 1 / 3600.0
 MAX_TIME_DIFF_MINUTES = 360  # Maximum time difference for timestamp-centric approach (6 hours)
 DEFAULT_CHUNK_SIZE_DAYS = 365  # Default chunk size for processing large datasets (days)
 DEFAULT_CHUNK_SIZE_HOURS = DEFAULT_CHUNK_SIZE_DAYS * 24  # Default chunk size for timestamp processing
@@ -47,8 +48,8 @@ def _get_data_path(source: str, filename: str, subdir: str = "dhw") -> str:
         Full path to the data file
     """
     current_dir = os.path.dirname(os.path.abspath(__file__))
-    root_dir = os.path.abspath(os.path.join(current_dir, '..', '..', '..', '..'))
-    return os.path.join(root_dir, 'entise', 'data', subdir, source, filename)
+    root_dir = os.path.abspath(os.path.join(current_dir, "..", "..", "..", ".."))
+    return os.path.join(root_dir, "entise", "data", subdir, source, filename)
 
 
 def _convert_time_to_seconds_of_day(time_strings: pd.Series) -> np.ndarray:
@@ -67,11 +68,11 @@ def _convert_time_to_seconds_of_day(time_strings: pd.Series) -> np.ndarray:
     np.ndarray
         Array of seconds of day
     """
-    t_parts = time_strings.str.split(':', expand=True).astype(int)
+    t_parts = time_strings.str.split(":", expand=True).astype(int)
     return (
-        t_parts[0] * SECONDS_PER_HOUR +
-        t_parts[1] * SECONDS_PER_MINUTE +
-        t_parts.get(2, 0)  # Handle case where seconds are not provided
+        t_parts[0] * SECONDS_PER_HOUR
+        + t_parts[1] * SECONDS_PER_MINUTE
+        + t_parts.get(2, 0)  # Handle case where seconds are not provided
     ).values
 
 
@@ -98,7 +99,7 @@ def _find_nearest_activity_times(activity_times: np.ndarray, seconds_of_day: np.
     times_sorted = activity_times[order]
 
     # Find nearest activity slot for every timestamp
-    pos = np.searchsorted(times_sorted, seconds_of_day, side='left')
+    pos = np.searchsorted(times_sorted, seconds_of_day, side="left")
     left = np.clip(pos - 1, 0, len(times_sorted) - 1)
     right = np.clip(pos, 0, len(times_sorted) - 1)
 
@@ -112,10 +113,7 @@ def _find_nearest_activity_times(activity_times: np.ndarray, seconds_of_day: np.
 
 
 def _sample_event_volumes(
-    mean_flow: float,
-    sigma_relative: float,
-    num_events: int,
-    rng: np.random.Generator
+    mean_flow: float, sigma_relative: float, num_events: int, rng: np.random.Generator
 ) -> np.ndarray:
     """
     Sample event volumes from a truncated normal distribution.
@@ -140,7 +138,7 @@ def _sample_event_volumes(
         Array of sampled volumes
     """
     from scipy.stats import truncnorm
-    
+
     mu = mean_flow
     sigma = mu * sigma_relative
 

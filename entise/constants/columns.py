@@ -17,11 +17,13 @@ class Columns:
     COP = "cop"  # Coefficient of Performance
     DEMAND = "demand"  # e.g. heating or cooling demand (Wh)
     DURATION = "duration[s]"  # (s)
-    DURATION_SIGMA = f"duration_sigma[s]"  # Standard deviation of duration (s)
+    DURATION_SIGMA = "duration_sigma[s]"  # Standard deviation of duration (s)
     EVENT = "event"  # event
     FLOW_RATE = "flow_rate[l s-1]"  # l/s
     FLOW_RATE_SIGMA = "flow_rate_sigma[l s-1]"  # l/s
     FLH = "full_load_hours[h]"  # full load hours (h; [0, 8760])
+    HUMIDITY_REL = "relative_humidity[1]"
+    G_VALUE = "g_value[1]"  # g-value of glazing
     GAIN = "gain[W]"  # Gain (W)
     GENERATION = "generation[Wh]"  # e.g. pv, wind (Wh)
     LOAD = "load"  # Load values (e.g., electricity load) (W)
@@ -48,7 +50,7 @@ class Columns:
     TEMP_WATER_HOT = f"hot_{TEMP_WATER}"  # Hot water temperature (°C)
     TILT = "tilt[degree]"  # Tilt (degrees; 0 = horizontal)
     TIME = "time"  # time of day
-    TRANSMITTANCE = "transmittance[W m-2 K-1]"  # Transmittance (W/m2/K)
+    U_VALUE = "u_value[W m-2 K-1]"  # U-value (W/m²K)
     WIND_SPEED = "wind_speed[m s-1]"  # Wind speed (m/s)
     WIND_DIRECTION = "wind_from_direction[degree]"  # Wind direction (degree)
     DTYPES = {
@@ -84,7 +86,7 @@ class Columns:
         TEMP_WATER_HOT: float | int | np.number,
         TILT: float | int | np.number,
         TIME: str,
-        TRANSMITTANCE: float | int | np.number,
+        G_VALUE: float | int | np.number,
         WIND_SPEED: float | int | np.number,
         WIND_DIRECTION: float | int | np.number,
     }
