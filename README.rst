@@ -89,7 +89,7 @@ EnTiSe provides two flexible ways to generate time series data:
 Batch Processing
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-For generating multiple time series at once:
+For generating multiple time series at once, you can use the `TimeSeriesGenerator` and either add objects one by one or in bulk using DataFrames or dictionaries:
 
 .. code-block:: python
 
@@ -121,7 +121,7 @@ For generating multiple time series at once:
 Direct Method Access
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-For working with individual methods directly:
+For more granular access you can work with the methods directly:
 
 .. code-block:: python
 
