@@ -9,6 +9,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ---
 
 ## [Unreleased]
+
+## [1.1.0] New HVAC models and performance improvements - 2025-12-16
 ### Added
 - Added 5R1C HVAC model based on ISO 13790 (`#80`, `!54`)
 - Added 7R2C HVAC model based on VDI 6007 (`#81`, `!55`)
