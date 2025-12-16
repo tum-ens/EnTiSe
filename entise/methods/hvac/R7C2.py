@@ -1,5 +1,5 @@
 import logging
-from typing import Optional, Tuple
+from typing import Optional
 
 
 import numpy as np
@@ -14,7 +14,6 @@ from entise.core.base import Method
 from entise.core.utils import resolve_ts_or_scalar
 from entise.methods.auxiliary.internal.selector import InternalGains
 from entise.methods.auxiliary.solar.selector import SolarGains
-from entise.methods.auxiliary.ventilation.selector import Ventilation
 from entise.methods.auxiliary.ventilation.strategies import VentilationTimeSeries
 from entise.methods.hvac.defaults import (
 DEFAULT_ACTIVE_COOLING,
@@ -44,8 +43,39 @@ _WEATHER_CACHE: dict[tuple, pd.DataFrame] = {}
 
 
 class R7C2(Method):
+    """
+        Implements the VDI 6007 7R2C (7-Resistor, 2-Capacitor) thermal model for building simulation.
 
-    """TODO: Docstring for 7R2C model."""
+        This model represents a thermal zone using two main thermal masses:
+        1.  **AW (Außenwände):** External, non-adiabatic components (walls, windows, roofs).
+        2.  **IW (Innenwände):** Internal, adiabatic components (partitions, intermediate floors).
+
+        The model resolves the heat balance for three temperature nodes:
+        * **theta_m_aw:** Temperature of the thermal mass of exterior components.
+        * **theta_m_iw:** Temperature of the thermal mass of interior components.
+        * **theta_air:** Indoor air temperature.
+
+        Key Features:
+        * **Window Integration:** Windows are modeled as part of the AW path (parallel conductance),
+            affecting the equivalent resistance `R_rest_AW` and `R_1_AW`.
+        * **Solar Distribution:** Solar gains are split between convective (air) and radiative parts
+            (hitting AW and IW surfaces) based on VDI 6007-1 guidelines.
+        * **Equivalent Outdoor Temperature (T_eq):** Uses a conductance-weighted average of sol-air temperature
+            (opaque parts) and dry-bulb temperature (windows) to drive the AW node.
+        * **Initialization:** Includes an internal warm-up loop to settle thermal mass temperatures before the
+            main simulation period, preventing initialization bias.
+
+        Required Inputs (in `obj`):
+        * `R_1_AW`, `C_1_AW`: Resistance/Capacity of the inner layer of exterior walls.
+        * `R_rest_AW`: Resistance of the outer layer of exterior walls (including windows).
+        * `R_1_IW`, `C_1_IW`: Resistance/Capacity of interior walls.
+        * `R_alpha_star_IL`, `R_alpha_star_AW`, `R_alpha_star_IW`: Radiative star network resistances.
+
+        Returns:
+        * Indoor Air Temperature
+        * Heating Load (Power & Demand)
+        * Cooling Load (Power & Demand)
+        """
 
     types = [Types.HVAC]
     name = "7R2C"
@@ -309,7 +339,7 @@ class R7C2(Method):
             ts_data = self.get_with_backup(data, ts_key)
             if ts_data is None:
                 raise ValueError(f"Required timeseries key '{ts_key}' for '{key}' not found in data.")
-        data_out[key] = ts_data
+            data_out[key] = ts_data
 
         for key in self.optional_timeseries:
             ts_key = self.get_with_method_backup(obj, key, method_type)
