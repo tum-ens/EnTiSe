@@ -1,10 +1,8 @@
-
-from typing import Dict, Type, List, Optional
-from entise.core.base import Method, method_registry
 import importlib
 import pkgutil
-import os
-import sys
+from typing import List, Optional, Type
+
+from entise.core.base import Method, method_registry
 
 
 def register(cls: Type[Method], strategy_name: str = None):
@@ -26,10 +24,7 @@ def list_strategies() -> list:
 
 
 def get_methods_by_type(ts_type: str):
-    return [
-        method for method in method_registry.values()
-        if ts_type in getattr(method, "types", [])
-    ]
+    return [method for method in method_registry.values() if ts_type in getattr(method, "types", [])]
 
 
 def import_all_methods(path: Optional[List[str]] = None, package_name: Optional[str] = None):
@@ -44,6 +39,7 @@ def import_all_methods(path: Optional[List[str]] = None, package_name: Optional[
 
     for _, modname, _ in pkgutil.walk_packages(path, package_name + "."):
         importlib.import_module(modname)
+
 
 # The import_all_methods() function is called explicitly in entise/methods/__init__.py
 # to avoid circular imports

@@ -1,8 +1,13 @@
-import pandas as pd
 import numpy as np
-from entise.core.runner import RowExecutor
+import pandas as pd
+
+from entise.constants import Columns as C
+from entise.constants import Keys as K
+from entise.constants import Objects as O
+from entise.constants import Types
 from entise.core.base import Method
-from entise.constants import Keys as K, Types, Objects as O, Columns as C
+from entise.core.runner import RowExecutor
+
 
 class DummyHVAC(Method):
     types = [Types.HVAC]
@@ -10,18 +15,13 @@ class DummyHVAC(Method):
     required_keys = []
 
     def generate(self, obj, data, ts_type):
-        ts = pd.DataFrame({
-            f"{C.LOAD}_{Types.HEATING}": np.ones(10),
-            f"{C.TEMP_IN}": np.full(10, 22.0)
-        })
+        ts = pd.DataFrame({f"{C.LOAD}_{Types.HEATING}": np.ones(10), f"{C.TEMP_IN}": np.full(10, 22.0)})
         summary = {f"{O.DEMAND}_{Types.HEATING}": float(ts[f"{C.LOAD}_{Types.HEATING}"].sum())}
         return {K.SUMMARY: summary, K.TIMESERIES: ts}
 
+
 def test_runner_executes_main_method():
-    static_inputs = {
-        O.ID: "test_obj",
-        Types.HVAC: "runner_dummy"
-    }
+    static_inputs = {O.ID: "test_obj", Types.HVAC: "runner_dummy"}
     data = {}
     strategies = {Types.HVAC: "runner_dummy"}
 
@@ -33,9 +33,12 @@ def test_runner_executes_main_method():
     assert isinstance(results[Types.HVAC][K.TIMESERIES], pd.DataFrame)
     assert not results[Types.HVAC][K.TIMESERIES].empty
 
+
 class CallCounter:
     """Helper to track how many times a method is executed."""
+
     count = 0
+
 
 class CachingDummy(Method):
     types = [Types.HVAC]
@@ -48,12 +51,10 @@ class CachingDummy(Method):
         summary = {f"{O.DEMAND}_{Types.HEATING}": float(ts[f"{C.LOAD}_{Types.HEATING}"].sum())}
         return {K.SUMMARY: summary, K.TIMESERIES: ts}
 
+
 def test_runner_uses_cache():
     CallCounter.count = 0
-    static_inputs = {
-        O.ID: "obj42",
-        Types.HVAC: "cache_test"
-    }
+    static_inputs = {O.ID: "obj42", Types.HVAC: "cache_test"}
     data = {}
     strategies = {Types.HVAC: "cache_test"}
 

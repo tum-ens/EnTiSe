@@ -1,12 +1,15 @@
 import logging
+from typing import Any, Dict, List, Tuple
+
 import pandas as pd
 from joblib import Parallel, delayed
 from tqdm import tqdm
-from typing import Dict, List, Any, Tuple
 
-from entise.constants import Objects as O, Keys as K, VALID_TYPES
+from entise.constants import VALID_TYPES
+from entise.constants import Keys as K
+from entise.constants import Objects as O
 from entise.core.runner import RowExecutor
-from entise.core.registry import get_strategy
+
 
 class TimeSeriesGenerator:
     def __init__(self, logging_level=logging.WARNING, raise_on_error: bool = False):
@@ -49,7 +52,9 @@ class TimeSeriesGenerator:
         else:
             raise TypeError("Input must be a dictionary, list of dictionaries, or a pandas DataFrame.")
 
-    def generate(self, data: Dict[str, pd.DataFrame], workers: int = -1) -> Tuple[pd.DataFrame, Dict[str, pd.DataFrame]]:
+    def generate(
+        self, data: Dict[str, pd.DataFrame], workers: int = -1
+    ) -> Tuple[pd.DataFrame, Dict[str, pd.DataFrame]]:
         """
         Generates time series data by processing objects in parallel or sequentially
         based on the number of workers specified.
@@ -72,7 +77,7 @@ class TimeSeriesGenerator:
         if self.objects.empty:
             raise ValueError("No objects have been added for processing.")
 
-        object_params = self.objects.to_dict('records')
+        object_params = self.objects.to_dict("records")
 
         if workers != 1:
             process = Parallel(n_jobs=workers, backend="loky")
@@ -96,13 +101,11 @@ class TimeSeriesGenerator:
             summary.update(result.get(K.SUMMARY, {}))
             timeseries[ts_type] = result.get(K.TIMESERIES, pd.DataFrame())
 
-        return {
-            O.ID: obj_id,
-            K.SUMMARY: summary,
-            K.TIMESERIES: timeseries
-        }
+        return {O.ID: obj_id, K.SUMMARY: summary, K.TIMESERIES: timeseries}
 
-    def _collect_results(self, results: List[Dict[str, Any]]) -> Tuple[pd.DataFrame, Dict[str, Dict[str, pd.DataFrame]]]:
+    def _collect_results(
+        self, results: List[Dict[str, Any]]
+    ) -> Tuple[pd.DataFrame, Dict[str, Dict[str, pd.DataFrame]]]:
         summaries = {}
         timeseries = {}
 

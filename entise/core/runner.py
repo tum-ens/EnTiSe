@@ -1,8 +1,7 @@
 import logging
-from typing import Dict, Any
+from typing import Any, Dict
 
 from entise.core.registry import get_strategy
-from entise.constants import Keys as K
 
 logger = logging.getLogger(__name__)
 

@@ -14,8 +14,9 @@ required interface for integration with the EnTiSe framework.
 
 import pandas as pd
 
+from entise.constants import VALID_TYPES
+from entise.constants import Objects as O
 from entise.core.base import Method
-from entise.constants import Objects as O, VALID_TYPES
 
 
 class FileLoader(Method):
@@ -39,14 +40,15 @@ class FileLoader(Method):
     Example:
         >>> from entise.methods.multiple.file import FileLoader
         >>> from entise.core.generator import TimeSeriesGenerator
-        >>> 
+        >>>
         >>> # Create a generator and add objects
         >>> gen = TimeSeriesGenerator()
         >>> gen.add_objects(objects_df)  # DataFrame with file parameters
-        >>> 
+        >>>
         >>> # Generate time series
         >>> summary, timeseries = gen.generate(data)  # data contains external time series
     """
+
     types = VALID_TYPES  # Adapt as needed
     name = "file"
 
@@ -57,12 +59,7 @@ class FileLoader(Method):
     output_summary = {}
     output_timeseries = {}
 
-    def generate(self, 
-                obj: dict = None, 
-                data: dict = None, 
-                ts_type: str = None,
-                *,
-                file: str = None):
+    def generate(self, obj: dict = None, data: dict = None, ts_type: str = None, *, file: str = None):
         """Load time series data from external sources.
 
         This method implements the abstract generate method from the Method base class.
@@ -94,10 +91,7 @@ class FileLoader(Method):
             >>> timeseries = result["timeseries"]
         """
         # Process keyword arguments
-        processed_obj, processed_data = self._process_kwargs(
-            obj, data,
-            file=file
-        )
+        processed_obj, processed_data = self._process_kwargs(obj, data, file=file)
 
         # Continue with existing implementation
         processed_obj, processed_data = get_input_data(processed_obj, processed_data, ts_type)

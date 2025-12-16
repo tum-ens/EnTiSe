@@ -1,8 +1,8 @@
 from entise.core.base_auxiliary import BaseSelector
 from entise.methods.auxiliary.solar import strategies
 
-
 STRATEGIES = [getattr(strategies, name)() for name in strategies.__all__]
+
 
 class SolarGains(BaseSelector):
     def __init__(self):
