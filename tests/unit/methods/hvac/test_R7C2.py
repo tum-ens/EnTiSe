@@ -51,7 +51,8 @@ def basic_7r2c_object():
 def test_r7c2_basic_generation(basic_7r2c_object, minimal_weather):
     """Test basic R7C2 generation with minimal inputs."""
     obj = basic_7r2c_object
-    data = {O.WEATHER: minimal_weather}
+    obj[O.WEATHER] = "basic_weather"
+    data = {"basic_weather": minimal_weather}
 
     r7c2 = R7C2()
     result = r7c2.generate(obj, data, Types.HVAC)
@@ -112,7 +113,8 @@ def test_r7c2_heating_demand_cold_weather(basic_7r2c_object):
     )
 
     obj = basic_7r2c_object
-    data = {O.WEATHER: cold_weather}
+    obj[O.WEATHER] = "cold_weather"
+    data = {"cold_weather": cold_weather}
 
     r7c2 = R7C2()
     result = r7c2.generate(obj, data, Types.HVAC)
@@ -611,6 +613,7 @@ def test_r7c2_vdi_steady_state():
         O.HEIGHT: 2.7,
         O.LAT: 49.0,
         O.LON: 11.0,
+        O.WEATHER: "steady_weather",
     }
 
     # Constant conditions for steady-state test
@@ -626,7 +629,7 @@ def test_r7c2_vdi_steady_state():
         index=index,
     )
 
-    data = {O.WEATHER: weather}
+    data = {"steady_weather": weather}
 
     r7c2 = R7C2()
     result = r7c2.generate(obj, data, Types.HVAC)
