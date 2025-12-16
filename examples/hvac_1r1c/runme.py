@@ -22,7 +22,7 @@ from entise.core.generator import TimeSeriesGenerator
 
 # Load data
 cwd = "."  # Current working directory: change if your kernel is not running in the same folder
-objects = pd.read_csv(os.path.join(cwd, "objects_example.csv"))
+objects = pd.read_csv(os.path.join(cwd, "objects.csv"))
 data = {}
 common_data_folder = "../common_data"
 for file in os.listdir(os.path.join(cwd, common_data_folder)):
@@ -49,7 +49,6 @@ print("Summary:")
 summary_kwh = (summary / 1000).round(0).astype(int)
 summary_kwh.rename(columns=lambda x: x.replace("[W]", "[kW]").replace("[Wh]", "[kWh]"), inplace=True)
 print(summary_kwh.to_string())
-exit()
 
 # Define the building ID to process and visualize
 building_id = summary.index[0]  # Change index to visualize different buildings
@@ -57,7 +56,6 @@ building_id = summary.index[0]  # Change index to visualize different buildings
 # Visualize results for the processed building
 # Note: We're using the same building_id as defined above
 building_data = df[building_id][Types.HVAC]
-building_data.to_csv(f"building_{building_id}_1R1C.csv", index=True)
 
 # Figure 1: Indoor & Outdoor Temperature and Solar Radiation (GHI)
 fig, ax1 = plt.subplots(figsize=(15, 6))
