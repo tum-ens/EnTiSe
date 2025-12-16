@@ -18,11 +18,11 @@ def dummy_windows():
         [
             {
                 O.ID: 42,
-                "area[m2]": 1.0,
-                "transmittance[W m-2 K-1]": 0.9,
-                "shading[1]": 1.0,
-                "tilt[degree]": 90,
-                "orientation[degree]": 180,
+                C.AREA: 1.0,
+                C.G_VALUE: 0.9,
+                C.SHADING: 1.0,
+                C.TILT: 90,
+                C.ORIENTATION: 180,
             }
         ]
     )

@@ -9,6 +9,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ---
 
 ## [Unreleased]
+### Added
+- Added 5R1C HVAC model based on ISO 13790 (`#80`, `!54`)
+- Added 7R2C HVAC model based on VDI 6007 (`#81`, `!55`)
+
 ### Changed
 - Improved computational speed of the 1R1C HVAC model by roughly 10x hitting architectural limits (`#83`, `!56`)
 
@@ -20,7 +24,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Added heat pump COP time series generation method based on Ruhnau et al. (`#37`,`!34`)
 
 ### Changed
-- Renamed weather and other columns to use the following convention: name[unit]@height (e.g., temp_[C]_2m) (`#41`, `!44`)
+- Renamed weather and other columns to use the following convention: name[unit]@height (e.g., temp[C]@2m) (`#41`, `!44`)
 - Changed timezone format in SolarGainsPVLib to IANA-based timezone handling due to breaking PVLib changes (`#77`, `!51`)
 
 ### Fixed
