@@ -141,21 +141,3 @@ cython_debug/
 # PyCharm
 .idea/
 .junie/
-
-
-**/ .DS_Store
-.venv_emobpy/
-benchmark_results.csv
-config_files/
-db/
-dhsim/
-examples/demandlib/
-examples/districtheatgen/
-examples/mob_vencopy/
-log/
-results/
-validation/
-venv_vencopy/
-benchmark_results.png
-examples/benchmark_results.csv
-examples/benchmark_results.png
