@@ -156,3 +156,4 @@ log/
 results/
 validation/
 venv_vencopy/
+benchmark_results.png
