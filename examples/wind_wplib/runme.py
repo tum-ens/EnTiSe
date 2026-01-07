@@ -4,17 +4,11 @@ Example script Wind: windlib
 This script demonstrates how to use the WindLib class to generate wind power time series
 based on weather data and wind turbine parameters. It loads data from CSV files, configures
 and runs the TimeSeriesGenerator, and visualizes the results.
-
-Benchmark-compatible version:
-- Adds get_input(path) and simulate(..., export, plot)
-- Keeps core + plotting logic intact (only wrapped/indented)
-- Prevents plots from running during benchmarking (export=False, plot=False)
 """
 
 import json
 import os
 import sys
-import time
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -30,73 +24,42 @@ from entise.core.generator import TimeSeriesGenerator
 
 
 def get_input(path: str):
-    """
-    Benchmark-compatible loader.
-
-    Returns
-    -------
-    objects : pd.DataFrame
-    data : dict
-    """
+    """Load objects + input data from the example folder."""
     objects = pd.read_csv(os.path.join(path, "objects.csv"))
 
     data = {}
     common_data_folder = os.path.join(path, "../common_data")
+    for file in os.listdir(common_data_folder):
+        if file.endswith(".csv"):
+            name = file.split(".")[0]
+            data[name] = pd.read_csv(os.path.join(common_data_folder, file), parse_dates=True)
+
     data_folder = os.path.join(path, "data")
-
-    # common_data
-    if os.path.isdir(common_data_folder):
-        for file in os.listdir(common_data_folder):
-            fp = os.path.join(common_data_folder, file)
-            if file.endswith(".csv"):
-                name = file.split(".")[0]
-                data[name] = pd.read_csv(fp, parse_dates=True)
-
-    # data/
-    if os.path.isdir(data_folder):
-        for file in os.listdir(data_folder):
-            fp = os.path.join(data_folder, file)
-            if file.endswith(".csv"):
-                name = file.split(".")[0]
-                data[name] = pd.read_csv(fp, parse_dates=True)
-            if file.endswith(".json"):
-                name = file.split(".")[0]
-                with open(fp, "r") as f:
-                    data[name] = json.load(f)
+    for file in os.listdir(data_folder):
+        if file.endswith(".csv"):
+            name = file.split(".")[0]
+            data[name] = pd.read_csv(os.path.join(data_folder, file), parse_dates=True)
+        if file.endswith(".json"):
+            name = file.split(".")[0]
+            with open(os.path.join(data_folder, file), "r") as f:
+                data[name] = json.load(f)
 
     return objects, data
 
 
-def simulate(
-    objects: pd.DataFrame,
-    data: dict,
-    workers: int,
-    path: str,
-    export: bool = True,
-    plot: bool = True,
-):
-    """
-    Benchmark-compatible simulator.
-
-    - For benchmarking: call with export=False, plot=False (fast: only gen.generate()).
-    - For normal usage: export/plot True (same behavior as original script).
-
-    Returns
-    -------
-    summary, df
-    """
-    # Instantiate and configure the generator
+def simulate(objects: pd.DataFrame, data: dict, workers: int, path: str, export: bool = False, plot: bool = False):
+    """Run only the core generation step (benchmark-timed)."""
     gen = TimeSeriesGenerator()
+
+    # Filter objects to only include one object (for debugging)
     gen.add_objects(objects)
 
-    # Generate time series
     summary, df = gen.generate(data, workers=workers)
-
-    # Benchmark fast path: absolutely nothing else
-    if not (export or plot):
-        return summary, df
+    return summary, df
 
 
+def analyze(objects: pd.DataFrame, data: dict, summary: pd.DataFrame, df: dict):
+    """Print + plot (not part of benchmark timing)."""
     print("Loaded data keys:", list(data.keys()))
 
     # Print summary
@@ -122,251 +85,291 @@ def simulate(
             power = row[C.POWER] if not pd.isna(row[C.POWER]) else 1
             system_configs[obj_id] = {"turbine_type": turbine_type, "hub_height": hub_height, "power": power}
 
-    if plot:
-        # Figure 1: Comparative analysis between different wind turbine systems
-        # Get the maximum generation for each system
-        max_gen = {}
-        total_gen = {}
-        for obj_id in df:
-            # Extract scalar value from Series
-            max_value = df[obj_id][Types.WIND].max()
-            if hasattr(max_value, "iloc"):
-                max_value = max_value.iloc[0]
-            max_gen[obj_id] = max_value
+    # Figure 1: Comparative analysis between different wind turbine systems
+    # Get the maximum generation for each system
+    max_gen = {}
+    total_gen = {}
+    for obj_id in df:
+        # Extract scalar value from Series
+        max_value = df[obj_id][Types.WIND].max()
+        if hasattr(max_value, "iloc"):
+            max_value = max_value.iloc[0]
+        max_gen[obj_id] = max_value
 
-            # Extract scalar value from Series
-            total_value = df[obj_id][Types.WIND].sum() / 1000  # Convert to kWh
-            if hasattr(total_value, "iloc"):
-                total_value = total_value.iloc[0]
-            total_gen[obj_id] = total_value
+        # Extract scalar value from Series
+        total_value = df[obj_id][Types.WIND].sum() / 1000  # Convert to kWh
+        if hasattr(total_value, "iloc"):
+            total_value = total_value.iloc[0]
+        total_gen[obj_id] = total_value
 
-        # Create a bar chart for maximum generation
-        plt.figure(figsize=(12, 6))
-        plt.subplot(1, 2, 1)
-        plt.bar(range(len(max_gen)), list(max_gen.values()), color="#1f77b4")
-        plt.xticks(range(len(max_gen)), [f"ID {id}" for id in max_gen.keys()], rotation=45)
-        plt.title("Maximum Wind Power Generation by System")
-        plt.ylabel("Maximum Power (W)")
-        plt.grid(axis="y")
+    # Create a bar chart for maximum generation
+    plt.figure(figsize=(12, 6))
+    plt.subplot(1, 2, 1)
+    plt.bar(range(len(max_gen)), list(max_gen.values()), color="#1f77b4")
+    plt.xticks(range(len(max_gen)), [f"ID {id}" for id in max_gen.keys()], rotation=45)
+    plt.title("Maximum Wind Power Generation by System")
+    plt.ylabel("Maximum Power (W)")
+    plt.grid(axis="y")
 
-        # Create a bar chart for total generation
-        plt.subplot(1, 2, 2)
-        plt.bar(range(len(total_gen)), list(total_gen.values()), color="#1f77b4")
-        plt.xticks(range(len(total_gen)), [f"ID {id}" for id in total_gen.keys()], rotation=45)
-        plt.title("Total Annual Wind Power Generation by System")
-        plt.ylabel("Total Generation (kWh)")
-        plt.grid(axis="y")
+    # Create a bar chart for total generation
+    plt.subplot(1, 2, 2)
+    plt.bar(range(len(total_gen)), list(total_gen.values()), color="#1f77b4")
+    plt.xticks(range(len(total_gen)), [f"ID {id}" for id in total_gen.keys()], rotation=45)
+    plt.title("Total Annual Wind Power Generation by System")
+    plt.ylabel("Total Generation (kWh)")
+    plt.grid(axis="y")
 
-        plt.tight_layout()
-        plt.show()
+    plt.tight_layout()
+    plt.show()
 
-        # Figure 2: Year timeseries visualization for all systems
-        fig, axes = plt.subplots(2, 4, figsize=(16, 10))
-        axes = axes.flatten()  # Flatten the 2D array of axes for easier indexing
+    # Figure 2: Year timeseries visualization for all systems
+    fig, axes = plt.subplots(2, 4, figsize=(16, 10))
+    axes = axes.flatten()  # Flatten the 2D array of axes for easier indexing
 
-        # For each wind turbine system, create a separate subplot
-        for i, obj_id in enumerate(df):
-            # Get turbine parameters for the title
-            turbine_type = system_configs[obj_id]["turbine_type"] if obj_id in system_configs else "Default"
-            hub_height = system_configs[obj_id]["hub_height"] if obj_id in system_configs else "Default"
-            power = system_configs[obj_id]["power"] if obj_id in system_configs else 1
+    # For each wind turbine system, create a separate subplot
+    for i, obj_id in enumerate(df):
+        # Get turbine parameters for the title
+        turbine_type = system_configs[obj_id]["turbine_type"] if obj_id in system_configs else "Default"
+        hub_height = system_configs[obj_id]["hub_height"] if obj_id in system_configs else "Default"
+        power = system_configs[obj_id]["power"] if obj_id in system_configs else 1
 
-            # Plot the time series
-            df[obj_id][Types.WIND].plot(ax=axes[i], color="#1f77b4", linewidth=1)
-            axes[i].set_title(f"Turbine: {turbine_type}, Power: {power/1e6:.1f}MW")
-            axes[i].set_xlabel("Time")
-            axes[i].set_ylabel("Power (W)")
-            axes[i].grid(True)
+        # Plot the time series
+        df[obj_id][Types.WIND].plot(ax=axes[i], color="#1f77b4", linewidth=1)
+        axes[i].set_title(f"Turbine: {turbine_type}, Power: {power/1e6:.1f}MW")
+        axes[i].set_xlabel("Time")
+        axes[i].set_ylabel("Power (W)")
+        axes[i].grid(True)
 
-        plt.tight_layout()
-        plt.show()
+    plt.tight_layout()
+    plt.show()
 
-        # Figure 3: Wind Power Curve Analysis
-        fig, axes = plt.subplots(2, 4, figsize=(16, 10))
-        axes = axes.flatten()  # Flatten the 2D array of axes for easier indexing
+    # Figure 3: Wind Power Curve Analysis
+    fig, axes = plt.subplots(2, 4, figsize=(16, 10))
+    axes = axes.flatten()  # Flatten the 2D array of axes for easier indexing
 
-        # For each wind turbine system, create a separate subplot
-        for i, obj_id in enumerate(df):
-            ts = df[obj_id][Types.WIND]
+    # For each wind turbine system, create a separate subplot
+    for i, obj_id in enumerate(df):
+        ts = df[obj_id][Types.WIND]
 
-            # Get turbine parameters for the title
-            turbine_type = system_configs[obj_id]["turbine_type"] if obj_id in system_configs else "Default"
-            hub_height = system_configs[obj_id]["hub_height"] if obj_id in system_configs else "Default"
-            power = system_configs[obj_id]["power"] if obj_id in system_configs else 1
+        # Get turbine parameters for the title
+        turbine_type = system_configs[obj_id]["turbine_type"] if obj_id in system_configs else "Default"
+        hub_height = system_configs[obj_id]["hub_height"] if obj_id in system_configs else "Default"
+        power = system_configs[obj_id]["power"] if obj_id in system_configs else 1
 
-            # Get the weather data
-            weather_data = data["weather"].copy()
-            weather_data["datetime"] = pd.to_datetime(weather_data["datetime"])
-            weather_data.set_index("datetime", inplace=True)
+        # Get the weather data
+        weather_data = data["weather"].copy()
+        weather_data["datetime"] = pd.to_datetime(weather_data["datetime"])
+        weather_data.set_index("datetime", inplace=True)
 
-            # Ensure the index is a DatetimeIndex
-            if not isinstance(weather_data.index, pd.DatetimeIndex):
-                weather_data.index = pd.to_datetime(weather_data.index, utc=True)
+        # Ensure the index is a DatetimeIndex
+        if not isinstance(weather_data.index, pd.DatetimeIndex):
+            weather_data.index = pd.to_datetime(weather_data.index, utc=True)
 
-            # Resample weather data to hourly frequency
-            weather_resampled = weather_data.resample("h").mean()
+        # Resample weather data to hourly frequency
+        weather_resampled = weather_data.resample("h").mean()
 
-            # Merge power data with wind speed
-            merged_data = pd.DataFrame({"power": ts.values.flatten()}, index=ts.index)
-            merged_data["wind_speed"] = weather_resampled[f"{C.WIND_SPEED}@100m"]
+        # Merge power data with wind speed
+        merged_data = pd.DataFrame({"power": ts.values.flatten()}, index=ts.index)
+        merged_data["wind_speed"] = weather_resampled[f"{C.WIND_SPEED}@100m"]
 
-            # Remove NaN values
-            merged_data = merged_data.dropna()
+        # Remove NaN values
+        merged_data = merged_data.dropna()
 
-            # Create bins for wind speed
-            bins = np.linspace(0, 25, 26)  # 0 to 25 m/s in 1 m/s bins
-            merged_data["wind_speed_bin"] = pd.cut(merged_data["wind_speed"], bins)
+        # Create bins for wind speed
+        bins = np.linspace(0, 25, 26)  # 0 to 25 m/s in 1 m/s bins
+        merged_data["wind_speed_bin"] = pd.cut(merged_data["wind_speed"], bins)
 
-            # Calculate average power for each wind speed bin
-            power_curve = merged_data.groupby("wind_speed_bin")["power"].mean()
+        # Calculate average power for each wind speed bin
+        power_curve = merged_data.groupby("wind_speed_bin")["power"].mean()
 
-            # Plot the power curve
-            bin_centers = [(bin.left + bin.right) / 2 for bin in power_curve.index]
-            axes[i].scatter(merged_data["wind_speed"], merged_data["power"], alpha=0.1, s=5, color="lightblue")
-            axes[i].plot(bin_centers, power_curve.values, "r-", linewidth=2)
+        # Plot the power curve
+        bin_centers = [(bin.left + bin.right) / 2 for bin in power_curve.index]
+        axes[i].scatter(merged_data["wind_speed"], merged_data["power"], alpha=0.1, s=5, color="lightblue")
+        axes[i].plot(bin_centers, power_curve.values, "r-", linewidth=2)
 
-            # Add vertical lines for cut-in, rated, and cut-out speeds based on power curve data
-            power_values = list(power_curve.values)
-            bin_centers_list = bin_centers
+        # Add vertical lines for cut-in, rated, and cut-out speeds based on power curve data
+        # Find cut-in speed (last value where power is zero)
+        power_values = list(power_curve.values)
+        bin_centers_list = bin_centers
 
-            cut_in_indices = [k for k, p in enumerate(power_values) if p < power * 0.01]
-            cut_in_speed = bin_centers_list[cut_in_indices[-1]] if cut_in_indices else bin_centers_list[0]
+        # Find the last bin where power is close to zero (cut-in speed)
+        cut_in_indices = [i for i, p in enumerate(power_values) if p < power * 0.01]
+        cut_in_speed = bin_centers_list[cut_in_indices[-1]] if cut_in_indices else bin_centers_list[0]
 
-            max_power = max(power_values) if power_values else 0
-            rated_indices = [k for k, p in enumerate(power_values) if p >= max_power * 0.99] if power_values else []
-            rated_speed = bin_centers_list[rated_indices[0]] if rated_indices else bin_centers_list[-1]
+        # Find the first bin where power reaches its maximum (rated speed)
+        max_power = max(power_values)
+        rated_indices = [i for i, p in enumerate(power_values) if p >= max_power * 0.99]
+        rated_speed = bin_centers_list[rated_indices[0]] if rated_indices else bin_centers_list[-1]
 
-            if rated_indices:
-                post_max_indices = [k for k in range(len(power_values)) if k > rated_indices[0]]
-                cut_out_indices = [k for k in post_max_indices if power_values[k] < max_power * 0.01]
-            else:
-                cut_out_indices = []
+        # Find the cut-out speed (where power drops significantly after reaching maximum)
+        # First check if there are any points where power drops to near zero after reaching maximum
+        if rated_indices:
+            post_max_indices = [i for i in range(len(power_values)) if i > rated_indices[0]]
+            cut_out_indices = [i for i in post_max_indices if power_values[i] < max_power * 0.01]
+        else:
+            # If there are no rated indices, there can't be any cut-out indices
+            cut_out_indices = []
 
-            cut_out_speed = bin_centers_list[cut_out_indices[0]] if cut_out_indices else bin_centers_list[-1]
+        if cut_out_indices:
+            # If power drops to near zero after reaching maximum, use that as cut-out speed
+            cut_out_speed = bin_centers_list[cut_out_indices[0]]
+        else:
+            # Otherwise, use the last bin center
+            cut_out_speed = bin_centers_list[-1]
 
-            axes[i].axvline(x=cut_in_speed, color="green", linestyle="--", alpha=0.7, label="Cut-in speed")
-            axes[i].axvline(x=rated_speed, color="orange", linestyle="--", alpha=0.7, label="Rated speed")
-            axes[i].axvline(x=cut_out_speed, color="red", linestyle="--", alpha=0.7, label="Cut-out speed")
+        axes[i].axvline(x=cut_in_speed, color="green", linestyle="--", alpha=0.7, label="Cut-in speed")
+        axes[i].axvline(x=rated_speed, color="orange", linestyle="--", alpha=0.7, label="Rated speed")
+        axes[i].axvline(x=cut_out_speed, color="red", linestyle="--", alpha=0.7, label="Cut-out speed")
 
-            axes[i].set_title(f"Turbine: {turbine_type}, Power: {power/1e6:.1f}MW")
-            axes[i].set_xlabel("Wind Speed (m/s)")
-            axes[i].set_ylabel("Power (W)")
-            axes[i].grid(True)
-            axes[i].legend()
-            axes[i].set_xlim(0, 25)
-            axes[i].set_ylim(0, power * 1.1)
+        axes[i].set_title(f"Turbine: {turbine_type}, Power: {power/1e6:.1f}MW")
+        axes[i].set_xlabel("Wind Speed (m/s)")
+        axes[i].set_ylabel("Power (W)")
+        axes[i].grid(True)
+        axes[i].legend()
 
-        plt.tight_layout()
-        plt.show()
+        # Set x and y limits
+        axes[i].set_xlim(0, 25)
+        axes[i].set_ylim(0, power * 1.1)
 
-        # Figure 4: Wind Rose with Power Generation
-        fig, axes = plt.subplots(2, 4, figsize=(16, 10), subplot_kw={"projection": "polar"})
-        axes = axes.flatten()
+    plt.tight_layout()
+    plt.show()
 
-        dir_bins = np.linspace(0, 2 * np.pi, 17)
-        dir_centers = (dir_bins[:-1] + dir_bins[1:]) / 2
-        dir_labels = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"]
+    # Figure 4: Wind Rose with Power Generation
+    fig, axes = plt.subplots(2, 4, figsize=(16, 10), subplot_kw={"projection": "polar"})
+    axes = axes.flatten()  # Flatten the 2D array of axes for easier indexing
 
-        for i, obj_id in enumerate(df):
-            ts = df[obj_id][Types.WIND]
+    # Define direction bins (16 directions)
+    dir_bins = np.linspace(0, 2 * np.pi, 17)
+    dir_centers = (dir_bins[:-1] + dir_bins[1:]) / 2
+    dir_labels = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"]
 
-            turbine_type = system_configs[obj_id]["turbine_type"] if obj_id in system_configs else "Default"
-            hub_height = system_configs[obj_id]["hub_height"] if obj_id in system_configs else "Default"
-            power = system_configs[obj_id]["power"] if obj_id in system_configs else 1
+    # For each wind turbine system, create a separate subplot
+    for i, obj_id in enumerate(df):
+        ts = df[obj_id][Types.WIND]
 
-            weather_data = data["weather"].copy()
-            weather_data["datetime"] = pd.to_datetime(weather_data["datetime"])
-            weather_data.set_index("datetime", inplace=True)
+        # Get turbine parameters for the title
+        turbine_type = system_configs[obj_id]["turbine_type"] if obj_id in system_configs else "Default"
+        hub_height = system_configs[obj_id]["hub_height"] if obj_id in system_configs else "Default"
+        power = system_configs[obj_id]["power"] if obj_id in system_configs else 1
 
-            if not isinstance(weather_data.index, pd.DatetimeIndex):
-                weather_data.index = pd.to_datetime(weather_data.index, utc=True)
+        # Get the weather data
+        weather_data = data["weather"].copy()
+        weather_data["datetime"] = pd.to_datetime(weather_data["datetime"])
+        weather_data.set_index("datetime", inplace=True)
 
-            weather_resampled = weather_data.resample("H").mean()
+        # Ensure the index is a DatetimeIndex
+        if not isinstance(weather_data.index, pd.DatetimeIndex):
+            weather_data.index = pd.to_datetime(weather_data.index, utc=True)
 
-            merged_data = pd.DataFrame({"power": ts.values.flatten()}, index=ts.index)
-            merged_data["wind_direction"] = weather_resampled[f"{C.WIND_DIRECTION}@100m"]
-            merged_data["wind_speed"] = weather_resampled[f"{C.WIND_SPEED}@100m"]
-            merged_data = merged_data.dropna()
+        # Resample weather data to hourly frequency
+        weather_resampled = weather_data.resample("H").mean()
 
-            merged_data["wind_direction_rad"] = np.radians(merged_data["wind_direction"])
-            merged_data["direction_bin"] = pd.cut(
-                merged_data["wind_direction_rad"], bins=dir_bins, labels=False, include_lowest=True
-            )
+        # Merge power data with wind direction
+        merged_data = pd.DataFrame({"power": ts.values.flatten()}, index=ts.index)
+        merged_data["wind_direction"] = weather_resampled[f"{C.WIND_DIRECTION}@100m"]
+        merged_data["wind_speed"] = weather_resampled[f"{C.WIND_SPEED}@100m"]
 
-            direction_stats = merged_data.groupby("direction_bin").agg(
-                frequency=("power", "count"), avg_power=("power", "mean"), avg_speed=("wind_speed", "mean")
-            )
+        # Remove NaN values
+        merged_data = merged_data.dropna()
 
-            direction_stats["frequency"] = direction_stats["frequency"] / direction_stats["frequency"].sum()
+        # Convert wind direction from degrees to radians
+        merged_data["wind_direction_rad"] = np.radians(merged_data["wind_direction"])
 
-            norm_power = direction_stats["avg_power"] / direction_stats["avg_power"].max()
+        # Create direction bins
+        merged_data["direction_bin"] = pd.cut(
+            merged_data["wind_direction_rad"], bins=dir_bins, labels=False, include_lowest=True
+        )
 
-            bars = axes[i].bar(
-                dir_centers,
-                direction_stats["frequency"],
-                width=np.diff(dir_bins)[0],
-                bottom=0.0,
-                align="center",
-                alpha=0.8,
-            )
+        # Calculate frequency and average power for each direction bin
+        direction_stats = merged_data.groupby("direction_bin").agg(
+            frequency=("power", "count"), avg_power=("power", "mean"), avg_speed=("wind_speed", "mean")
+        )
 
-            cmap = plt.cm.viridis
-            for j, bar in enumerate(bars):
-                if j < len(norm_power):
-                    bar.set_facecolor(cmap(norm_power.iloc[j]))
+        # Normalize frequency
+        direction_stats["frequency"] = direction_stats["frequency"] / direction_stats["frequency"].sum()
 
-            axes[i].set_theta_zero_location("N")
-            axes[i].set_theta_direction(-1)
-            axes[i].set_thetagrids(np.degrees(dir_centers), dir_labels)
+        # Normalize power for color scale
+        norm_power = direction_stats["avg_power"] / direction_stats["avg_power"].max()
 
-            sm = plt.cm.ScalarMappable(
-                cmap=cmap,
-                norm=plt.Normalize(direction_stats["avg_power"].min(), direction_stats["avg_power"].max()),
-            )
-            sm.set_array([])
-            cbar = plt.colorbar(sm, ax=axes[i], orientation="horizontal", pad=0.1, shrink=0.8)
-            cbar.set_label("Average Power (W)")
+        # Create the wind rose
+        bars = axes[i].bar(
+            dir_centers,
+            direction_stats["frequency"],
+            width=np.diff(dir_bins)[0],
+            bottom=0.0,
+            align="center",
+            alpha=0.8,
+        )
 
-            axes[i].set_title(f"{turbine_type}")
+        # Color the bars according to average power
+        cmap = plt.cm.viridis
+        for j, bar in enumerate(bars):
+            if j < len(norm_power):
+                bar.set_facecolor(cmap(norm_power.iloc[j]))
 
-        plt.tight_layout()
-        plt.show()
+        # Set the direction labels
+        axes[i].set_theta_zero_location("N")
+        axes[i].set_theta_direction(-1)  # Clockwise
+        axes[i].set_thetagrids(np.degrees(dir_centers), dir_labels)
 
-        # Figure 5: Heatmap of daily generation patterns
-        fig, axes = plt.subplots(2, 4, figsize=(16, 10))
-        axes = axes.flatten()
+        # Add a colorbar
+        sm = plt.cm.ScalarMappable(
+            cmap=cmap, norm=plt.Normalize(direction_stats["avg_power"].min(), direction_stats["avg_power"].max())
+        )
+        sm.set_array([])
+        cbar = plt.colorbar(sm, ax=axes[i], orientation="horizontal", pad=0.1, shrink=0.8)
+        cbar.set_label("Average Power (W)")
 
-        for i, obj_id in enumerate(df):
-            ts = df[obj_id][Types.WIND]
+        axes[i].set_title(f"{turbine_type}")
 
-            turbine_type = system_configs[obj_id]["turbine_type"] if obj_id in system_configs else "Default"
-            hub_height = system_configs[obj_id]["hub_height"] if obj_id in system_configs else "Default"
-            power = system_configs[obj_id]["power"] if obj_id in system_configs else 1
+    plt.tight_layout()
+    plt.show()
 
-            hourly_data = ts.resample("h").mean()
+    # Figure 5: Heatmap of daily generation patterns
+    # Create a figure with 8 subfigures (2x4 grid)
+    fig, axes = plt.subplots(2, 4, figsize=(16, 10))
+    axes = axes.flatten()  # Flatten the 2D array of axes for easier indexing
 
-            daily_data = hourly_data.copy()
-            daily_data.index = pd.MultiIndex.from_arrays([daily_data.index.date, daily_data.index.hour], names=["date", "hour"])
-            daily_data = daily_data[~daily_data.index.duplicated(keep="first")]
-            daily_pivot = daily_data.unstack(level="hour")
+    # For each wind turbine system, create a separate subplot
+    for i, obj_id in enumerate(df):
+        ts = df[obj_id][Types.WIND]
 
-            im = axes[i].imshow(daily_pivot, aspect="auto", cmap="viridis")
-            axes[i].set_title(f"Turbine: {turbine_type}, Power: {power/1e6:.1f}MW")
-            axes[i].set_xlabel("Hour of Day")
-            axes[i].set_ylabel("Day of Year")
-            axes[i].set_xticks(range(0, 24, 6))
+        # Get turbine parameters for the title
+        turbine_type = system_configs[obj_id]["turbine_type"] if obj_id in system_configs else "Default"
+        hub_height = system_configs[obj_id]["hub_height"] if obj_id in system_configs else "Default"
+        power = system_configs[obj_id]["power"] if obj_id in system_configs else 1
 
-            fig.colorbar(im, ax=axes[i], shrink=0.7, label="Generation (W)")
+        # Create a pivot table with hours as columns and days as rows
+        # First resample to hourly frequency to ensure we have only one value per hour
+        hourly_data = ts.resample("h").mean()
 
-        plt.tight_layout()
-        plt.show()
+        # Create MultiIndex with date and hour
+        daily_data = hourly_data.copy()
+        daily_data.index = pd.MultiIndex.from_arrays([daily_data.index.date, daily_data.index.hour], names=["date", "hour"])
+
+        # Drop any remaining duplicates (just to be safe)
+        daily_data = daily_data[~daily_data.index.duplicated(keep="first")]
+
+        # Unstack to create pivot table
+        daily_pivot = daily_data.unstack(level="hour")
+
+        # Create heatmap
+        im = axes[i].imshow(daily_pivot, aspect="auto", cmap="viridis")
+        axes[i].set_title(f"Turbine: {turbine_type}, Power: {power/1e6:.1f}MW")
+        axes[i].set_xlabel("Hour of Day")
+        axes[i].set_ylabel("Day of Year")
+        axes[i].set_xticks(range(0, 24, 6))  # Show fewer ticks for readability
+
+        # Add colorbar to each subplot
+        fig.colorbar(im, ax=axes[i], shrink=0.7, label="Generation (W)")
+
+    plt.tight_layout()
+    plt.show()
+
 
 if __name__ == "__main__":
     EXAMPLE_DIR = os.path.dirname(__file__)
     objects, data = get_input(EXAMPLE_DIR)
 
-    start = time.perf_counter()
-    summary, df = simulate(objects, data, workers=1, path=EXAMPLE_DIR, export=True, plot=True)
-    end = time.perf_counter()
-
-    print(f"\n⏱️ Total runtime: {end - start:.4f} s")
+    summary, df = simulate(objects, data, workers=1, path=EXAMPLE_DIR, export=False, plot=False)
+    analyze(objects, data, summary, df)

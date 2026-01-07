@@ -157,3 +157,5 @@ results/
 validation/
 venv_vencopy/
 benchmark_results.png
+examples/benchmark_results.csv
+examples/benchmark_results.png

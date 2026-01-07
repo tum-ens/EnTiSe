@@ -23,14 +23,7 @@ from entise.core.generator import TimeSeriesGenerator
 
 
 def get_input(path: str):
-    """
-    Benchmark-compatible loader.
-
-    Returns
-    -------
-    objects : pd.DataFrame
-    data : dict
-    """
+    """Load objects + input data from the example folder."""
     objects = pd.read_csv(os.path.join(path, "objects.csv"))
 
     data = {}
@@ -44,35 +37,16 @@ def get_input(path: str):
     return objects, data
 
 
-def simulate(
-    objects: pd.DataFrame,
-    data: dict,
-    workers: int,
-    path: str,
-    export: bool = True,
-    plot: bool = True,
-):
-    """
-    Benchmark-compatible simulator.
-
-    - For benchmarking: call with export=False, plot=False (fast: only gen.generate()).
-    - For normal usage: export/plot True (same behavior as original script).
-
-    Returns
-    -------
-    summary, df
-    """
-    # Instantiate and configure the generator
+def simulate(objects: pd.DataFrame, data: dict, workers: int, path: str, export: bool = False, plot: bool = False):
+    """Run only the core generation step."""
     gen = TimeSeriesGenerator()
     gen.add_objects(objects)
-
-    # Generate time series
     summary, df = gen.generate(data, workers=workers)
+    return summary, df
 
-    # Benchmark fast path: absolutely nothing else
-    if not (export or plot):
-        return summary, df
 
+def analyze(objects: pd.DataFrame, data: dict, summary: pd.DataFrame, df: dict, plot: bool = True):
+    """Print + plot."""
     print("Loaded data keys:", list(data.keys()))
 
     # Print summary
@@ -105,91 +79,95 @@ def simulate(
 
         return obj_data
 
-    # Only plot if requested
-    if plot:
-        # Create a 4x2 grid of plots for all 8 objects
-        fig, axes = plt.subplots(4, 2, figsize=(15, 20), sharex=True)
-        axes = axes.flatten()
+    if not plot:
+        return
 
-        # Plot each object
-        objects_plot = objects.copy()
-        objects_plot.set_index("id", inplace=True)
-        for i, (obj_id, obj) in enumerate(objects_plot.iterrows()):
-            plot_dhw_demand(axes[i], obj_id, df, f"Building ID: {obj_id} - Dwelling Size: {obj[O.DWELLING_SIZE]}")
+    # Create a 4x2 grid of plots for all 8 objects
+    fig, axes = plt.subplots(4, 2, figsize=(15, 20), sharex=True)
+    axes = axes.flatten()
 
-        plt.gca().xaxis.set_major_locator(mdates.MonthLocator(interval=2))
-        plt.tight_layout()
-        plt.show()
+    # Plot each object
+    objects_plot = objects.copy()
+    objects_plot.set_index("id", inplace=True)
+    for i, (obj_id, obj) in enumerate(objects_plot.iterrows()):
+        plot_dhw_demand(axes[i], obj_id, df, f"Building ID: {obj_id} - Dwelling Size: {obj[O.DWELLING_SIZE]}")
 
-        # Function to plot daily profile
-        def plot_daily_profile(ax, obj_data, title):
-            obj_data = obj_data.copy()
-            obj_data["hour"] = obj_data.index.hour
-            daily_profile = obj_data.groupby("hour")[f"{Types.DHW}:volume[l]"].mean()
-            ax.bar(daily_profile.index, daily_profile.values, color="skyblue", alpha=0.7)
-            ax.set_xlabel("Hour of Day")
-            ax.set_ylabel("Average DHW Volume (liters)")
-            ax.set_title(title)
-            ax.set_xticks(range(0, 24, 2))
-            ax.grid(True, alpha=0.3)
+    plt.gca().xaxis.set_major_locator(mdates.MonthLocator(interval=2))
+    plt.tight_layout()
+    plt.show()
 
-            # Calculate yearly total in m3
-            yearly_total = obj_data[f"{Types.DHW}:volume[l]"].sum() / 1000  # Convert L to m3
-            ax.text(
-                0.95,
-                0.95,
-                f"Yearly total: {yearly_total:.1f} m³",
-                transform=ax.transAxes,
-                horizontalalignment="right",
-                verticalalignment="top",
-                bbox=dict(facecolor="white", alpha=0.8),
-            )
-
-        # Create a 4x2 grid for daily profiles
-        fig, axes = plt.subplots(4, 2, figsize=(15, 20))
-        axes = axes.flatten()
-
-        # Plot daily profiles for each object
-        for i, (obj_id, obj) in enumerate(objects_plot.iterrows()):
-            plot_daily_profile(
-                axes[i], df[obj_id][Types.DHW], f"Building ID: {obj_id} - Dwelling Size: {obj[O.DWELLING_SIZE]}"
-            )
-
-        plt.tight_layout()
-        plt.show()
-
-        # Compare weekend vs. weekday profiles for object 6 (with weekend activity)
-        fig, ax = plt.subplots(figsize=(10, 6))
-
-        # Extract weekday and weekend data
-        obj6_data = df[6][Types.DHW].copy()
-        obj6_data["day_of_week"] = obj6_data.index.dayofweek
-        weekday_data = obj6_data[obj6_data["day_of_week"] < 5]  # Monday-Friday
-        weekend_data = obj6_data[obj6_data["day_of_week"] >= 5]  # Saturday-Sunday
-
-        # Calculate average profiles
-        weekday_profile = weekday_data.groupby("hour")[f"{Types.DHW}:volume[l]"].mean()
-        weekend_profile = weekend_data.groupby("hour")[f"{Types.DHW}:volume[l]"].mean()
-
-        # Plot both profiles
-        ax.bar(weekday_profile.index - 0.2, weekday_profile.values, width=0.4, color="blue", alpha=0.7, label="Weekday")
-        ax.bar(weekend_profile.index + 0.2, weekend_profile.values, width=0.4, color="red", alpha=0.7, label="Weekend")
+    # Function to plot daily profile
+    def plot_daily_profile(ax, obj_data, title):
+        obj_data = obj_data.copy()
+        obj_data["hour"] = obj_data.index.hour
+        daily_profile = obj_data.groupby("hour")[f"{Types.DHW}:volume[l]"].mean()
+        ax.bar(daily_profile.index, daily_profile.values, color="skyblue", alpha=0.7)
         ax.set_xlabel("Hour of Day")
         ax.set_ylabel("Average DHW Volume (liters)")
-        ax.set_title("Building ID: 6 - Dwelling Size: 80 m² - Weekday vs. Weekend DHW Profiles")
+        ax.set_title(title)
         ax.set_xticks(range(0, 24, 2))
         ax.grid(True, alpha=0.3)
-        ax.legend()
 
-        plt.tight_layout()
-        plt.show()
+        # Calculate yearly total in m3
+        yearly_total = obj_data[f"{Types.DHW}:volume[l]"].sum() / 1000  # Convert L to m3
+        ax.text(
+            0.95,
+            0.95,
+            f"Yearly total: {yearly_total:.1f} m³",
+            transform=ax.transAxes,
+            horizontalalignment="right",
+            verticalalignment="top",
+            bbox=dict(facecolor="white", alpha=0.8),
+        )
+
+    # Create a 4x2 grid for daily profiles
+    fig, axes = plt.subplots(4, 2, figsize=(15, 20))
+    axes = axes.flatten()
+
+    # Plot daily profiles for each object
+    for i, (obj_id, obj) in enumerate(objects_plot.iterrows()):
+        plot_daily_profile(axes[i], df[obj_id][Types.DHW], f"Building ID: {obj_id} - Dwelling Size: {obj[O.DWELLING_SIZE]}")
+
+    plt.tight_layout()
+    plt.show()
+
+    # Compare weekend vs. weekday profiles for object 6 (with weekend activity)
+    fig, ax = plt.subplots(figsize=(10, 6))
+
+    # Extract weekday and weekend data
+    obj6_data = df[6][Types.DHW].copy()
+    obj6_data["day_of_week"] = obj6_data.index.dayofweek
+    weekday_data = obj6_data[obj6_data["day_of_week"] < 5]  # Monday-Friday
+    weekend_data = obj6_data[obj6_data["day_of_week"] >= 5]  # Saturday-Sunday
+
+    # Calculate average profiles
+    obj6_data["hour"] = obj6_data.index.hour
+    weekday_profile = weekday_data.groupby("hour")[f"{Types.DHW}:volume[l]"].mean()
+    weekend_profile = weekend_data.groupby("hour")[f"{Types.DHW}:volume[l]"].mean()
+
+    # Plot both profiles
+    ax.bar(weekday_profile.index - 0.2, weekday_profile.values, width=0.4, color="blue", alpha=0.7, label="Weekday")
+    ax.bar(weekend_profile.index + 0.2, weekend_profile.values, width=0.4, color="red", alpha=0.7, label="Weekend")
+    ax.set_xlabel("Hour of Day")
+    ax.set_ylabel("Average DHW Volume (liters)")
+    ax.set_title("Building ID: 6 - Dwelling Size: 80 m² - Weekday vs. Weekend DHW Profiles")
+    ax.set_xticks(range(0, 24, 2))
+    ax.grid(True, alpha=0.3)
+    ax.legend()
+
+    plt.tight_layout()
+    plt.show()
+
 
 if __name__ == "__main__":
     EXAMPLE_DIR = os.path.dirname(__file__)
     objects, data = get_input(EXAMPLE_DIR)
 
     start = time.perf_counter()
-    summary, df = simulate(objects, data, workers=1, path=EXAMPLE_DIR, export=True, plot=True)
-    end = time.perf_counter()
 
+    # Normal interactive usage (not benchmark)
+    summary, df = simulate(objects, data, workers=1, path=EXAMPLE_DIR, export=False, plot=False)
+    analyze(objects, data, summary, df, plot=True)
+
+    end = time.perf_counter()
     print(f"\n⏱️ Total runtime: {end - start:.4f} s")
