@@ -4,7 +4,6 @@ Example script Heat Pump: Ruhnau
 
 import json
 import os
-import time
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -29,24 +28,20 @@ def get_input(path: str):
     data_folder = os.path.join(path, "data")
     common_data_folder = os.path.join(path, "../common_data")
 
-    # common_data
     if os.path.isdir(common_data_folder):
         for file in os.listdir(common_data_folder):
-            fp = os.path.join(common_data_folder, file)
             if file.endswith(".csv"):
                 name = file.split(".")[0]
-                data[name] = pd.read_csv(fp, parse_dates=True)
+                data[name] = pd.read_csv(os.path.join(common_data_folder, file), parse_dates=True)
 
-    # data/
     if os.path.isdir(data_folder):
         for file in os.listdir(data_folder):
-            fp = os.path.join(data_folder, file)
             if file.endswith(".csv"):
                 name = file.split(".")[0]
-                data[name] = pd.read_csv(fp, parse_dates=True)
+                data[name] = pd.read_csv(os.path.join(data_folder, file), parse_dates=True)
             elif file.endswith(".json"):
                 name = file.split(".")[0]
-                with open(fp, "r") as f:
+                with open(os.path.join(data_folder, file), "r") as f:
                     data[name] = json.load(f)
 
     return objects, data
@@ -57,8 +52,8 @@ def simulate(
     data: dict,
     workers: int,
     path: str,
-    export: bool = True,
-    plot: bool = True,
+    export: bool = False,
+    plot: bool = False,
 ):
     """
     Benchmark-compatible simulator.
@@ -70,22 +65,14 @@ def simulate(
     -------
     summary, df
     """
-    # Instantiate and configure the generator
     gen = TimeSeriesGenerator()
     gen.add_objects(objects)
-
-    # Generate time series (THIS is what benchmarking wants to time)
     summary, df = gen.generate(data, workers=workers)
+    return summary, df
 
-    # Benchmark fast path: absolutely nothing else
-    if not (export or plot):
-        return summary, df
 
-    # ------------------------------------------------------------
-    # Everything below is your existing "script logic"
-    # (kept intact, only moved inside this function)
-    # ------------------------------------------------------------
-
+def analyze(objects: pd.DataFrame, data: dict, summary: pd.DataFrame, df: dict):
+    """Post-processing + plotting (not part of benchmark timing)."""
     print("Loaded data keys:", list(data.keys()))
 
     # Print summary
@@ -112,14 +99,6 @@ def simulate(
                 "temp_sink": temp_sink,
                 "temp_water": temp_water,
             }
-
-    # If user only wants export (no plot), stop here (keeps behavior flexible)
-    if not plot:
-        return summary, df
-
-    # ------------------------------------------------------------
-    # PLOTS (your original code, unchanged — only indented)
-    # ------------------------------------------------------------
 
     # Figure 1: Comparative analysis between different heat pump systems
     # Collect the full distribution of COP values for each system
@@ -217,37 +196,46 @@ def simulate(
     plt.show()
 
     # Figure 3: COP Heatmap (Heating only)
+    # Create a figure with appropriate number of subfigures
     fig, axes = plt.subplots(n_rows, n_cols, figsize=(16, 4 * n_rows))
+    # Always flatten the axes array to make it easier to index
     if n_rows == 1 and n_cols == 1:
-        axes = np.array([axes])
+        axes = np.array([axes])  # Make axes iterable if there's only one subplot
     else:
-        axes = axes.flatten()
+        axes = axes.flatten()  # Flatten the array of axes for easier indexing
 
+    # For each heat pump system, create a separate subplot
     for i, obj_id in enumerate(df):
         if i >= len(axes):
-            break
+            break  # Safety check
 
         if Types.HP not in df[obj_id]:
             continue
 
+        # Get system parameters for the title
         config = system_configs.get(obj_id, {})
         hp_source = config.get("hp_source", "Default")
         hp_sink = config.get("hp_sink", "Default")
 
+        # Process heating COP
         heating_col = f"{Types.HP}{SEP}{Types.HEATING}[1]"
         if heating_col in df[obj_id][Types.HP].columns:
             ts = df[obj_id][Types.HP][heating_col]
 
+            # Create a pivot table with hours as columns and days as rows
             pivot_data = pd.DataFrame({"hour": ts.index.hour, "day_of_year": ts.index.dayofyear, "cop": ts.values})
             pivot_table = pivot_data.pivot_table(values="cop", index="day_of_year", columns="hour", aggfunc="mean")
 
+            # Create heatmap
             im = axes[i].imshow(pivot_table, aspect="auto", cmap="viridis")
             axes[i].set_title(f"ID {obj_id}, Source: {hp_source}, Sink: {hp_sink}")
             axes[i].set_xlabel("Hour of Day")
             axes[i].set_ylabel("Day of Year")
 
+            # Add colorbar
             fig.colorbar(im, ax=axes[i], label="Heating COP")
 
+    # Hide empty subplots
     for i in range(len(df), len(axes)):
         if i < len(axes):
             axes[i].axis("off")
@@ -256,49 +244,58 @@ def simulate(
     plt.show()
 
     # Figure 4: Seasonal daily profile analysis
+    # Define seasons
     seasons = {"Winter": [12, 1, 2], "Spring": [3, 4, 5], "Summer": [6, 7, 8], "Fall": [9, 10, 11]}
 
+    # Create a figure with appropriate number of subfigures
     fig, axes = plt.subplots(n_rows, n_cols, figsize=(16, 4 * n_rows))
+    # Always flatten the axes array to make it easier to index
     if n_rows == 1 and n_cols == 1:
-        axes = np.array([axes])
+        axes = np.array([axes])  # Make axes iterable if there's only one subplot
     else:
-        axes = axes.flatten()
+        axes = axes.flatten()  # Flatten the array of axes for easier indexing
 
+    # For each heat pump system, create a separate subplot
     for i, obj_id in enumerate(df):
         if i >= len(axes):
-            break
+            break  # Safety check
 
         if Types.HP not in df[obj_id]:
             continue
 
+        # Get system parameters for the title
         config = system_configs.get(obj_id, {})
         hp_source = config.get("hp_source", "Default")
         hp_sink = config.get("hp_sink", "Default")
 
+        # Process heating COP
         heating_col = f"{Types.HP}{SEP}{Types.HEATING}[1]"
         if heating_col in df[obj_id][Types.HP].columns:
             ts_heating = df[obj_id][Types.HP][heating_col]
 
+            # Plot each season on the same subplot
             for season_name, months in seasons.items():
+                # Filter data for the season
                 season_data = ts_heating[ts_heating.index.month.isin(months)]
                 if not season_data.empty:
+                    # Create average daily profile
                     daily_profile = season_data.groupby(season_data.index.hour).mean()
                     axes[i].plot(daily_profile.index, daily_profile.values, label=f"{season_name} (Heating)", linewidth=2)
 
+        # Process DHW COP
         dhw_col = f"{Types.HP}{SEP}{Types.DHW}[1]"
         if dhw_col in df[obj_id][Types.HP].columns:
             ts_dhw = df[obj_id][Types.HP][dhw_col]
 
+            # Plot each season on the same subplot (using dashed lines for DHW)
             for season_name, months in seasons.items():
+                # Filter data for the season
                 season_data = ts_dhw[ts_dhw.index.month.isin(months)]
                 if not season_data.empty:
+                    # Create average daily profile
                     daily_profile = season_data.groupby(season_data.index.hour).mean()
                     axes[i].plot(
-                        daily_profile.index,
-                        daily_profile.values,
-                        label=f"{season_name} (DHW)",
-                        linewidth=2,
-                        linestyle="--",
+                        daily_profile.index, daily_profile.values, label=f"{season_name} (DHW)", linewidth=2, linestyle="--"
                     )
 
         axes[i].set_title(f"ID {obj_id}, Source: {hp_source}, Sink: {hp_sink}")
@@ -307,8 +304,9 @@ def simulate(
         axes[i].set_ylim(0, 10)
         axes[i].legend()
         axes[i].grid(True)
-        axes[i].set_xticks(range(0, 24, 4))
+        axes[i].set_xticks(range(0, 24, 4))  # Show fewer ticks for readability
 
+    # Hide empty subplots
     for i in range(len(df), len(axes)):
         if i < len(axes):
             axes[i].axis("off")
@@ -317,46 +315,60 @@ def simulate(
     plt.show()
 
     # Figure 5: COP vs. Temperature analysis
+    # Create a figure with appropriate number of subfigures
     fig, axes = plt.subplots(n_rows, n_cols, figsize=(16, 4 * n_rows))
+    # Always flatten the axes array to make it easier to index
     if n_rows == 1 and n_cols == 1:
-        axes = np.array([axes])
+        axes = np.array([axes])  # Make axes iterable if there's only one subplot
     else:
-        axes = axes.flatten()
+        axes = axes.flatten()  # Flatten the array of axes for easier indexing
 
+    # For each heat pump system, create a separate subplot
     for i, obj_id in enumerate(df):
         if i >= len(axes):
-            break
+            break  # Safety check
 
         if Types.HP not in df[obj_id]:
             continue
 
+        # Get system parameters for the title
         config = system_configs.get(obj_id, {})
         hp_source = config.get("hp_source", "Default")
         hp_sink = config.get("hp_sink", "Default")
 
+        # Get weather data
         weather_data = data.get("weather")
         if weather_data is None:
             continue
 
+        # Ensure weather data has the same index as the COP data
+        # Check if the index is already a datetime index
         if not isinstance(weather_data.index, pd.DatetimeIndex):
+            # Check if 'datetime' column exists
             if "datetime" in weather_data.columns:
                 weather_data["datetime"] = pd.to_datetime(weather_data["datetime"], utc=True)
                 weather_data.set_index("datetime", inplace=True)
+            # If not, check if the index can be converted to datetime
             else:
                 try:
                     weather_data.index = pd.to_datetime(weather_data.index, utc=True)
-                except Exception:
+                except:
+                    # If all else fails, try to find a column that looks like a datetime
                     datetime_cols = [col for col in weather_data.columns if "time" in col.lower() or "date" in col.lower()]
                     if datetime_cols:
                         weather_data[datetime_cols[0]] = pd.to_datetime(weather_data[datetime_cols[0]], utc=True)
                         weather_data.set_index(datetime_cols[0], inplace=True)
                     else:
+                        # If no datetime column is found, skip this iteration
                         continue
 
+        # Get temperature column
         temp_col = "air_temperature[C]"
 
+        # Process heating COP
         heating_col = f"{Types.HP}{SEP}{Types.HEATING}[1]"
         if heating_col in df[obj_id][Types.HP].columns:
+            # Merge COP and temperature data
             merged_data = pd.merge(
                 df[obj_id][Types.HP][heating_col],
                 weather_data[temp_col],
@@ -364,10 +376,14 @@ def simulate(
                 right_index=True,
                 how="inner",
             )
+
+            # Plot scatter plot
             axes[i].scatter(merged_data[temp_col], merged_data[heating_col], label="Heating COP", alpha=0.5, s=10)
 
+        # Process DHW COP
         dhw_col = f"{Types.HP}{SEP}{Types.DHW}[1]"
         if dhw_col in df[obj_id][Types.HP].columns:
+            # Merge COP and temperature data
             merged_data = pd.merge(
                 df[obj_id][Types.HP][dhw_col],
                 weather_data[temp_col],
@@ -375,6 +391,8 @@ def simulate(
                 right_index=True,
                 how="inner",
             )
+
+            # Plot scatter plot
             axes[i].scatter(merged_data[temp_col], merged_data[dhw_col], label="DHW COP", alpha=0.5, s=10)
 
         axes[i].set_title(f"ID {obj_id}, Source: {hp_source}, Sink: {hp_sink}")
@@ -384,6 +402,7 @@ def simulate(
         axes[i].legend()
         axes[i].grid(True)
 
+    # Hide empty subplots
     for i in range(len(df), len(axes)):
         if i < len(axes):
             axes[i].axis("off")
@@ -391,12 +410,10 @@ def simulate(
     plt.tight_layout()
     plt.show()
 
+
 if __name__ == "__main__":
     EXAMPLE_DIR = os.path.dirname(__file__)
     objects, data = get_input(EXAMPLE_DIR)
 
-    start = time.perf_counter()
-    summary, df = simulate(objects, data, workers=1, path=EXAMPLE_DIR, export=True, plot=True)
-    end = time.perf_counter()
-
-    print(f"\n⏱️ Total runtime: {end - start:.4f} s")
+    summary, df = simulate(objects, data, workers=1, path=EXAMPLE_DIR, export=False, plot=False)
+    analyze(objects, data, summary, df)
