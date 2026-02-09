@@ -97,6 +97,7 @@ class R1C1(Method):
         self,
         obj: dict = None,
         data: dict = None,
+        results: dict | None = None,
         ts_type: str = Types.HVAC,
         *,
         capacitance: float = None,
@@ -124,6 +125,7 @@ class R1C1(Method):
         Args:
             obj (dict, optional): Dictionary containing building parameters. Defaults to None.
             data (dict, optional): Dictionary containing input data. Defaults to None.
+            results (dict, optional): Dictionary with results from previously generated time series
             ts_type (str, optional): Time series type to generate. Defaults to Types.HVAC.
             capacitance (float, optional): Thermal capacitance in J/K. Defaults to None.
             resistance (float, optional): Thermal resistance in K/W. Defaults to None.

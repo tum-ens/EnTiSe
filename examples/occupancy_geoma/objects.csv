@@ -1,0 +1,13 @@
+id,occupancy,electricity,occupancy:lambda_geoma,occupancy:night_schedule,occupancy:night_schedule_start,occupancy:night_schedule_end,electricity:filename
+1,GeoMA,file,0.05,FALSE,,,demand_2_occupants
+2,GeoMA,file,0.15,FALSE,,,demand_2_occupants
+3,GeoMA,file,0.05,,,,demand_2_occupants
+4,GeoMA,file,0.05,TRUE,19:00,23:00,demand_1_occupant
+5,GeoMA,file,0.15,TRUE,19:30,23:30,demand_1_occupant
+6,GeoMA,file,0.05,TRUE,20:00,00:00,demand_1_occupant
+7,GeoMA,file,0.05,TRUE,19:30,23:00,demand_4_occupants
+8,GeoMA,file,0.15,TRUE,19:30,23:00,demand_4_occupants
+9,GeoMA,file,0.05,FALSE,,,demand_4_occupants
+10,GeoMA,file,0.05,TRUE,18:00,,demand_8_occupants
+11,GeoMA,file,0.05,FALSE,,,demand_8_occupants
+12,GeoMA,file,0.15,FALSE,,,demand_8_occupants

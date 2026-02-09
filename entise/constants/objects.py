@@ -58,7 +58,12 @@ class Objects:
     LOAD_BASE = f"{LOAD}_base"  # Base load
     LOAD_MAX = f"{LOAD}_max"
     LON = "longitude[degree]"  # Longitude (degree north)
-    OCCUPATION = "occupation"  # Occupancy (for timeseries files)
+    LAMBDA = "lambda_geoma"  # Weighting factor for GeoMA
+    NIGHT_SCHEDULE = "night_schedule"
+    NIGHT_SCHEDULE_START = f"{NIGHT_SCHEDULE}_start"  # Start hour for detecting nightly occupancy schedule
+    NIGHT_SCHEDULE_END = f"{NIGHT_SCHEDULE}_end"  # End hour for detecting nightly occupancy schedule
+    OCCUPANCY = "occupancy"  # Occupancy (for timeseries files)
+    OCCUPANCY_AVG = f"average_{OCCUPANCY}"  # Average occupancy over a certain timeseries
     OCCUPANTS = "occupants"  # Number of occupants
     ORIENTATION = "orientation[degree]"  # Orientation (degrees; 180 = south)
     POWER = "power[W]"  # Power (W)
@@ -104,7 +109,7 @@ class Objects:
     VENTILATION_FACTOR = "ventilation_factor[h-1]"  # 1/h
     VENTILATION_SPLIT = "ventilation_split"  # Ventilation split factor
     VERBOSE = "verbose"  # Verbose
-    WEATHER = "weather"  # Weather data
+    WEATHER = "weather"  # Weather
     WIND_MODEL = "wind_model"  # Model chain (wind)
     WINDOWS = "windows"  # Windows
     YEARLY_DHW_DEMAND = "yearly_dhw_demand[m3 m-2 a-1]"  # Yearly DHW demand in m³ per m²
