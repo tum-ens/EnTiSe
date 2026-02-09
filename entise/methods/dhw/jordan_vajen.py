@@ -121,6 +121,7 @@ class JordanVajen(Method):
         self,
         obj: dict = None,
         data: dict = None,
+        results: dict | None = None,
         ts_type: str = Types.DHW,
         *,
         datetimes: pd.DataFrame = None,
@@ -143,6 +144,7 @@ class JordanVajen(Method):
         Args:
             obj (dict, optional): Dictionary containing DHW system parameters. Defaults to None.
             data (dict, optional): Dictionary containing input data. Defaults to None.
+            results (dict, optional): Dictionary with results from previously generated time series
             ts_type (str, optional): Time series type to generate. Defaults to Types.DHW.
             datetimes (pd.DataFrame, required): DataFrame with datetime information. Defaults to None.
             dwelling_size (float, required): Size of the dwelling in square meters. Defaults to None.

@@ -59,7 +59,9 @@ class FileLoader(Method):
     output_summary = {}
     output_timeseries = {}
 
-    def generate(self, obj: dict = None, data: dict = None, ts_type: str = None, *, file: str = None):
+    def generate(
+        self, obj: dict = None, data: dict = None, results: dict = None, ts_type: str = None, *, file: str = None
+    ):
         """Load time series data from external sources.
 
         This method implements the abstract generate method from the Method base class.
@@ -68,6 +70,7 @@ class FileLoader(Method):
         Args:
             obj (dict, optional): Dictionary containing file parameters. Defaults to None.
             data (dict, optional): Dictionary containing input data. Defaults to None.
+            results (dict, optional): Dictionary with results from previously generated time series
             ts_type (str, optional): Time series type to generate. Defaults to None.
             file (str, optional): Key to use for loading the time series. Defaults to None.
 

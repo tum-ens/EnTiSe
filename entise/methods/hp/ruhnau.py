@@ -105,6 +105,7 @@ class Ruhnau(Method):
         self,
         obj: dict = None,
         data: dict = None,
+        results: dict | None = None,
         ts_type: str = Types.HP,
         *,
         weather: pd.DataFrame = None,
@@ -122,6 +123,7 @@ class Ruhnau(Method):
         Args:
             obj (dict, optional): Dictionary with heat pump parameters
             data (dict, optional): Dictionary with input data
+            results (dict, optional): Dictionary with results from previously generated time series
             ts_type (str, optional): Time series type to generate
             weather (pd.DataFrame, optional): Weather data with temperatures
             hp_source (str, optional): Heat pump source type ('ASHP', 'GSHP', 'WSHP')

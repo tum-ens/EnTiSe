@@ -103,6 +103,7 @@ class WPLib(Method):
         self,
         obj: dict = None,
         data: dict = None,
+        results: dict | None = None,
         ts_type: str = Types.WIND,
         *,
         weather: pd.DataFrame = None,
@@ -119,6 +120,7 @@ class WPLib(Method):
         Args:
             obj (dict, optional): Dictionary containing wind turbine parameters. Defaults to None.
             data (dict, optional): Dictionary containing input data. Defaults to None.
+            results (dict, optional): Dictionary with results from previously generated time series
             ts_type (str, optional): Time series type to generate. Defaults to Types.WIND.
             weather (pd.DataFrame, optional): Weather data with wind speed and direction. Defaults to None.
             power (float, optional): System power rating in watts. Defaults to None.
