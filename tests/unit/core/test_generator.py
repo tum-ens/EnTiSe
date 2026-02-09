@@ -16,7 +16,7 @@ class DummyHVAC(Method):
     required_keys = []
     required_timeseries = []
 
-    def generate(self, obj, data, ts_type):
+    def generate(self, obj, data, results, ts_type):
         n = 24
         ts = pd.DataFrame(
             {

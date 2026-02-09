@@ -37,7 +37,7 @@ class Method(ABC, metaclass=MethodMeta):
     output_timeseries: Dict[str, pd.DataFrame]
 
     @abstractmethod
-    def generate(self, obj: dict, data: dict, ts_type: str) -> Dict[str, Any]:
+    def generate(self, obj: dict, data: dict, results: dict, ts_type: str) -> Dict[str, Any]:
         raise NotImplementedError("Method 'generate' must be implemented.")
 
     @staticmethod

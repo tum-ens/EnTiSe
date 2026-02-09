@@ -93,6 +93,7 @@ class PVLib(Method):
         self,
         obj: dict = None,
         data: dict = None,
+        results: dict | None = None,
         ts_type: str = Types.PV,
         *,
         latitude: float = None,
@@ -114,6 +115,7 @@ class PVLib(Method):
         Args:
             obj (dict, optional): Dictionary containing PV system parameters. Defaults to None.
             data (dict, optional): Dictionary containing input data. Defaults to None.
+            results (dict, optional): Dictionary with results from previously generated time series
             ts_type (str, optional): Time series type to generate. Defaults to Types.PV.
             latitude (float, optional): Geographic latitude in degrees. Defaults to None.
             longitude (float, optional): Geographic longitude in degrees. Defaults to None.

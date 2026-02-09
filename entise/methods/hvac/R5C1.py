@@ -112,7 +112,9 @@ class R5C1(Method):
         f"{Types.COOLING}{SEP}{C.LOAD}[W]": "cooling load",
     }
 
-    def generate(self, obj: dict = None, data: dict = None, ts_type: str = Types.HVAC, **kwargs) -> dict:
+    def generate(
+        self, obj: dict = None, data: dict = None, results: dict = None, ts_type: str = Types.HVAC, **kwargs
+    ) -> dict:
         obj, data = self._process_kwargs(obj, data, **kwargs)
         obj, data = self._get_input_data(obj, data, ts_type)
         data = self._prepare_inputs(obj, data)

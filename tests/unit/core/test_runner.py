@@ -14,7 +14,7 @@ class DummyHVAC(Method):
     name = "runner_dummy"
     required_keys = []
 
-    def generate(self, obj, data, ts_type):
+    def generate(self, obj, data, results, ts_type):
         ts = pd.DataFrame({f"{C.LOAD}_{Types.HEATING}": np.ones(10), f"{C.TEMP_IN}": np.full(10, 22.0)})
         summary = {f"{O.DEMAND}_{Types.HEATING}": float(ts[f"{C.LOAD}_{Types.HEATING}"].sum())}
         return {K.SUMMARY: summary, K.TIMESERIES: ts}
@@ -45,7 +45,7 @@ class CachingDummy(Method):
     name = "cache_test"
     required_keys = []
 
-    def generate(self, obj, data, ts_type):
+    def generate(self, obj, data, results, ts_type):
         CallCounter.count += 1
         ts = pd.DataFrame({f"{C.LOAD}_{Types.HEATING}": np.ones(5)})
         summary = {f"{O.DEMAND}_{Types.HEATING}": float(ts[f"{C.LOAD}_{Types.HEATING}"].sum())}
