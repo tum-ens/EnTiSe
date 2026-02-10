@@ -6,7 +6,7 @@ import pytest
 from entise.constants import SEP, Types
 from entise.constants import Columns as C
 from entise.constants import Objects as O
-from entise.core.generator import TimeSeriesGenerator
+from entise.core.generator import Generator
 
 DATA_DIR = os.path.dirname(__file__)
 
@@ -32,7 +32,7 @@ def test_pv_pvlib_all_objects(inputs):
 
     # Test each object individually
     for _, obj_row in objects_df.iterrows():
-        gen = TimeSeriesGenerator()
+        gen = Generator()
         gen.add_objects(obj_row.to_dict())
         summary, df = gen.generate(shared_data, workers=1)
 
@@ -59,7 +59,7 @@ def test_pv_pvlib_all_objects_together(inputs):
     objects_df, shared_data = inputs
 
     # Test all objects together
-    gen = TimeSeriesGenerator()
+    gen = Generator()
     gen.add_objects(objects_df)
     summary, df = gen.generate(shared_data, workers=1)
 
@@ -95,7 +95,7 @@ def test_pv_pvlib_orientation_effects(inputs):
     west_obj = objects_df[objects_df[O.AZIMUTH] == 270].iloc[0]
 
     # Generate time series for each orientation
-    gen = TimeSeriesGenerator()
+    gen = Generator()
     gen.add_objects([south_obj.to_dict(), east_obj.to_dict(), west_obj.to_dict()])
     summary, df = gen.generate(shared_data, workers=1)
 
@@ -136,7 +136,7 @@ def test_pv_pvlib_tilt_effects(inputs):
     vertical_obj = objects_df[objects_df[O.TILT] == 90].iloc[0]
 
     # Generate time series for each tilt
-    gen = TimeSeriesGenerator()
+    gen = Generator()
     gen.add_objects([flat_obj.to_dict(), tilted_obj.to_dict(), steep_obj.to_dict(), vertical_obj.to_dict()])
     summary, df = gen.generate(shared_data, workers=1)
 
@@ -168,7 +168,7 @@ def test_pv_pvlib_power_scaling(inputs):
     high_power_obj[O.ID] = "pv_high_power"
 
     # Generate time series for each power
-    gen = TimeSeriesGenerator()
+    gen = Generator()
     gen.add_objects([low_power_obj.to_dict(), mid_power_obj.to_dict(), high_power_obj.to_dict()])
     summary, df = gen.generate(shared_data, workers=1)
 
