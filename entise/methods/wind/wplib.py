@@ -67,8 +67,8 @@ class WPLib(Method):
         name (str): Name identifier for the method.
         required_keys (list): Required input parameters (latitude, longitude, weather).
         optional_keys (list): Optional input parameters (power, turbine_type, hub_height, etc.).
-        required_timeseries (list): Required time series inputs (weather).
-        optional_timeseries (list): Optional time series inputs.
+        required_data (list): Required time series inputs (weather).
+        optional_data (list): Optional time series inputs.
         output_summary (dict): Mapping of output summary keys to descriptions.
         output_timeseries (dict): Mapping of output time series keys to descriptions.
 
@@ -88,8 +88,8 @@ class WPLib(Method):
     name = "wplib"
     required_keys = [O.WEATHER]
     optional_keys = [O.POWER, O.TURBINE_TYPE, O.HUB_HEIGHT, O.WIND_MODEL]
-    required_timeseries = [O.WEATHER]
-    optional_timeseries = [O.WIND_MODEL]
+    required_data = [O.WEATHER]
+    optional_data = [O.WIND_MODEL]
     output_summary = {
         f"{C.GENERATION}_{Types.WIND}": "total wind power generation",
         f"{O.GEN_MAX}_{Types.WIND}": "maximum wind power generation",

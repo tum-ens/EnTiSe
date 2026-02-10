@@ -45,7 +45,7 @@ class SolarGainsInactive(AuxiliaryMethod):
     an output in a specific format.
     """
 
-    required_timeseries = [O.WEATHER]
+    required_data = [O.WEATHER]
 
     def get_input_data(self, obj, data):
         """
@@ -95,7 +95,7 @@ class SolarGainsPVLib(AuxiliaryMethod):
     """
 
     required_keys = [O.ID, O.LAT, O.LON]
-    required_timeseries = [O.WEATHER, O.WINDOWS]
+    required_data = [O.WEATHER, O.WINDOWS]
 
     def get_input_data(self, obj, data):
         object_id = obj[O.ID]

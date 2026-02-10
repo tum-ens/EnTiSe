@@ -395,7 +395,7 @@ def test_r5c1_method_attributes():
     assert O.H_TR_MS in r5c1.required_keys
     assert O.H_TR_W in r5c1.required_keys
     assert O.H_TR_EM in r5c1.required_keys
-    assert O.WEATHER in r5c1.required_timeseries
+    assert O.WEATHER in r5c1.required_data
 
 
 def test_r5c1_output_summary_values(basic_5r1c_object, minimal_weather):
