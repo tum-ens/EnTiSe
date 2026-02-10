@@ -76,7 +76,7 @@ class Method(ABC, metaclass=MethodMeta):
 
         return relevant_objs
 
-    def _process_kwargs(self, obj=None, data=None, **kwargs) -> Tuple[dict, dict]:
+    def _process_kwargs(self, obj: dict = None, data: dict = None, **kwargs) -> Tuple[dict, dict]:
         """Process keyword arguments into obj and data dictionaries.
 
         Args:
@@ -166,7 +166,7 @@ class Method(ABC, metaclass=MethodMeta):
         return weather, info
 
     @staticmethod
-    def get_with_backup(obj, key, backup=None):
+    def get_with_backup(obj: dict, key: str, backup: Any = None):
         """Get a value from a dictionary with a backup value if not found or None.
 
         Args:
@@ -183,7 +183,7 @@ class Method(ABC, metaclass=MethodMeta):
         return value
 
     @classmethod
-    def get_with_method_backup(cls, obj, key, method_type, backup=None):
+    def get_with_method_backup(cls, obj: dict, key: str, method_type: str, backup: Any = None):
         """Get a value from a dictionary, checking for method-specific key first.
 
         Args:
