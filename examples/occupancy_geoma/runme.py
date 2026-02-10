@@ -20,7 +20,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../.
 from entise.constants import SEP, Types
 from entise.constants import Objects as O
 from entise.constants.columns import Columns
-from entise.core.generator import TimeSeriesGenerator
+from entise.core.generator import Generator
 
 # Load data
 cwd = "."  # Current working directory: change if your kernel is not running in the same folder
@@ -39,7 +39,7 @@ for file in os.listdir(os.path.join(cwd, data_folder)):
 print("Loaded data keys:", list(data.keys()))
 
 # Instantiate and configure the generator
-gen = TimeSeriesGenerator(logging_level=logging.WARNING)
+gen = Generator(logging_level=logging.WARNING)
 
 gen.add_objects(objects)
 

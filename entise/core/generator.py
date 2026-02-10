@@ -11,10 +11,10 @@ from entise.constants import Objects as O
 from entise.core.runner import RowExecutor
 
 
-class TimeSeriesGenerator:
+class Generator:
     def __init__(self, logging_level=logging.WARNING, raise_on_error: bool = False):
         """
-        Initializes the TimeSeriesGenerator.
+        Initializes the Generator.
 
         Args:
             logging_level (int): Logging level (e.g., logging.WARNING).

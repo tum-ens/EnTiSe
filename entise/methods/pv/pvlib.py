@@ -64,10 +64,10 @@ class PVLib(Method):
 
     Example:
         >>> from entise.methods.pv.pvlib import PVLib
-        >>> from entise.core.generator import TimeSeriesGenerator
+        >>> from entise.core.generator import Generator
         >>>
         >>> # Create a generator and add objects
-        >>> gen = TimeSeriesGenerator()
+        >>> gen = Generator()
         >>> gen.add_objects(objects_df)  # DataFrame with PV system parameters
         >>>
         >>> # Generate time series

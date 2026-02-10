@@ -10,7 +10,7 @@ import numpy as np
 import pandas as pd
 
 from entise.constants import SEP, Types
-from entise.core.generator import TimeSeriesGenerator
+from entise.core.generator import Generator
 
 # Load data
 cwd = "."  # Current working directory: change if your kernel is not running in the same folder
@@ -34,7 +34,7 @@ for file in os.listdir(os.path.join(cwd, data_folder)):
 print("Loaded data keys:", list(data.keys()))
 
 # Instantiate and configure the generator
-gen = TimeSeriesGenerator()
+gen = Generator()
 
 # Add objects
 gen.add_objects(objects)

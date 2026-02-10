@@ -3,7 +3,7 @@ import os
 import pandas as pd
 import pytest
 
-from entise.core.generator import TimeSeriesGenerator
+from entise.core.generator import Generator
 
 DATA_DIR = os.path.dirname(__file__)
 
@@ -31,7 +31,7 @@ def test_hvac_rc_all_objects(inputs):
     objects_df, shared_data = inputs
 
     for _, obj_row in objects_df.iterrows():
-        gen = TimeSeriesGenerator()
+        gen = Generator()
         gen.add_objects(obj_row.to_dict())
         summary, ts = gen.generate(shared_data, workers=1)
 
