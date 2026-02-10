@@ -28,27 +28,27 @@ class Generator:
         self.objects = pd.DataFrame()
         self.raise_on_error = raise_on_error
 
-    def add_objects(self, input_data: pd.DataFrame | dict | list[dict]):
+    def add_objects(self, objects: pd.DataFrame | dict | list[dict]):
         """
         Adds objects (metadata) to the generator.
 
         Args:
-            input_data (dict, list, or pd.DataFrame): Input metadata for objects.
+            objects (dict, list, or pd.DataFrame): Input metadata for objects.
 
         Raises:
             ValueError: If any object is missing the required ID field.
             TypeError: If the input type is unsupported.
         """
-        if isinstance(input_data, dict):
-            input_data = [input_data]
-        if isinstance(input_data, list):
-            if not all(O.ID in obj for obj in input_data):
+        if isinstance(objects, dict):
+            objects = [objects]
+        if isinstance(objects, list):
+            if not all(O.ID in obj for obj in objects):
                 raise ValueError(f"Each object in the list must have an {O.ID} field.")
-            self.objects = pd.concat([self.objects, pd.DataFrame(input_data)], ignore_index=True)
-        elif isinstance(input_data, pd.DataFrame):
-            if O.ID not in input_data.columns:
+            self.objects = pd.concat([self.objects, pd.DataFrame(objects)], ignore_index=True)
+        elif isinstance(objects, pd.DataFrame):
+            if O.ID not in objects.columns:
                 raise ValueError(f"The 'objects' DataFrame must have an {O.ID} column.")
-            self.objects = pd.concat([self.objects, input_data], ignore_index=True)
+            self.objects = pd.concat([self.objects, objects], ignore_index=True)
         else:
             raise TypeError("Input must be a dictionary, list of dictionaries, or a pandas DataFrame.")
 
