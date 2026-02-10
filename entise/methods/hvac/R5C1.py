@@ -49,8 +49,8 @@ class R5C1(Method):
         name (str): Name of the method.
         required_keys (list): List of required object keys.
         optional_keys (list): List of optional object keys.
-        required_timeseries (list): List of required timeseries keys.
-        optional_timeseries (list): List of optional timeseries keys.
+        required_data (list): List of required timeseries keys.
+        optional_data (list): List of optional timeseries keys.
         output_summary (dict): Summary of output metrics.
         output_timeseries (dict): Timeseries output metrics.
     """
@@ -98,8 +98,8 @@ class R5C1(Method):
         O.GAINS_SOLAR,
         O.VENTILATION,
     ]
-    required_timeseries = [O.WEATHER]
-    optional_timeseries = [O.WINDOWS, O.GAINS_INTERNAL, O.GAINS_SOLAR, O.VENTILATION]
+    required_data = [O.WEATHER]
+    optional_data = [O.WINDOWS, O.GAINS_INTERNAL, O.GAINS_SOLAR, O.VENTILATION]
     output_summary = {
         f"{Types.HEATING}{SEP}{C.DEMAND}[Wh]": "total heating demand",
         f"{Types.HEATING}{SEP}{O.LOAD_MAX}[W]": "maximum heating load",
@@ -329,14 +329,14 @@ class R5C1(Method):
     def _prepare_data_tables(self, obj: dict, data: dict, method_type: str = Types.HVAC) -> dict:
         data_out = {}
 
-        for key in self.required_timeseries:
+        for key in self.required_data:
             ts_key = self.get_with_method_backup(obj, key, method_type, key)
             ts_data = self.get_with_backup(data, ts_key)
             if ts_data is None:
                 raise ValueError(f"Required timeseries key '{ts_key}' for '{key}' not found in data.")
             data_out[key] = ts_data
 
-        for key in self.optional_timeseries:
+        for key in self.optional_data:
             ts_key = self.get_with_method_backup(obj, key, method_type)
             ts_data = self.get_with_backup(data, ts_key)
             if ts_data is not None:

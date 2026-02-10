@@ -127,8 +127,8 @@ class R7C2(Method):
         O.VENTILATION,
     ]
 
-    required_timeseries = [O.WEATHER]
-    optional_timeseries = [O.WINDOWS, O.GAINS_INTERNAL, O.GAINS_SOLAR, O.H_VE, O.T_EQ]  # Hint set of common auxiliaries
+    required_data = [O.WEATHER]
+    optional_data = [O.WINDOWS, O.GAINS_INTERNAL, O.GAINS_SOLAR, O.H_VE, O.T_EQ]  # Hint set of common auxiliaries
 
     output_summary = {
         f"{Types.HEATING}{SEP}{C.DEMAND}[Wh]": "total heating demand",
@@ -359,14 +359,14 @@ class R7C2(Method):
     def _prepare_data_tables(self, obj: dict, data: dict, method_type: str = Types.HVAC) -> dict:
         data_out = {}
 
-        for key in self.required_timeseries:
+        for key in self.required_data:
             ts_key = self.get_with_method_backup(obj, key, method_type, key)
             ts_data = self.get_with_backup(data, ts_key)
             if ts_data is None:
                 raise ValueError(f"Required timeseries key '{ts_key}' for '{key}' not found in data.")
             data_out[key] = ts_data
 
-        for key in self.optional_timeseries:
+        for key in self.optional_data:
             ts_key = self.get_with_method_backup(obj, key, method_type)
             ts_data = self.get_with_backup(data, ts_key)
             if ts_data is not None:

@@ -26,7 +26,7 @@ class GeoMA(Method):
     types = [Types.OCCUPANCY]
     name = "GeoMA"
     required_keys = []
-    required_timeseries = [Types.ELECTRICITY]
+    required_data = [Types.ELECTRICITY]
     optional_keys = [O.LAMBDA, O.NIGHT_SCHEDULE, O.NIGHT_SCHEDULE_START, O.NIGHT_SCHEDULE_END]
 
     def generate(
@@ -116,7 +116,7 @@ class GeoMA(Method):
         }
 
         # Store required results
-        data_out = {k: results[k][K.TIMESERIES] for k in self.required_timeseries if k in results}
+        data_out = {k: results[k][K.TIMESERIES] for k in self.required_data if k in results}
 
         # Clean up
         obj_out = {k: v for k, v in obj_out.items() if v is not None}

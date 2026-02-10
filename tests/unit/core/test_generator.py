@@ -14,7 +14,7 @@ class DummyHVAC(Method):
     types = [Types.HVAC]
     name = "dummy"
     required_keys = []
-    required_timeseries = []
+    required_data = []
 
     def generate(self, obj, data, results, ts_type):
         n = 24

@@ -58,8 +58,8 @@ class JordanVajen(Method):
         name (str): Name identifier for the method.
         required_keys (list): Required input parameters (datetimes, dwelling_size).
         optional_keys (list): Optional input parameters (activity data, temperatures, etc.).
-        required_timeseries (list): Required time series inputs (datetimes).
-        optional_timeseries (list): Optional time series inputs (activity data, temperatures).
+        required_data (list): Required time series inputs (datetimes).
+        optional_data (list): Optional time series inputs (activity data, temperatures).
         output_summary (dict): Mapping of output summary keys to descriptions.
         output_timeseries (dict): Mapping of output time series keys to descriptions.
 
@@ -88,8 +88,8 @@ class JordanVajen(Method):
         O.SEASONAL_PEAK_DAY,
         O.SEED,
     ]
-    required_timeseries = [O.DATETIMES]
-    optional_timeseries = [
+    required_data = [O.DATETIMES]
+    optional_data = [
         O.DHW_ACTIVITY,
         O.DHW_DEMAND_PER_SIZE,
         O.TEMP_WATER_COLD,

@@ -187,37 +187,39 @@ When implementing new time series generation methods:
    - Handle edge cases gracefully (e.g., missing data, invalid inputs)
 
 Example implementation:
+
 ```python
 from entise.core.base import Method
 from typing import Dict, Any, List
 import pandas as pd
 
+
 class ExampleMethod(Method):
-    name = "example_method"
-    types = ["electricity", "heat"]
-    required_keys = ["parameter1", "parameter2"]
-    optional_keys = ["optional_parameter"]
-    required_timeseries = ["input_timeseries"]
-    optional_timeseries = ["optional_timeseries"]
+   name = "example_method"
+   types = ["electricity", "heat"]
+   required_keys = ["parameter1", "parameter2"]
+   optional_keys = ["optional_parameter"]
+   required_data = ["input_timeseries"]
+   optional_data = ["optional_timeseries"]
 
-    def generate(self, obj: dict, data: dict, ts_type: str) -> Dict[str, Any]:
-        """Generate example time series data.
+   def generate(self, obj: dict, data: dict, ts_type: str) -> Dict[str, Any]:
+      """Generate example time series data.
 
-        Args:
-            obj (dict): Object parameters
-            data (dict): Input data
-            ts_type (str): Type of time series to generate
+      Args:
+          obj (dict): Object parameters
+          data (dict): Input data
+          ts_type (str): Type of time series to generate
 
-        Returns:
-            Dict[str, Any]: Generated data
-        """
-        # Implementation logic
+      Returns:
+          Dict[str, Any]: Generated data
+      """
+      # Implementation logic
 
-        # Return standardized output
-        return {
-            "summary": {"total_value": 100, "peak_value": 10},
-            "timeseries": pd.DataFrame({"value": [1, 2, 3, 4, 5]})
-        }
+      # Return standardized output
+      return {
+         "summary": {"total_value": 100, "peak_value": 10},
+         "timeseries": pd.DataFrame({"value": [1, 2, 3, 4, 5]})
+      }
 ```
 
 ## Development Workflow

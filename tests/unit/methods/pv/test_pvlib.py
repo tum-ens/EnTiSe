@@ -68,8 +68,8 @@ def test_pvlib_initialization():
     assert pvlib.name == "pvlib"
     assert set(pvlib.required_keys) == {O.LAT, O.LON, O.WEATHER}
     assert set(pvlib.optional_keys) == {O.POWER, O.AZIMUTH, O.TILT, O.ALTITUDE, O.PV_ARRAYS, O.PV_INVERTER}
-    assert pvlib.required_timeseries == [O.WEATHER]
-    assert pvlib.optional_timeseries == [O.PV_ARRAYS]
+    assert pvlib.required_data == [O.WEATHER]
+    assert pvlib.optional_data == [O.PV_ARRAYS]
 
     # Check output definitions
     assert f"{C.GENERATION}_{Types.PV}" in pvlib.output_summary
