@@ -31,8 +31,8 @@ class Method(ABC, metaclass=MethodMeta):
     name: str = ""
     required_keys: List[str]
     optional_keys: List[str] = []
-    required_timeseries: List[str] = []
-    optional_timeseries: List[str] = []
+    required_data: List[str] = []
+    optional_data: List[str] = []
     output_summary: Dict[str, pd.DataFrame] = {}
     output_timeseries: Dict[str, pd.DataFrame]
 
@@ -90,7 +90,7 @@ class Method(ABC, metaclass=MethodMeta):
 
         # Get all possible keys for this method
         all_obj_keys = set(self.required_keys + self.optional_keys)
-        all_data_keys = set(self.required_timeseries + self.optional_timeseries)
+        all_data_keys = set(self.required_data + self.optional_data)
 
         for param_name, value in kwargs.items():
             if value is None:
@@ -212,6 +212,6 @@ class Method(ABC, metaclass=MethodMeta):
         return {
             Keys.KEYS_REQUIRED: cls.required_keys,
             Keys.KEYS_OPTIONAL: cls.optional_keys,
-            Keys.TIMESERIES_REQUIRED: cls.required_timeseries,
-            Keys.TIMESERIES_OPTIONAL: cls.optional_timeseries,
+            Keys.TIMESERIES_REQUIRED: cls.required_data,
+            Keys.TIMESERIES_OPTIONAL: cls.optional_data,
         }

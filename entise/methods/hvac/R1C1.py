@@ -46,9 +46,9 @@ class R1C1(Method):
         optional_keys (list): Additional keys that are not mandatory but may be
             included in the input data, such as power heating, power cooling,
             or ventilation settings.
-        required_timeseries (list): Time-series data required to compute the
+        required_data (list): Time-series data required to compute the
             outputs, such as weather data.
-        optional_timeseries (list): Optional time-series data inputs, such as
+        optional_data (list): Optional time-series data inputs, such as
             internal and solar gains.
         output_summary (dict): Summary of the output results, providing keys with
             their descriptions, such as total heating and cooling demands.
@@ -79,8 +79,8 @@ class R1C1(Method):
         O.GAINS_SOLAR,
         O.WINDOWS,
     ]
-    required_timeseries = [O.WEATHER]
-    optional_timeseries = [O.WINDOWS, O.GAINS_INTERNAL, O.GAINS_SOLAR, O.VENTILATION]
+    required_data = [O.WEATHER]
+    optional_data = [O.WINDOWS, O.GAINS_INTERNAL, O.GAINS_SOLAR, O.VENTILATION]
     output_summary = {
         f"{Types.HEATING}{SEP}{C.DEMAND}[Wh]": "total heating demand",
         f"{Types.HEATING}{SEP}{O.LOAD_MAX}[W]": "maximum heating load",

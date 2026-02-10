@@ -8,8 +8,8 @@ class AuxiliaryMethod(ABC):
     name: str
     required_keys: List[str] = []
     optional_keys: List[str] = []
-    required_timeseries: List[str] = []
-    optional_timeseries: List[str] = []
+    required_data: List[str] = []
+    optional_data: List[str] = []
 
     def __repr__(self):
         return f"<{self.__class__.__name__} strategy>"
@@ -57,6 +57,6 @@ class BaseSelector:
         has_required_keys = all(k in obj and obj[k] is not None for k in strategy.required_keys)
 
         # Ensure all required timeseries keys are present and not None
-        has_required_ts = all(k in data and data[k] is not None for k in strategy.required_timeseries)
+        has_required_ts = all(k in data and data[k] is not None for k in strategy.required_data)
 
         return has_required_keys and has_required_ts

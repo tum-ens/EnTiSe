@@ -25,7 +25,7 @@ class VentilationInactive(AuxiliaryMethod):
     extension of the `AuxiliaryMethod` class.
     """
 
-    required_timeseries = [O.WEATHER]
+    required_data = [O.WEATHER]
 
     def get_input_data(self, obj, data):
         return {O.WEATHER: data[O.WEATHER]}
@@ -45,7 +45,7 @@ class VentilationConstant(AuxiliaryMethod):
     """
 
     required_keys = [O.VENTILATION]
-    required_timeseries = [O.WEATHER]
+    required_data = [O.WEATHER]
 
     def generate(self, obj, data):
         ventilation = obj.get(O.VENTILATION, DEFAULT_VENTILATION)
@@ -85,7 +85,7 @@ class VentilationTimeSeries(AuxiliaryMethod):
 
     required_keys = [O.VENTILATION_COL]
     optional_keys = [O.ID, O.AREA, O.HEIGHT]
-    required_timeseries = [O.VENTILATION]
+    required_data = [O.VENTILATION]
 
     def generate(self, obj, data):
         ventilation = obj.get(O.VENTILATION)

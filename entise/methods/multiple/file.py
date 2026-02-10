@@ -33,16 +33,16 @@ class FileLoader(Method):
         types (list): List of time series types this method can generate (all valid types).
         name (str): Name identifier for the method.
         required_keys (list): Required input parameters (id, file).
-        required_timeseries (list): Required time series inputs (file).
+        required_data (list): Required time series inputs (file).
         output_summary (dict): Empty dictionary as no summary is provided.
         output_timeseries (dict): Empty dictionary as the output format depends on the input.
 
     Example:
         >>> from entise.methods.multiple.file import FileLoader
-        >>> from entise.core.generator import TimeSeriesGenerator
+        >>> from entise.core.generator import Generator
         >>>
         >>> # Create a generator and add objects
-        >>> gen = TimeSeriesGenerator()
+        >>> gen = Generator()
         >>> gen.add_objects(objects_df)  # DataFrame with file parameters
         >>>
         >>> # Generate time series
@@ -53,9 +53,9 @@ class FileLoader(Method):
     name = "file"
 
     required_keys = [O.ID, O.FILE]
-    required_timeseries = [O.FILE]
+    required_data = [O.FILE]
     optional_keys = []
-    optional_timeseries = []
+    optional_data = []
     output_summary = {}
     output_timeseries = {}
 

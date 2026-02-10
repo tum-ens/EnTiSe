@@ -68,8 +68,8 @@ class Ruhnau(Method):
         name (str): Name identifier for the method.
         required_keys (list): Required input parameters (weather).
         optional_keys (list): Optional input parameters (hp_source, hp_sink, hp_temp, correction_factor).
-        required_timeseries (list): Required time series inputs (weather).
-        optional_timeseries (list): Optional time series inputs (none).
+        required_data (list): Required time series inputs (weather).
+        optional_data (list): Optional time series inputs (none).
         output_summary (dict): Mapping of output summary keys to descriptions.
         output_timeseries (dict): Mapping of output time series keys to descriptions.
     """
@@ -86,8 +86,8 @@ class Ruhnau(Method):
         O.CORRECTION_FACTOR,
         O.HP_SYSTEM,
     ]
-    required_timeseries = [O.WEATHER]
-    optional_timeseries = [O.HP_SYSTEM]
+    required_data = [O.WEATHER]
+    optional_data = [O.HP_SYSTEM]
     output_summary = {
         f"{Types.HP}{SEP}{Types.HEATING}_avg[1]": "average heating COP value",
         f"{Types.HP}{SEP}{Types.HEATING}_min[1]": "minimum heating COP value",

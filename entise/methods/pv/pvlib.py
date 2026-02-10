@@ -57,17 +57,17 @@ class PVLib(Method):
         name (str): Name identifier for the method.
         required_keys (list): Required input parameters (latitude, longitude, weather).
         optional_keys (list): Optional input parameters (power, azimuth, tilt, etc.).
-        required_timeseries (list): Required time series inputs (weather).
-        optional_timeseries (list): Optional time series inputs (PV arrays).
+        required_data (list): Required time series inputs (weather).
+        optional_data (list): Optional time series inputs (PV arrays).
         output_summary (dict): Mapping of output summary keys to descriptions.
         output_timeseries (dict): Mapping of output time series keys to descriptions.
 
     Example:
         >>> from entise.methods.pv.pvlib import PVLib
-        >>> from entise.core.generator import TimeSeriesGenerator
+        >>> from entise.core.generator import Generator
         >>>
         >>> # Create a generator and add objects
-        >>> gen = TimeSeriesGenerator()
+        >>> gen = Generator()
         >>> gen.add_objects(objects_df)  # DataFrame with PV system parameters
         >>>
         >>> # Generate time series
@@ -78,8 +78,8 @@ class PVLib(Method):
     name = "pvlib"
     required_keys = [O.LAT, O.LON, O.WEATHER]
     optional_keys = [O.POWER, O.AZIMUTH, O.TILT, O.ALTITUDE, O.PV_ARRAYS, O.PV_INVERTER]
-    required_timeseries = [O.WEATHER]
-    optional_timeseries = [O.PV_ARRAYS]
+    required_data = [O.WEATHER]
+    optional_data = [O.PV_ARRAYS]
     output_summary = {
         f"{C.GENERATION}_{Types.PV}": "total PV generation",
         f"{O.GEN_MAX}_{Types.PV}": "maximum PV generation",

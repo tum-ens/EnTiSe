@@ -11,10 +11,10 @@ import pandas as pd
 # Add the project root directory to the Python path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
-# Import the new TimeSeriesGenerator
+# Import the new Generator
 from entise.constants import SEP, Types
 from entise.constants import Columns as C
-from entise.core.generator import TimeSeriesGenerator
+from entise.core.generator import Generator
 
 # Load data
 cwd = "."  # Current working directory: change if your kernel is not running in the same folder
@@ -33,7 +33,7 @@ for file in os.listdir(os.path.join(cwd, data_folder)):
 print("Loaded data keys:", list(data.keys()))
 
 # Instantiate and configure the generator
-gen = TimeSeriesGenerator()
+gen = Generator()
 
 # Filter objects to only include one object (for debugging)
 gen.add_objects(objects)

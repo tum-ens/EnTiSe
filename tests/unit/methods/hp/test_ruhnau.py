@@ -60,8 +60,8 @@ def test_ruhnau_initialization():
         O.CORRECTION_FACTOR,
         O.HP_SYSTEM,
     }
-    assert ruhnau.required_timeseries == [O.WEATHER]
-    assert ruhnau.optional_timeseries == [O.HP_SYSTEM]
+    assert ruhnau.required_data == [O.WEATHER]
+    assert ruhnau.optional_data == [O.HP_SYSTEM]
 
     # Check output definitions
     assert f"{Types.HP}:{Types.HEATING}_avg[1]" in ruhnau.output_summary
