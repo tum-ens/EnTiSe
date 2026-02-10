@@ -8,7 +8,7 @@ from tqdm import tqdm
 from entise.constants import VALID_TYPES
 from entise.constants import Keys as K
 from entise.constants import Objects as O
-from entise.core.runner import RowExecutor
+from entise.core.runner import Runner
 
 
 class Generator:
@@ -90,10 +90,10 @@ class Generator:
     def _process_object(self, obj: dict, data: Dict[str, pd.DataFrame]) -> Dict[str, Any]:
         obj_id = obj.get(O.ID, None)
         strategies = {k: v for k, v in obj.items() if k in VALID_TYPES and pd.notna(v)}
-        static_inputs = {k: v for k, v in obj.items() if k not in strategies}
+        keys = {k: v for k, v in obj.items() if k not in strategies}
 
-        executor = RowExecutor(static_inputs, data, strategies)
-        main_outputs = executor.run_main_methods()
+        executor = Runner(keys, data, strategies)
+        main_outputs = executor.run_methods()
 
         summary = {}
         timeseries = {}
