@@ -6,7 +6,7 @@ from entise.constants import Keys as K
 from entise.constants import Objects as O
 from entise.constants import Types
 from entise.core.base import Method
-from entise.core.runner import RowExecutor
+from entise.core.runner import Runner
 
 
 class DummyHVAC(Method):
@@ -25,8 +25,8 @@ def test_runner_executes_main_method():
     data = {}
     strategies = {Types.HVAC: "runner_dummy"}
 
-    runner = RowExecutor(static_inputs, data, strategies)
-    results = runner.run_main_methods()
+    runner = Runner(static_inputs, data, strategies)
+    results = runner.run_methods()
 
     assert Types.HVAC in results
     assert isinstance(results[Types.HVAC][K.SUMMARY], dict)
@@ -58,7 +58,7 @@ def test_runner_uses_cache():
     data = {}
     strategies = {Types.HVAC: "cache_test"}
 
-    runner = RowExecutor(static_inputs, data, strategies)
+    runner = Runner(static_inputs, data, strategies)
 
     # Call twice — second one should hit the cache
     result_1 = runner.resolve(Types.HVAC)
