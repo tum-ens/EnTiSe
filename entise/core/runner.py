@@ -25,7 +25,7 @@ class Runner:
         method_cls = get_strategy(strategy_name)
         method = method_cls()
 
-        required_ts = getattr(method_cls, "required_timeseries", []) or []
+        required_ts = getattr(method_cls, K.DATA_REQUIRED, []) or []
         for dep in required_ts:
             if dep in self.strategies:
                 # Dependency is produced by a strategy → compute it first
