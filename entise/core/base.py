@@ -212,6 +212,6 @@ class Method(ABC, metaclass=MethodMeta):
         return {
             Keys.KEYS_REQUIRED: cls.required_keys,
             Keys.KEYS_OPTIONAL: cls.optional_keys,
-            Keys.TIMESERIES_REQUIRED: cls.required_data,
-            Keys.TIMESERIES_OPTIONAL: cls.optional_data,
+            Keys.DATA_REQUIRED: cls.required_data,
+            Keys.DATA_OPTIONAL: cls.optional_data,
         }
