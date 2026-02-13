@@ -86,12 +86,7 @@ def run_simulation(
 
     Returns:
         `(summary_df, results_dict)` from the generator.
-
-    Raises:
-        ValueError: If `workers < 1`.
     """
-    if workers < 1:
-        raise ValueError("workers must be >= 1")
     gen = Generator()
     gen.add_objects(objects)
     return gen.generate(data, workers=workers)
