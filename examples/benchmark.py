@@ -56,7 +56,8 @@ Plot from an existing CSV:
 - python examples/benchmark.py plot --results examples/benchmarks/benchmark_YYYYMMDD-HHMMSS.csv
 
 Plot with custom output directory/prefix:
-- python examples/benchmark.py plot --results examples/benchmarks/benchmark_YYYYMMDD-HHMMSS.csv --outdir examples/benchmarks --prefix myplots
+- python examples/benchmark.py plot --results examples/benchmarks/benchmark_YYYYMMDD-HHMMSS.csv
+--outdir examples/benchmarks --prefix myplots
 
 Backwards-friendly comma-separated inputs:
 - python examples/benchmark.py run --methods pv_pvlib,hp_ruhnau --workers 1,2,4 --objects 50,100 --repeats 3 --plot
