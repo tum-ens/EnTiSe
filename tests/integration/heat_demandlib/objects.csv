@@ -1,0 +1,4 @@
+id,heating,annual_demand[kWh],weather,building_type,building_class,wind_class,holidays_location
+1,demandlib,5578,weather,MFH,1,0,"CA,US"
+2,demandlib,1701,weather,EFH,1,0,"BY,DE"
+3,demandlib,1073,weather,MFH,1,0,

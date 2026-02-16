@@ -15,6 +15,8 @@ class Objects:
     AREA_M = "area_m[m2]"  # Area of the building mass (m2)
     AREA_TOT = "area_tot[m2]"  # Total area (m2)
     AZIMUTH = "azimuth[degree]"  # Azimuth (degrees; 0/360 = North)
+    BUILDING_CLASS = "building_class"
+    BUILDING_TYPE = "building_type"
     C_1_AW = "C_1_AW[J K-1]"  # Thermal capacitance of the outer walls (J/K)
     C_1_IW = "C_1_IW[J K-1]"  # Thermal capacitance of the inner walls (J/K)
     C_M = "C_m[J K-1]"  # Thermal capacitance of the building mass (J/K)
@@ -24,6 +26,7 @@ class Objects:
     CORRECTION_FACTOR = "correction_factor"  # Correction factor for calculations
     DATETIMES = "datetimes"
     DEMAND = "demand"
+    DEMAND_KWH = "demand[kWh]"
     DHW_ACTIVITY = "dhw_activity"  # DHW activity filename
     DHW_DEMAND_PER_SIZE = "dhw_demand_per_size[m2]"  # DHW demand per size, i.e. m2
     DHW_DEMAND_PER_PERSON = "dhw_demand_per_person"  # DHW demand per person
@@ -110,6 +113,7 @@ class Objects:
     VENTILATION_SPLIT = "ventilation_split"  # Ventilation split factor
     VERBOSE = "verbose"  # Verbose
     WEATHER = "weather"  # Weather
+    WIND_CLASS = "wind_class"
     WIND_MODEL = "wind_model"  # Model chain (wind)
     WINDOWS = "windows"  # Windows
     YEARLY_DHW_DEMAND = "yearly_dhw_demand[m3 m-2 a-1]"  # Yearly DHW demand in m³ per m²
