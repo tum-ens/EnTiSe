@@ -31,6 +31,7 @@ class Columns:
     OCCUPATION = "occupation"  # Occupancy data
     ORIENTATION = "orientation[degree]"  # Orientation (degrees; 180 = south)
     POWER = "power[W]"  # power (W)
+    OCCUPANCY = "occupancy[1]"  # Occupancy (for timeseries files)
     PROBABILITY = "probability"  # probability (of event; [0, 1])
     PROBABILITY_DAY = f"{PROBABILITY}_day"  # Probabilty of event per day [0, inf)
     ROUGHNESS_LENGTH = "roughness_length"  # Roughness length

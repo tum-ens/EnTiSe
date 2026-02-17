@@ -15,6 +15,7 @@ class Objects:
     AREA_M = "area_m[m2]"  # Area of the building mass (m2)
     AREA_TOT = "area_tot[m2]"  # Total area (m2)
     AZIMUTH = "azimuth[degree]"  # Azimuth (degrees; 0/360 = North)
+    BASELINE_OFFSET = "baseline_offset"  # Value substracted from moving average, to reduce detection sensitivity
     BUILDING_CLASS = "building_class"
     BUILDING_TYPE = "building_type"
     C_1_AW = "C_1_AW[J K-1]"  # Thermal capacitance of the outer walls (J/K)
@@ -27,6 +28,7 @@ class Objects:
     DATETIMES = "datetimes"
     DEMAND = "demand"
     DEMAND_KWH = "demand[kWh]"
+    DETECTION_THRESHOLD = "detection_threshold"  # Minimal value from which occupancy is assigned
     DHW_ACTIVITY = "dhw_activity"  # DHW activity filename
     DHW_DEMAND_PER_SIZE = "dhw_demand_per_size[m2]"  # DHW demand per size, i.e. m2
     DHW_DEMAND_PER_PERSON = "dhw_demand_per_person"  # DHW demand per person
@@ -61,7 +63,7 @@ class Objects:
     LOAD_BASE = f"{LOAD}_base"  # Base load
     LOAD_MAX = f"{LOAD}_max"
     LON = "longitude[degree]"  # Longitude (degree north)
-    LAMBDA = "lambda_geoma"  # Weighting factor for GeoMA
+    LAMBDA = "lambda_occ"  # Weighting factor for occupancy, e.g. GeoMA/PHT
     NIGHT_SCHEDULE = "night_schedule"
     NIGHT_SCHEDULE_START = f"{NIGHT_SCHEDULE}_start"  # Start hour for detecting nightly occupancy schedule
     NIGHT_SCHEDULE_END = f"{NIGHT_SCHEDULE}_end"  # End hour for detecting nightly occupancy schedule

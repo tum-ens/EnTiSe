@@ -1,4 +1,4 @@
-id,occupancy,electricity,occupancy:lambda_geoma,occupancy:night_schedule,occupancy:night_schedule_start,occupancy:night_schedule_end,electricity:filename
+id,occupancy,electricity,occupancy:lambda_occ,occupancy:night_schedule,occupancy:night_schedule_start,occupancy:night_schedule_end,electricity:filename
 1,GeoMA,file,0.05,FALSE,,,demand_2_occupants
 2,GeoMA,file,0.15,FALSE,,,demand_2_occupants
 3,GeoMA,file,0.05,,,,demand_2_occupants
