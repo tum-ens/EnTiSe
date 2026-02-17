@@ -1,13 +1,3 @@
-"""
-Integration tests for EnTiSe demandlib heat method.
-
-This module runs the public examples end to end through the high-level
-simulation pipeline to validate that:
-- The pipeline executes without errors for the demandlib heat example
-- Summary and per-object results are produced
-- Timeseries contain the expected column, have no NaNs, and are non-negative
-"""
-
 from pathlib import Path
 
 import pandas as pd
@@ -17,7 +7,7 @@ from entise.constants import SEP, Types
 from entise.constants import Columns as C
 from examples.utils import load_input, run_simulation
 
-OUT_COL = f"{Types.HEATING}{SEP}{C.LOAD}[W]"
+OUT_COL = f"{Types.ELECTRICITY}{SEP}{C.LOAD}[W]"
 
 
 def _repo_root() -> Path:
@@ -27,12 +17,12 @@ def _repo_root() -> Path:
 
 @pytest.fixture(scope="module")
 def example_inputs():
-    """Load example objects and data for the heat demandlib example from the repo.
+    """Load example objects and data for the electricity demandlib example from the repo.
 
-    Ensures required inputs exist and that weather contains the C.DATETIME column.
+    Ensures required inputs exist and basic schema (presence of C.DATETIME) is met.
     """
     repo = _repo_root()
-    example_dir = repo / "examples" / "heat_demandlib"
+    example_dir = repo / "examples" / "electricity_demandlib"
 
     objects, data = load_input(
         base_path=str(example_dir),
@@ -47,11 +37,11 @@ def example_inputs():
     return objects, data
 
 
-def test_heat_demandlib_example_runs_end_to_end(example_inputs):
+def test_electricity_demandlib_example_runs_end_to_end(example_inputs):
     """
     Integration test:
     - Runs full Generator pipeline
-    - Ensures heating results exist
+    - Ensures electricity results exist
     - Ensures no NaNs
     - Ensures loads are non-negative
     """
@@ -67,9 +57,12 @@ def test_heat_demandlib_example_runs_end_to_end(example_inputs):
 
         # Object must exist in results
         assert obj_id in results
-        assert Types.HEATING in results[obj_id]
+        assert Types.ELECTRICITY in results[obj_id]
 
-        ts_df = results[obj_id][Types.HEATING]
+        ts_df = results[obj_id][Types.ELECTRICITY]
+
+        if isinstance(ts_df, dict):
+            ts_df = next(iter(ts_df.values()))
 
         assert isinstance(ts_df, pd.DataFrame)
         assert OUT_COL in ts_df.columns

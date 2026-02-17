@@ -14,6 +14,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Added heating method based on demandlib's BDEW method (`#70`, `!63`)
 - Added occupancy detection method GeoMA (`#58`, `!43`)
 - Added occupancy detection method PHT (`#66`, `!46`)
+- Added electricity method based on demandlib's BDEW method (`#56`, `!48`)
 
 ### Changed
 - Changed internal naming of core methods and parameters for improved clarity (`#90`, `!62`)

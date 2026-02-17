@@ -36,7 +36,7 @@ def _years_key(years: Iterable) -> Tuple[int, ...]:
 
 
 @lru_cache(maxsize=256)
-def _get_bdew_holidays_cached(country: Optional[str], subdiv: Optional[str], years_key: Tuple[int, ...]):
+def _get_holidays_cached(country: Optional[str], subdiv: Optional[str], years_key: Tuple[int, ...]):
     if not country or not years_key:
         return None
     try:
@@ -50,7 +50,7 @@ def _get_bdew_holidays_cached(country: Optional[str], subdiv: Optional[str], yea
         return None
 
 
-def _get_bdew_holidays(holidays_location, years):
+def get_holidays(holidays_location, years):
     if not holidays_location or not isinstance(holidays_location, str):
         return None
 
@@ -62,6 +62,6 @@ def _get_bdew_holidays(holidays_location, years):
     if not ykey:
         return None
 
-    result = _get_bdew_holidays_cached(country, subdiv, ykey)
+    result = _get_holidays_cached(country, subdiv, ykey)
     # Preserve original return type (list) when there is a result
     return list(result) if result is not None else None

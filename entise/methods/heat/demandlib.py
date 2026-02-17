@@ -17,7 +17,7 @@ from entise.constants import SEP, Types
 from entise.constants import Columns as C
 from entise.constants import Objects as O
 from entise.core.base import Method
-from entise.methods.heat.demand_lib.calculation import _get_bdew_holidays
+from entise.methods.utils.holidays import get_holidays
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +25,7 @@ logger = logging.getLogger(__name__)
 _WEATHER_CACHE: dict[tuple, pd.DataFrame] = {}
 
 # Default values for optional keys
+DEFAULT_DEMAND = 1.0
 DEFAULT_BUILDING_TYPE = "EFH"
 DEFAULT_BUILDING_CLASS = 1
 DEFAULT_WIND_CLASS = 0
@@ -33,17 +34,17 @@ DEFAULT_WIND_CLASS = 0
 class Demandlib(Method):
     """Space heating demand generation using demandlib (temperature-based BDEW)."""
 
-    name = "demandlib"
+    name = "demandlib_heat"
     types = [Types.HEATING]
 
-    required_keys = [O.DEMAND_KWH, O.WEATHER]
-    optional_keys = [O.BUILDING_TYPE, O.BUILDING_CLASS, O.WIND_CLASS, O.HOLIDAYS_LOCATION]
+    required_keys = [O.WEATHER]
+    optional_keys = [O.DEMAND_KWH, O.BUILDING_TYPE, O.BUILDING_CLASS, O.WIND_CLASS, O.HOLIDAYS_LOCATION]
 
     required_data = [O.WEATHER]
     optional_data = []
 
     output_summary = {f"{Types.HEATING}{SEP}{C.DEMAND}[kWh]": "total heating demand"}
-    output_timeseries = {f"{Types.HEATING}{SEP}{C.LOAD}[W]": "heating load per timestep"}
+    output_timeseries = {f"{Types.HEATING}{SEP}{C.LOAD}[W]": "heating load"}
 
     def generate(
         self,
@@ -59,6 +60,28 @@ class Demandlib(Method):
         wind_class: int = None,
         holidays_location: Optional[str] = None,
     ):
+        """Generate a heating load timeseries using demandlib's BDEW heat model.
+
+        This method prepares inputs (including optional overrides), computes the
+        heating demand profile based on outdoor air temperature and BDEW
+        parameters, and returns a summary and timeseries.
+
+        Args:
+            obj: Object dictionary with inputs like demand, building params, weather key.
+            data: Data dictionary containing the weather dataframe under O.WEATHER.
+            results: Unused placeholder for interface compatibility.
+            ts_type: Timeseries type, defaults to Types.HEATING.
+            annual_demand_kwh: Optional annual heat demand in kWh; defaults to 1.0.
+            weather: Optional weather dataframe override with C.DATETIME and C.TEMP_AIR.
+            building_type: Optional BDEW building type (e.g., "EFH").
+            building_class: Optional BDEW building class (int).
+            wind_class: Optional BDEW wind class (int).
+            holidays_location: Optional country/region code for holidays (e.g., "DE").
+
+        Returns:
+            dict: {"summary": {...}, "timeseries": DataFrame with column
+            "HEATING|load[W]" indexed like the input weather datetimes.
+        """
         # Process keyword arguments
         processed_obj, processed_data = self._process_kwargs(
             obj,
@@ -81,7 +104,7 @@ class Demandlib(Method):
     def _get_input_data(self, obj, data, method_type=Types.HEATING):
         obj_out = {
             O.ID: Method.get_with_backup(obj, O.ID),
-            O.DEMAND_KWH: Method.get_with_method_backup(obj, O.DEMAND_KWH, method_type),
+            O.DEMAND_KWH: Method.get_with_method_backup(obj, O.DEMAND_KWH, method_type, DEFAULT_DEMAND),
             O.BUILDING_TYPE: Method.get_with_method_backup(obj, O.BUILDING_TYPE, method_type, DEFAULT_BUILDING_TYPE),
             O.BUILDING_CLASS: Method.get_with_method_backup(obj, O.BUILDING_CLASS, method_type, DEFAULT_BUILDING_CLASS),
             O.WIND_CLASS: Method.get_with_method_backup(obj, O.WIND_CLASS, method_type, DEFAULT_WIND_CLASS),
@@ -96,7 +119,7 @@ class Demandlib(Method):
         }
 
         if float(obj_out[O.DEMAND_KWH]) <= 0:
-            raise ValueError("[demandlib] annual_demand must be > 0 (kWh/year)")
+            raise ValueError("[demandlib_heat] demand must be > 0 ")
 
         # Clean up
         obj_out = {k: v for k, v in obj_out.items() if v is not None}
@@ -137,6 +160,24 @@ class Demandlib(Method):
 
 
 def calculate_timeseries(obj, data):
+    """Compute the heating load timeseries for the requested horizon.
+
+    Uses demandlib.bdew.HeatBuilding with given building parameters and
+    temperature-driven SHLP to create an hourly-native profile, scales it to the
+    requested annual demand, and aligns it to the target timestep. Subhourly
+    inputs are aggregated to hourly for temperature, then interpolated back to
+    the original dt_s using mean() and scaling to preserve power semantics.
+
+    Args:
+        obj: Processed object mapping with O.DEMAND_KWH, O.BUILDING_TYPE,
+            O.BUILDING_CLASS, O.WIND_CLASS, and optional O.HOLIDAYS_LOCATION.
+        data: Processed data mapping with O.WEATHER dataframe containing
+            C.DATETIME (tz-aware/naive accepted; converted to tz-naive wall clock)
+            and C.TEMP_AIR.
+
+    Returns:
+        pandas.Series of integer Watts indexed by tz-naive regular timestamps.
+    """
     # Get keys
     demand_kwh = float(obj[O.DEMAND_KWH])
     building_type = str(obj[O.BUILDING_TYPE])
@@ -168,7 +209,7 @@ def calculate_timeseries(obj, data):
         air_temp = air_temp.resample("1h").mean().interpolate()
 
     # Get holidays
-    bdew_holidays = _get_bdew_holidays(holidays_location=holidays_location, years=air_temp.index.year.unique())
+    holidays = get_holidays(holidays_location=holidays_location, years=air_temp.index.year.unique())
 
     # Calculate heat demand
     heat = bdew.HeatBuilding(
@@ -176,7 +217,7 @@ def calculate_timeseries(obj, data):
         shlp_type=building_type,
         building_class=building_class,
         wind_class=wind_class,
-        holidays=bdew_holidays,
+        holidays=holidays,
         temperature=air_temp,
         annual_heat_demand=demand_kwh,
     ).get_bdew_profile()
