@@ -1,7 +1,7 @@
 """
-Example script Occupancy: Geometric Moving Average (GeoMA)
+Example script Occupancy: Page-Hinkley Test (PHT)
 The code is identical to the jupyter notebook.
-This script demonstrates how to use the GeoMA method to generate occupancy schedules based on electricity
+This script demonstrates how to use the PHT method to generate occupancy schedules based on electricity
 demand time series.
 """
 
@@ -131,9 +131,9 @@ def analyze_results(summary: pd.DataFrame, dfs: dict, data: dict, save_figures: 
 
     # Prepare data for visualization
     OBJECT_CONFIGS = {
-        1: {"color": "tab:cyan", "texture": "x", "legend": "ID 1 (Lambda: 0.05, Without NS)"},
-        2: {"color": "tab:orange", "texture": "..", "legend": "ID 2 (Lambda: 0.15, Without NS)"},
-        3: {"color": "tab:green", "texture": "*", "legend": "ID 3 (Lambda: 0.05, With NS)"},
+        1: {"color": "tab:cyan", "texture": "x", "legend": "ID 1 (Detection Threshold: 0.3, Without NS)"},
+        2: {"color": "tab:orange", "texture": "..", "legend": "ID 2 (Detection Threshold: 0.3, With NS)"},
+        3: {"color": "tab:green", "texture": "*", "legend": "ID 3 (Detection Threshold: 0.7, With NS)"},
     }
 
     # Pick a day of the year

@@ -2,11 +2,10 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from entise.constants import SEP, Types
 from entise.constants import Columns as C
+from entise.constants import Keys as K
 from entise.constants import Objects as O
-from entise.constants import Types
-from entise.constants.general import SEP
-from entise.constants.general import Keys as K
 from entise.methods.occupancy import GeoMA
 
 
@@ -65,12 +64,12 @@ def test_geoma_outputs(dummy_inputs):
 
     assert K.TIMESERIES in result
     ts = result[K.TIMESERIES]
-    assert all(col in ts.columns for col in [f"{Types.OCCUPANCY}{SEP}{O.OCCUPANCY}"])
+    assert all(col in ts.columns for col in [f"{Types.OCCUPANCY}{SEP}{C.OCCUPANCY}"])
     assert ts.index.name == C.DATETIME
-    assert len(ts) == len(data[O.DEMAND])
+    assert len(ts) == len(results[Types.ELECTRICITY][K.TIMESERIES])
 
 
-def test_lambda_difference(dummy_inputs):
+def test_lambda_sensitivity(dummy_inputs):
     objs, data, results = dummy_inputs
     obj_1 = objs.loc[objs[O.ID] == "1"].iloc[0]
     obj_2 = objs.loc[objs[O.ID] == "2"].iloc[0]
@@ -86,7 +85,7 @@ def test_lambda_difference(dummy_inputs):
     assert mean_occ_1 != mean_occ_2
 
 
-def test_higher_occupancy_with_nightly_schedule(dummy_inputs):
+def test_nightly_schedule_increases_occupancy(dummy_inputs):
     objs, data, results = dummy_inputs
     obj_1 = objs.loc[objs[O.ID] == "1"].iloc[0]
     obj_3 = objs.loc[objs[O.ID] == "3"].iloc[0]

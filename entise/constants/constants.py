@@ -4,10 +4,11 @@ from enum import Enum
 class Constants(Enum):
     DEFAULT_HEIGHT = 2.5
     DEFAULT_AREA = 1
-    DEFAULT_NIGHT_SCHEDULE = True  # GeoMA
+    DEFAULT_NIGHT_SCHEDULE = True  # GeoMA/PHT
     DEFAULT_NIGHT_SCHEDULE_START = "20:00"
     DEFAULT_NIGHT_SCHEDULE_END = "23:59"
-    DEFAULT_LAMBDA = 0.05  # GeoMA
+    DEFAULT_LAMBDA = 0.05  # GeoMA/PHT
+    DEFAULT_DETECTION_THRESHOLD = 0.3
 
 
 class UnitConversion(Enum):
