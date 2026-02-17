@@ -51,7 +51,6 @@ class Objects:
     H_TR_W = "H_tr_w[W K-1]"  # Transmission heat transfer coefficient between windows and exterior (W/K)
     H_VE = "H_ve[W K-1]"  # Ventilation heat transfer coefficient between indoor air and exterior (W/K)
     HEIGHT = "height[m]"  # Height (m)
-    HOUSEHOLD_TYPE = "household_type"  # Type of household
     HOLIDAYS_LOCATION = "holidays_location"  # Location from which to get the holidays from (e.g. BY,DE)
     HP_SINK = "hp_sink"  # Heat pump sink type (floor, radiator, water)
     HP_SOURCE = "hp_source"  # Heat pump source type (air, soil, water)
@@ -74,6 +73,7 @@ class Objects:
     POWER = "power[W]"  # Power (W)
     POWER_COOLING = f"{POWER}_cooling[W]"  # Power cooling (W)
     POWER_HEATING = f"{POWER}_heating[W]"  # Power heating (W)
+    PROFILE = "profile"  # Type of profile, e.g. H0 for demandlib electricity
     PV_ARRAYS = "pv_arrays"  # PV array configuration (dict)
     PV_INVERTER = "pv_inverter"  # PV inverter configuration (dict)
     R_1_AW = "R_1_AW[K W-1]"  # Thermal resistance of the outer walls (K/W)

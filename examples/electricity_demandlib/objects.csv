@@ -1,0 +1,11 @@
+id,electricity,household_type,demand[kWh],datetimes,holidays_location
+1,demandlib_electricity,,3002,weather,
+2,demandlib_electricity,H0,4004,weather,"BY,DE"
+3,demandlib_electricity,,,weather,
+4,demandlib_electricity,G2,50008,weather,
+5,demandlib_electricity,G3,20012,weather,"CA,US"
+6,demandlib_electricity,G3,2012,weather,"BY,DE"
+7,demandlib_electricity,G4,204512,weather,"BY,DE"
+8,demandlib_electricity,G5,201012,weather,"BW,DE"
+9,demandlib_electricity,G6,204513,weather,"TO,IT"
+10,demandlib_electricity,G6,278014,weather,PT
