@@ -1,0 +1,10 @@
+id,electricity,households,occupants_per_household,datetimes,energy_intensity
+1,pylpg,1,4,weather,EnergySaving
+2,pylpg,1,4,weather,EnergySaving
+3,pylpg,3,3,weather,AsOriginal
+4,pylpg,6,2,weather,EnergyIntensive
+5,pylpg,12,1,weather,Random
+6,pylpg,3,3,weather,AsOriginal
+7,pylpg,3,3,weather,EnergySavingPreferMeasured
+8,pylpg,3,3,weather,EnergyIntensivePreferMeasured
+9,pylpg,2,2,weather,

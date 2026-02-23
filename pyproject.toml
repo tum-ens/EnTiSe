@@ -27,6 +27,7 @@ dependencies = [
     "cattrs",
     "chardet>=5.0.0",
     "demandlib",
+    "pyloadprofilegenerator",
     "holidays>=0.50",
     "joblib>=1.0.0",
     "matplotlib>=3.1.0",
