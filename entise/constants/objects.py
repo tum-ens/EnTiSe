@@ -33,6 +33,7 @@ class Objects:
     DHW_DEMAND_PER_SIZE = "dhw_demand_per_size[m2]"  # DHW demand per size, i.e. m2
     DHW_DEMAND_PER_PERSON = "dhw_demand_per_person"  # DHW demand per person
     DWELLING_SIZE = "dwelling_size[m2]"  # Size of dwelling (m2)
+    ENERGY_INTENSITY = "energy_intensity"  # Energy intensity mode (string/enum)
     FILE = "filename"  # File
     FRAC_RAD_AW = "fraction_rad_AW"  # Fraction of radiant gains that go to outer walls
     FRAC_CONV_INTERNAL = "fraction_conv_internal"  # Fraction of total gains that is convective to air
@@ -52,6 +53,8 @@ class Objects:
     H_VE = "H_ve[W K-1]"  # Ventilation heat transfer coefficient between indoor air and exterior (W/K)
     HEIGHT = "height[m]"  # Height (m)
     HOLIDAYS_LOCATION = "holidays_location"  # Location from which to get the holidays from (e.g. BY,DE)
+    HOUSEHOLDS = "households"  # Number of households
+    HOUSEHOLD_TYPE = "household_type"  # Type of household
     HP_SINK = "hp_sink"  # Heat pump sink type (floor, radiator, water)
     HP_SOURCE = "hp_source"  # Heat pump source type (air, soil, water)
     HP_SYSTEM = "hp_system"  # HP system configuration
@@ -69,6 +72,7 @@ class Objects:
     OCCUPANCY = "occupancy"  # Occupancy (for timeseries files)
     OCCUPANCY_AVG = f"average_{OCCUPANCY}"  # Average occupancy over a certain timeseries
     OCCUPANTS = "occupants"  # Number of occupants
+    OCCUPANTS_PER_HOUSEHOLD = "occupants_per_household"  # Number of occupants per household
     ORIENTATION = "orientation[degree]"  # Orientation (degrees; 180 = south)
     POWER = "power[W]"  # Power (W)
     POWER_COOLING = f"{POWER}_cooling[W]"  # Power cooling (W)

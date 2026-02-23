@@ -141,3 +141,7 @@ cython_debug/
 # PyCharm
 .idea/
 .junie/
+
+# MacOS system files
+.DS_Store
+**/.DS_Store
