@@ -40,38 +40,38 @@ _WEATHER_CACHE: dict[tuple, pd.DataFrame] = {}
 
 
 class R7C2(Method):
-    """
-    Implements the VDI 6007 7R2C (7-Resistor, 2-Capacitor) thermal model for building simulation.
+    """7R2C HVAC model aligned with VDI 6007 multi‑node transient method.
 
-    This model represents a thermal zone using two main thermal masses:
-    1.  **AW (Außenwände):** External, non-adiabatic components (walls, windows, roofs).
-    2.  **IW (Innenwände):** Internal, adiabatic components (partitions, intermediate floors).
+    Purpose and scope:
+    - Represents a thermal zone with two thermal masses and multiple heat‑transfer
+      paths to capture phase shifts and damping effects beyond 1R1C/5R1C models.
+      Suitable for envelope studies, solar‑gain interactions, and scenarios where
+      interior vs exterior mass coupling matters.
 
-    The model resolves the heat balance for three temperature nodes:
-    * **theta_m_aw:** Temperature of the thermal mass of exterior components.
-    * **theta_m_iw:** Temperature of the thermal mass of interior components.
-    * **theta_air:** Indoor air temperature.
+    Conceptual structure:
+    - Two capacitances: exterior mass (AW = Außenwände) and interior mass (IW = Innenwände).
+    - Seven resistances connect masses, surfaces, indoor air, and outside, including
+      parallel window/opaque paths on the AW side and a radiative “star” network that
+      couples surfaces and air.
+    - Three principal temperature states are resolved per step:
+      • theta_m_aw (exterior mass),
+      • theta_m_iw (interior mass),
+      • theta_air (indoor air).
+    - Internal and solar gains are split into convective (air) and radiant parts
+      distributed to AW/IW surfaces via σ parameters (sigma_aw, sigma_iw; remainder convective).
+    - Ventilation is split into mechanical and infiltration parts and applied to the air node.
 
-    Key Features:
-    * **Window Integration:** Windows are modeled as part of the AW path (parallel conductance),
-        affecting the equivalent resistance `R_rest_AW` and `R_1_AW`.
-    * **Solar Distribution:** Solar gains are split between convective (air) and radiative parts
-        (hitting AW and IW surfaces) based on VDI 6007-1 guidelines.
-    * **Equivalent Outdoor Temperature (T_eq):** Uses a conductance-weighted average of sol-air temperature
-        (opaque parts) and dry-bulb temperature (windows) to drive the AW node.
-    * **Initialization:** Includes an internal warm-up loop to settle thermal mass temperatures before the
-        main simulation period, preventing initialization bias.
+    Notes:
+    - Windows are modeled as a parallel conductance in the AW branch, affecting the
+      equivalent resistance split between opaque and transparent parts.
+    - The equivalent outdoor temperature T_eq for the AW path is a conductance‑weighted
+      blend of sol‑air temperature (opaque) and ambient dry‑bulb (windows).
+    - Includes a stabilization of initial states to reduce sensitivity to initial conditions.
+    - For lighter‑weight simulations with fewer states consider 5R1C (ISO 13790); for
+      quicker control‑oriented studies consider 1R1C.
 
-    Required Inputs (in `obj`):
-    * `R_1_AW`, `C_1_AW`: Resistance/Capacity of the inner layer of exterior walls.
-    * `R_rest_AW`: Resistance of the outer layer of exterior walls (including windows).
-    * `R_1_IW`, `C_1_IW`: Resistance/Capacity of interior walls.
-    * `R_alpha_star_IL`, `R_alpha_star_AW`, `R_alpha_star_IW`: Radiative star network resistances.
-
-    Returns:
-    * Indoor Air Temperature
-    * Heating Load (Power & Demand)
-    * Cooling Load (Power & Demand)
+    Reference:
+    - VDI 6007: Calculation of transient thermal response of rooms and buildings (7R2C concept).
     """
 
     types = [Types.HVAC]

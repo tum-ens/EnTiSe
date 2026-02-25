@@ -20,7 +20,25 @@ _DTS_CACHE: dict[Any, pd.DataFrame] = {}
 
 
 class Demandlib(Method):
-    """Electricity demand generation using demandlib BDEW profiles."""
+    """Electricity demand using demandlib's BDEW standard load profiles (SLPs).
+
+    This method wraps demandlib's implementation of the German BDEW standard load
+    profiles to generate high‑quality electricity demand time series. Given a
+    target time horizon (``Objects.DATETIMES``) and an annual energy demand in
+    kWh, it constructs the canonical 15‑minute SLP for the relevant calendar
+    year(s), scales it to the requested annual demand, and aligns it to the
+    target resolution using energy‑conserving resampling rules.
+
+    Key characteristics:
+    - Profile families such as household (H0) and commercial (Gx) are supported
+      via ``Objects.PROFILE``; defaults to an H0 dynamic profile.
+    - Public holidays can be considered by providing ``Objects.HOLIDAYS_LOCATION``.
+    - Output power is provided in Watts and indexed like the provided datetimes.
+
+    Reference:
+    - demandlib documentation (BDEW SLPs): https://demandlib.readthedocs.io/
+    - BDEW guideline (German Association of Energy and Water Industries).
+    """
 
     name = "demandlib_electricity"
     types = [Types.ELECTRICITY]

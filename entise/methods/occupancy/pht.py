@@ -18,19 +18,21 @@ logger = logging.getLogger(__name__)
 
 class PHT(Method):
     """
-    Derive binary occupancy from electricity demand using the Page–Hinkley Test (PHT).
+    Binary occupancy inference from electricity demand using the Page–Hinkley Test (PHT).
 
-    The method applies a Page–Hinkley change detection on the log-transformed power readings.
-    It maintains a cumulative deviation statistic and its running extrema to detect upward
-    and downward drifts. Detected upward drifts set occupancy to 1; downward drifts set it
-    to 0. Optionally, a nightly schedule can force unoccupied states during specific hours.
+    Purpose and scope:
+    - Applies a Page–Hinkley change detector to log‑power to identify sustained upward/downward
+      drifts. Upward drifts set occupancy=1; downward drifts reset to 0. Optional nightly rules
+      can force off‑hours to unoccupied.
 
     Notes:
-        - The electricity time series supplies the index (timestamps) of the resulting
-          occupancy series.
-        - Power readings are log10-transformed with a small epsilon to avoid log(0).
-        - The smoothing parameter (O.LAMBDA), baseline offset (O.BASELINE_OFFSET), and the
-          detection threshold (O.DETECTION_THRESHOLD) control sensitivity and responsiveness.
+    - Electricity load provides the timestamps; no separate clock is required.
+    - Power is log10‑transformed with an epsilon to stabilize low values.
+    - Sensitivity is tuned via lambda (running mean), baseline_offset, and detection_threshold.
+
+    References:
+    - Page, E. S. (1954). Continuous Inspection Schemes. Biometrika.
+    - Hinkley, D. V. (1971). Inference about the change‑point in a sequence of random variables.
     """
 
     types = [Types.OCCUPANCY]

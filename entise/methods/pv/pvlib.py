@@ -1,20 +1,3 @@
-"""PV generation module based on the pvlib package.
-
-This module implements a photovoltaic (PV) generation method using the pvlib package,
-which provides a set of functions and classes for simulating the performance of
-photovoltaic energy systems. The implementation follows the Method pattern established
-in the project architecture.
-
-The module provides functionality to:
-- Process input parameters for PV system configuration
-- Validate and prepare weather data
-- Calculate PV generation time series based on system parameters and weather data
-- Compute summary statistics for the generated time series
-
-The main class, PVLib, inherits from the Method base class and implements the
-required interface for integration with the EnTiSe framework.
-"""
-
 import logging
 import warnings
 
@@ -42,36 +25,22 @@ PV_INVERTER = dict(pdc0=3)
 
 
 class PVLib(Method):
-    """Implements a PV generation method based on the pvlib package.
+    """PV generation using pvlib-python model chain (AC power output).
 
-    This class provides functionality to generate photovoltaic (PV) power generation
-    time series based on weather data and PV system parameters. It uses the pvlib
-    package to model the PV system performance, taking into account factors such as
-    solar position, panel orientation, and system efficiency.
+    Purpose and scope:
+    - Builds a simple pvlib.pvsystem ModelChain given site latitude/longitude,
+      panel tilt/azimuth, array and inverter parameters, and meteorological
+      inputs (GHI/DNI/DHI, temperature, wind). Produces AC power time series and
+      summary KPIs (max generation, full-load hours).
 
-    The class follows the Method pattern defined in the EnTiSe framework, implementing
-    the required interface for time series generation methods.
+    Notes:
+    - Column naming for inputs follows EnTiSe conventions (Columns.*). Height
+      suffixes like ``@2m`` are automatically stripped where applicable.
+    - When only GHI is available, pvlib can approximate plane-of-array irradiance
+      using transposition models; results improve with DNI/DHI present.
 
-    Attributes:
-        types (list): List of time series types this method can generate (PV only).
-        name (str): Name identifier for the method.
-        required_keys (list): Required input parameters (latitude, longitude, weather).
-        optional_keys (list): Optional input parameters (power, azimuth, tilt, etc.).
-        required_data (list): Required time series inputs (weather).
-        optional_data (list): Optional time series inputs (PV arrays).
-        output_summary (dict): Mapping of output summary keys to descriptions.
-        output_timeseries (dict): Mapping of output time series keys to descriptions.
-
-    Example:
-        >>> from entise.methods.pv.pvlib import PVLib
-        >>> from entise.core.generator import Generator
-        >>>
-        >>> # Create a generator and add objects
-        >>> gen = Generator()
-        >>> gen.add_objects(objects_df)  # DataFrame with PV system parameters
-        >>>
-        >>> # Generate time series
-        >>> summary, timeseries = gen.generate(data)  # data contains weather information
+    Reference:
+    - pvlib-python documentation: https://pvlib-python.readthedocs.io/
     """
 
     types = [Types.PV]

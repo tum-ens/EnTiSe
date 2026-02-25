@@ -4,7 +4,7 @@ from typing import Any, Dict, Tuple
 
 import pandas as pd
 
-from entise.core.generator import Generator
+from entise import Generator
 
 
 def _load_dir_into(
