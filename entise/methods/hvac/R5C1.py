@@ -387,28 +387,28 @@ def calculate_timeseries_5r1c(
     idx: pd.DatetimeIndex = meta["index"]
     dt_s: float = float(meta["dt_s"])
     weather: pd.DataFrame = meta[O.WEATHER]
-    T_out_arr = weather[C.TEMP_AIR].to_numpy(dtype=float)
+    T_out_arr = weather[C.TEMP_AIR].to_numpy(dtype=float).ravel()
 
     n_len = len(idx)
 
     # Gains
-    g_int_arr = series["gains"]["g_int"].to_numpy(dtype=float)
-    g_sol_arr = series["gains"]["g_sol"].to_numpy(dtype=float)
+    g_int_arr = series["gains"]["g_int"].to_numpy(dtype=float).ravel()
+    g_sol_arr = series["gains"]["g_sol"].to_numpy(dtype=float).ravel()
 
     # Ventilation
-    Hve_vent_arr = series["ventilation"]["Hve_vent"].to_numpy(dtype=float)
-    Hve_inf_arr = series["ventilation"]["Hve_inf"].to_numpy(dtype=float)
+    Hve_vent_arr = series["ventilation"]["Hve_vent"].to_numpy(dtype=float).ravel()
+    Hve_inf_arr = series["ventilation"]["Hve_inf"].to_numpy(dtype=float).ravel()
 
     # Controls
-    T_min_arr = controls[O.TEMP_MIN].to_numpy(dtype=float)
-    T_max_arr = controls[O.TEMP_MAX].to_numpy(dtype=float)
-    T_sup_arr = controls[O.TEMP_SUPPLY].to_numpy(dtype=float)
+    T_min_arr = controls[O.TEMP_MIN].to_numpy(dtype=float).ravel()
+    T_max_arr = controls[O.TEMP_MAX].to_numpy(dtype=float).ravel()
+    T_sup_arr = controls[O.TEMP_SUPPLY].to_numpy(dtype=float).ravel()
 
-    P_heat_arr = controls[O.POWER_HEATING].to_numpy(dtype=float)
-    P_cool_arr = controls[O.POWER_COOLING].to_numpy(dtype=float)
+    P_heat_arr = controls[O.POWER_HEATING].to_numpy(dtype=float).ravel()
+    P_cool_arr = controls[O.POWER_COOLING].to_numpy(dtype=float).ravel()
 
-    on_heat_arr = controls[O.ACTIVE_HEATING].to_numpy(dtype=bool)
-    on_cool_arr = controls[O.ACTIVE_COOLING].to_numpy(dtype=bool)
+    on_heat_arr = controls[O.ACTIVE_HEATING].to_numpy(dtype=bool).ravel()
+    on_cool_arr = controls[O.ACTIVE_COOLING].to_numpy(dtype=bool).ravel()
 
     # Parameters
     T_init = params[O.TEMP_INIT]
