@@ -1,21 +1,21 @@
 class Types:
     """Valid timeseries types."""
 
-    BIOMASS = "biomass"  # Biomass energy
+    # BIOMASS = "biomass"  # Biomass energy
     COOLING = "cooling"  # Cooling demand or supply
-    CSP = "csp"  # Concentrated Solar Power
+    # CSP = "csp"  # Concentrated Solar Power
     DHW = "dhw"  # Domestic Hot Water
     ELECTRICITY = "electricity"  # Electricity demand or supply
-    GEOTHERMAL = "geothermal"  # Geothermal energy
+    # GEOTHERMAL = "geothermal"  # Geothermal energy
     HEATING = "heating"  # Heating demand or supply
     HP = "hp"  # Heat Pump COP
-    HYDRO = "hydro"  # Hydroelectric power
+    # HYDRO = "hydro"  # Hydroelectric power
     HVAC = "hvac"  # Heating, Ventilation, and Air Conditioning
     MOBILITY = "mobility"  # Transportation-related data
     OCCUPANCY = "occupancy"  # Occupancy data
     PV = "pv"  # Solar Photovoltaic
-    TIDAL = "tidal"  # Tidal energy
-    WAVE = "wave"  # Wave energy
+    # TIDAL = "tidal"  # Tidal energy
+    # WAVE = "wave"  # Wave energy
     WIND = "wind"  # Wind energy
 
 

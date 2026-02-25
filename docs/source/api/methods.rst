@@ -6,7 +6,7 @@ Methods API
 This section provides detailed API documentation for the methods modules of EnTiSe.
 
 Accessing Methods
-----------------
+------------------
 
 EnTiSe provides two ways to access methods:
 
@@ -43,7 +43,7 @@ EnTiSe provides two ways to access methods:
       timeseries = result["timeseries"]
 
 Flexible Parameter Passing
-~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 When using direct method access, EnTiSe provides flexible ways to pass parameters:
 
@@ -62,9 +62,9 @@ When using direct method access, EnTiSe provides flexible ways to pass parameter
 
       # Pass parameters directly by name
       result = pvlib.generate(
-          latitude=48.1, 
-          longitude=11.6, 
-          power=5000, 
+          latitude=48.1,
+          longitude=11.6,
+          power=5000,
           weather=weather_df
       )
 
@@ -78,13 +78,13 @@ When using direct method access, EnTiSe provides flexible ways to pass parameter
 
       # Override specific parameters with explicit values
       result = pvlib.generate(
-          obj=obj, 
+          obj=obj,
           data=data,
           power=5000  # This overrides any "power" value in obj
       )
 
-The method automatically determines whether each parameter belongs in the object 
-dictionary or the data dictionary based on the method's defined `required_keys`, 
+The method automatically determines whether each parameter belongs in the object
+dictionary or the data dictionary based on the method's defined `required_keys`,
 `optional_keys`, `required_timeseries`, and `optional_timeseries` attributes.
 
 HVAC Methods
@@ -112,13 +112,6 @@ Occupancy Methods
    :undoc-members:
    :show-inheritance:
 
-FixedSchedule Method
-~~~~~~~~~~~~~~~~~~~
-
-.. automodule:: entise.methods.occupancy.FixedSchedule
-   :members:
-   :undoc-members:
-   :show-inheritance:
 
 Auxiliary Methods
 -----------------

@@ -31,6 +31,7 @@ dependencies = [
     "holidays>=0.50",
     "joblib>=1.0.0",
     "matplotlib>=3.1.0",
+    "notebook>=7.5.4",
     "numpy>=2.0.0",
     "openmeteo-requests",
     "pandas<3.0.0",
@@ -55,7 +56,9 @@ dev = [
     "uv>=0.7.8",
 ]
 docs = [
+    "myst-nb",
     "sphinx",
+    "sphinxcontrib-mermaid",
     "sphinx-rtd-theme",
 ]
 

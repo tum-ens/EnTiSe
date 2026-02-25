@@ -1,12 +1,3 @@
-"""
-Heat demand generation method based on demandlib (BDEW space heating profiles).
-
-- Input horizon + resolution are governed by O.WEATHER (datetime index or datetime column)
-- demandlib heat is hourly-native; we generate hourly energy bins and distribute to user timestep
-- Multi-year: run per year and stitch
-- Output: Types.HEATING|LOAD[W]
-"""
-
 import logging
 from typing import Optional
 
@@ -32,7 +23,24 @@ DEFAULT_WIND_CLASS = 0
 
 
 class Demandlib(Method):
-    """Space heating demand generation using demandlib (temperature-based BDEW)."""
+    """Space heating demand using demandlib’s temperature-driven BDEW model.
+
+    Purpose and scope:
+    - Wraps demandlib’s BDEW methodology to synthesize hourly heating energy profiles
+      driven by outdoor air temperature and building archetype parameters. Profiles
+      are scaled to an annual demand target and aligned to the requested timestep.
+
+    Notes:
+    - Provide weather with a datetime column and air temperature. The method derives
+      wall‑clock timestamps and applies an energy‑conserving resampling when your
+      resolution differs from the native demandlib resolution.
+    - Building type/class and wind class adjust the sensitivity and seasonal shape as
+      per BDEW assumptions.
+
+    Reference:
+    - demandlib (BDEW heat): https://demandlib.readthedocs.io/
+    - BDEW guideline (German Association of Energy and Water Industries).
+    """
 
     name = "demandlib_heat"
     types = [Types.HEATING]

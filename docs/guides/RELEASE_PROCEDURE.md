@@ -6,25 +6,43 @@ These symbols help with orientation:
 - 💠 git (Bash)
 - 📝 File
 - 💻 Command Line (CMD)
+- 🧪 Testing
 
 
 ## Version Numbers
 
 This software follows the [Semantic Versioning (SemVer)](https://semver.org/).<br>
-It always has the format `MAJOR.MINOR.PATCH`, e.g. `1.5.0`.
+It always has the format `MAJOR.MINOR.PATCH`, e.g. `1.0.0`.
 
-The data follows the [Calendar Versioning (CalVer)](https://calver.org/).<br>
-It always has the format `YYYY-MM-DD`, e.g. `1992-11-07`.
+**Note**: This project uses `hatch-vcs` for automatic versioning based on Git tags. The version is automatically derived from the latest Git tag.
 
 
-## GitLab Release
+## Release Process
 
-### 1. Update the `CHANGELOG.md`
-- 📝 **File**: Open the CHANGELOG.md file and add a new entry under the `[Unreleased]` section.
-- 💠 **Commit**: Commit your changes to the changelog, noting all new features, changes, and fixes.
-- 📝 **Version Entry**: Format the new version entry as follows:
+### 1. 🧪 Run Complete Test Suite
+- **Unit Tests**: Run pytest to ensure all tests pass:
+    ```bash
+    pytest
     ```
-    ## [0.1.0] - 2022-01-01
+- **Coverage Check**: Verify test coverage meets requirements:
+    ```bash
+    pytest --cov
+    ```
+- **Multi-Environment Testing**: Run tox to test across multiple Python versions/environments:
+    ```bash
+    tox
+    ```
+- **Build Test**: Verify the package builds correctly:
+    ```bash
+    python -m build --wheel --sdist
+    ```
+
+### 2. 📝 Update the `CHANGELOG.md`
+- **File**: Open the CHANGELOG.md file and add a new entry under the `[Unreleased]` section.
+- **Commit**: Commit your changes to the changelog, noting all new features, changes, and fixes.
+- **Version Entry**: Format the new version entry as follows:
+    ```markdown
+    ## [1.0.0] Short description - 2024-12-15
 
     ### Added
     - New feature
@@ -37,111 +55,149 @@ It always has the format `YYYY-MM-DD`, e.g. `1992-11-07`.
     - Bug fix
     ```
 
-### 2. Create a `Draft GitLab Release` Issue
-- 🐙 **Template**: Use the `📝Release_Checklist` template for the issue.
-- 🐙 **Issue**: Create a new issue in the repository with the title `Release - Minor Version - 0.1.0`.
-- 🐙 **Description**: Fill in the details of the release, including the name, Git tag, release manager, and date.
-- 🐙 **Workflow Checklist**: Check off the steps in the workflow checklist for the release.
-
-### 3. Update Version in Code
-- 📝 **File**: Locate the version variable in the code (in the template it can be found in [VERSION](VERSION)).
-- 💻 **Update**: Change the version number to the new release version following SemVer.
-- 💠 **Commit**: Commit this version change with a message like:
-    ```
-    git commit -m "Bump version to 1.5.0"
-    ```
-
-### 4. Create a Release Branch
-- 💠 **Branching**: Create a release branch from develop:
+### 3. 🐙 Create Release Issue and Branch
+- **Template**: Use the `📝Release_Checklist` template for the issue.
+- **Issue**: Create a new issue with the title `Release - Version - 1.0.0`.
+- **Branch**: Create a release branch:
     ```bash
-    git checkout develop
+    git checkout develop  # or main if working directly from main
     git pull
-    git checkout -b release-1.5.0
+    git checkout -b release/1.0.0
     ```
-- 💠 **Push**: Push the release branch to GitLab:
+- **Push**: Push the release branch to GitLab:
     ```bash
-    git push --set-upstream origin release-1.5.0
+    git push --set-upstream origin release/1.0.0
     ```
 
-### 5. Finalize and Merge
-- 🐙 **Merge Request**: In GitLab, open a merge request (MR) from `release-1.5.0` into `main`.
-- 🐙 **Review**: Assign reviewers to the MR and ensure all tests pass.
-- 🐙 **Merge**: Once approved, merge the MR into main and delete the release branch.
+### 4. 🐙 Create Merge Request and Review
+- **Merge Request**: In GitLab, open a merge request (MR) from `release/1.0.0` into `main`.
+- **Review**: Assign reviewers to the MR and ensure all tests pass.
+- **CI/CD**: Verify that all CI/CD pipelines pass successfully.
+- **Merge**: Once approved, merge the MR into main and delete the release branch.
 
-### 6. Tag the Release
-- 💠 **Checkout** main: Ensure you’re on the main branch.
+### 5. 💠 Tag the Release (CRITICAL STEP)
+- **Checkout main**: Ensure you're on the latest main branch:
     ```bash
     git checkout main
     git pull
     ```
-- 💠 **Tag**: Tag the new release in GitLab:
+- **Check for commits after merge**: Verify if you need to recreate the tag:
     ```bash
-    git tag -a v1.5.0 -m "Release 1.5.0"
-    git push origin v1.5.0
+    git log --oneline v1.0.0..HEAD
+    ```
+    If this shows commits, you need to delete and recreate the tag.
+
+- **Delete existing tag** (if it exists and commits were made after):
+    ```bash
+    # Delete local tag
+    git tag -d v1.0.0
+    # Delete remote tag
+    git push origin :refs/tags/v1.0.0
+    ```
+- **Create new tag**: Tag the release pointing to the latest main:
+    ```bash
+    git tag -a v1.0.0 -m "Release 1.0.0"
+    git push origin v1.0.0
     ```
 
-### 7. Create a GitLab Release (Optional)
-- 🐙 **GitLab Release Page**: Go to the GitLab project’s Releases section and create a new release linked to the v1.5.0 tag.
-- 📝 **Release Notes**: Add release notes using information from the changelog.
+### 6. 🐙 Create GitLab Release
+- **GitLab Release Page**: Go to the GitLab project's Releases section and create a new release linked to the v1.0.0 tag.
+- **Release Notes**: Add release notes using information from the changelog.
 
-### 8. Update the Documentation
-- 📝 **Documentation**: Update the documentation to reflect the new release version.
-- 💻 **Build**: Build the documentation to ensure it’s up to date.
-- 💻 **Deploy**: Deploy the documentation to the appropriate location.
-- 💻 **Update**: Update any version references in the documentation.
-- 💻 **Commit**: Commit the documentation changes.
-- 💠 **Push**: Push the documentation changes to the repository.
-- 🐙 **Merge**: Merge the documentation changes into the main branch.
-- 🐙 **Delete Branch**: Delete the release branch after merging.
+## PyPI Release (Manual Process)
 
-### 9. Merge Back into `develop`
-- 💠 **Branch**: Create an MR from `main` into `develop` to merge the release changes back into the development branch.
-```bash
-git checkout develop
-git pull
-git merge main
-git push
-```
-
-## PyPi Release
-
-### 0. 💻 Check release on Test-PyPI
-- Check if the release is correctly displayed on [Test-PyPI](https://test.pypi.org/)
-- **Automatic Deployment**: With each push to the `release-*` or `test-release` branch the package is released on [Test-PyPI](https://test.pypi.org/) by GitLab CI/CD (assuming a corresponding job like test-pypi-publish.yml is configured).
-  - Note: Pre-releases on Test-PyPI are only shown under `Release history` in the navigation bar.
-  - Note: Each unique branch state can only be released to a single version on TestPyPI. For testing multiple states on TestPyPI, increment the build version (e.g., using `bump2version build`) and push the changes.
-- When testing is complete, finalize the release version with `bump2version release`
-  - Note: The release on Test-PyPI might fail, but it will be the correct release version for the PyPI server.
-- Push commits to the `release-*` branch
-
-### 1. 💻 Create and publish package on PyPI
-1. **Navigate to Project Directory**:
+### 1. 🧪 Test on Test-PyPI First
+- **Build the package** with the new tag:
     ```bash
-    cd path/to/gitlab/group/repo
-    ```
-2. **Build the Package**:
-  - Use `setup.py` or `pyproject.toml` to create a package distribution:
-    ```bash
-    python setup.py sdist
-    ```
-  - Confirm that the `.tar.gz` file is generated in the `dist` folder.
-3. **Activate Release Environment**:
-  - Activate the virtual environment used for PyPI releases:
-    ```bash
-    source path/to/release_env/bin/activate
-    ```
-4. **Upload to PyPI**:
-  - Use `twine` to upload the package to PyPI:
-    ```bash
-    twine upload dist/package_name-X.X.X.tar.gz
-    ```
-  - Enter your PyPI username and password when prompted.
-5. **Verify Release**:
-    - Check the [PyPI](https://pypi.org/) website to confirm that the release has been successfully uploaded.
-6. **Celebrate**:
-    - Take a moment to confirm everything looks good and enjoy a brief celebratory break before the grind continues.
+    # Clean previous builds
+    rm -rf dist/
 
-### Important Notes
-- **Versioning**: Always increment the version correctly using `bump2version` before creating the final release.
-- **Publishing Reminder**: Ensure your PyPI credentials are correctly set up in GitLab CI/CD or local `.pypirc` configuration for seamless uploads.
-- **Final Check**: If issues arise post-release, refer to the [GitLab CI/CD guide](https://docs.gitlab.com/ee/development/cicd/) and [PyPI documentation](https://packaging.python.org/en/latest/) for troubleshooting.
+    # Build with hatch-vcs (version automatically from tag)
+    python -m build
+    ```
+- **Upload to Test-PyPI**:
+    ```bash
+    python -m twine upload --repository testpypi dist/*
+    ```
+- **Verify on Test-PyPI**: Check [https://test.pypi.org/project/entise/](https://test.pypi.org/project/entise/)
+- **Test Installation from Test-PyPI**:
+    ```bash
+    # Create a clean test environment
+    python -m venv test_env
+    source test_env/bin/activate  # On Windows: test_env\Scripts\activate
+
+    # Install from Test-PyPI
+    pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ entise
+
+    # Test basic functionality
+    python -c "import entise; print('Import successful')"
+    # Run any basic functionality tests here
+
+    # Clean up
+    deactivate
+    rm -rf test_env
+    ```
+
+### 2. 🧪 Final Pre-Release Testing
+- **Functional Testing**: Verify the Test-PyPI package works as expected
+- **Dependency Check**: Ensure all dependencies are correctly specified and installable
+- **Documentation**: Verify that the package metadata and description display correctly on Test-PyPI
+
+### 3. 💻 Publish to PyPI
+- **Final Build** (if needed):
+    ```bash
+    # Only if you haven't built already or made changes
+    rm -rf dist/
+    python -m build
+    ```
+- **Upload to PyPI**:
+    ```bash
+    python -m twine upload dist/*
+    ```
+- **Enter Credentials**: Use your PyPI username and password (or API token) when prompted.
+
+### 4. ✅ Post-Release Verification
+- **Verify on PyPI**: Check [https://pypi.org/project/entise/](https://pypi.org/project/entise/) to confirm the release.
+- **Test Installation from PyPI**:
+    ```bash
+    # Create fresh environment
+    python -m venv verify_env
+    source verify_env/bin/activate  # On Windows: verify_env\Scripts\activate
+
+    # Install from PyPI
+    pip install entise==1.0.0
+
+    # Test functionality
+    python -c "import entise; print('PyPI installation successful')"
+
+    # Clean up
+    deactivate
+    rm -rf verify_env
+    ```
+- **Update Documentation**: Update any documentation that references version numbers.
+
+### 5. 💠 Merge Back to Develop (if using GitFlow)
+- **Merge main into develop**:
+    ```bash
+    git checkout develop
+    git pull
+    git merge main
+    git push
+    ```
+
+## Important Notes
+
+- **Automatic Versioning**: This project uses `hatch-vcs` - versions are automatically determined from Git tags. No manual version file updates needed.
+- **Tag Timing is Critical**: Always create/recreate the tag AFTER merging to main to ensure it points to the correct commit.
+- **Test-PyPI First**: Always test on Test-PyPI before publishing to PyPI to catch any packaging issues.
+- **Manual Publishing**: This project uses manual PyPI publishing - no automatic CI/CD deployment.
+- **Clean Builds**: Always clean the `dist/` folder before building to avoid uploading old artifacts.
+- **Credentials**: Ensure your PyPI credentials are set up correctly (consider using API tokens instead of passwords).
+- **Rollback Plan**: If issues arise post-release, you can yank the release on PyPI and fix issues in a patch version.
+
+## Troubleshooting
+
+- **Version not updating**: Make sure your tag points to the latest commit after merging.
+- **Test-PyPI upload fails**: Each version can only be uploaded once to Test-PyPI. Use a different version for testing.
+- **Import errors after installation**: Check that all dependencies are correctly specified in `pyproject.toml`.
+- **Package not found**: Wait a few minutes after uploading - PyPI can take time to process new releases.

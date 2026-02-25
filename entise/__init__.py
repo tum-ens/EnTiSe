@@ -11,4 +11,10 @@ except ImportError:
     __version__ = "unknown"
 
 # Import and expose the methods module
-import entise.methods
+from entise.core.generator import Generator
+
+__all__ = [
+    "core",
+    "Generator",
+    "methods",
+]

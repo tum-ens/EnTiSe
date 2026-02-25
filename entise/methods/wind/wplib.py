@@ -1,20 +1,3 @@
-"""Wind power generation module based on the windpowerlib package.
-
-This module implements a wind power generation method using the windpowerlib package,
-which provides a set of functions and classes for simulating the performance of
-wind turbines. The implementation follows the Method pattern established
-in the project architecture.
-
-The module provides functionality to:
-- Process input parameters for wind turbine configuration
-- Validate and prepare weather data
-- Calculate wind power generation time series based on system parameters and weather data
-- Compute summary statistics for the generated time series
-
-The main class, WindLib, inherits from the Method base class and implements the
-required interface for integration with the EnTiSe framework.
-"""
-
 import logging
 
 import pandas as pd
@@ -52,36 +35,20 @@ MODELCHAIN_PARAMS = {
 
 
 class WPLib(Method):
-    """Implements a wind power generation method based on the windpowerlib package.
+    """Wind power generation using windpowerlib model chain (AC power output).
 
-    This class provides functionality to generate wind power generation time series
-    based on weather data and wind turbine parameters. It uses the windpowerlib
-    package to model the wind turbine performance, taking into account factors such as
-    wind speed, air density, and turbine characteristics.
+    This module integrates the windpowerlib package to compute wind turbine power
+    from meteorological inputs and turbine metadata. It constructs a windpowerlib
+    ModelChain with a chosen turbine (by type/name), corrects wind speed to hub height
+    (if required), and converts met data (wind speed, temperature, pressure) into hub‑height
+    conditions and electrical output.
 
-    The class follows the Method pattern defined in the EnTiSe framework, implementing
-    the required interface for time series generation methods.
+    Key capabilities:
+    - Accept a site weather DataFrame and turbine parameters (type, hub height, rated power).
+    - Use windpowerlib's power curve–based ModelChain for robust, transparent calculations.
+    - Return AC power time series along with summary KPIs (max generation, full‑load hours).
 
-    Attributes:
-        types (list): List of time series types this method can generate (WIND only).
-        name (str): Name identifier for the method.
-        required_keys (list): Required input parameters (latitude, longitude, weather).
-        optional_keys (list): Optional input parameters (power, turbine_type, hub_height, etc.).
-        required_data (list): Required time series inputs (weather).
-        optional_data (list): Optional time series inputs.
-        output_summary (dict): Mapping of output summary keys to descriptions.
-        output_timeseries (dict): Mapping of output time series keys to descriptions.
-
-    Example:
-        >>> from entise.methods.wind.wplib import WPLib
-        >>> from entise.core.generator import Generator
-        >>>
-        >>> # Create a generator and add objects
-        >>> gen = Generator()
-        >>> gen.add_objects(objects_df)  # DataFrame with wind turbine parameters
-        >>>
-        >>> # Generate time series
-        >>> summary, timeseries = gen.generate(data)  # data contains weather information
+    Reference: windpowerlib — https://windpowerlib.readthedocs.io/
     """
 
     types = [Types.WIND]

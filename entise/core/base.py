@@ -42,6 +42,7 @@ class Method(ABC, metaclass=MethodMeta):
 
     @staticmethod
     def resolve_column(ts_key: str, column: str, ts_type: str, data: dict) -> pd.Series:
+        """Resolve a column from the timeseries data, checking for both method-specific and generic column names."""
         ts_data = data.get(ts_key)
         if ts_data is None:
             raise ValueError(f"Timeseries key '{ts_key}' not found in data.")
@@ -55,6 +56,7 @@ class Method(ABC, metaclass=MethodMeta):
         raise ValueError(f"Neither '{prefixed_col}' nor '{column}' found in timeseries '{ts_key}'.")
 
     def get_relevant_objects(self, obj: dict, ts_type: str = None) -> dict:
+        """Extract relevant objects for the method based on the timeseries type."""
         if ts_type is None:
             return obj
 
@@ -74,7 +76,7 @@ class Method(ABC, metaclass=MethodMeta):
 
         return relevant_objs
 
-    def _process_kwargs(self, obj=None, data=None, **kwargs) -> Tuple[dict, dict]:
+    def _process_kwargs(self, obj: dict = None, data: dict = None, **kwargs) -> Tuple[dict, dict]:
         """Process keyword arguments into obj and data dictionaries.
 
         Args:
@@ -164,7 +166,7 @@ class Method(ABC, metaclass=MethodMeta):
         return weather, info
 
     @staticmethod
-    def get_with_backup(obj, key, backup=None):
+    def get_with_backup(obj: dict, key: str, backup: Any = None):
         """Get a value from a dictionary with a backup value if not found or None.
 
         Args:
@@ -181,7 +183,7 @@ class Method(ABC, metaclass=MethodMeta):
         return value
 
     @classmethod
-    def get_with_method_backup(cls, obj, key, method_type, backup=None):
+    def get_with_method_backup(cls, obj: dict, key: str, method_type: str, backup: Any = None):
         """Get a value from a dictionary, checking for method-specific key first.
 
         Args:
@@ -209,6 +211,7 @@ class Method(ABC, metaclass=MethodMeta):
 
     @classmethod
     def get_requirements(cls) -> dict:
+        """Return a dictionary of the method's requirements, including required and optional keys and timeseries."""
         return {
             Keys.KEYS_REQUIRED: cls.required_keys,
             Keys.KEYS_OPTIONAL: cls.optional_keys,
