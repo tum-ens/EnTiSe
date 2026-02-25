@@ -4,6 +4,18 @@ from typing import List, Optional, Type
 
 from entise.core.base import Method, method_registry
 
+_methods_loaded = False
+
+
+def _ensure_methods_loaded():
+    global _methods_loaded
+    if _methods_loaded:
+        return
+    import entise.methods as _methods_pkg
+    for _, modname, _ in pkgutil.walk_packages(_methods_pkg.__path__, _methods_pkg.__name__ + "."):
+        importlib.import_module(modname)
+    _methods_loaded = True
+
 
 def register(cls: Type[Method], strategy_name: str = None):
     name = (strategy_name or getattr(cls, "name", cls.__name__)).lower()
@@ -13,6 +25,7 @@ def register(cls: Type[Method], strategy_name: str = None):
 
 
 def get_strategy(strategy_name: str) -> Type[Method]:
+    _ensure_methods_loaded()
     name = strategy_name.lower()
     if name not in method_registry:
         raise ValueError(f"Strategy '{strategy_name}' not found.")
@@ -20,11 +33,13 @@ def get_strategy(strategy_name: str) -> Type[Method]:
 
 
 def list_strategies() -> list:
+    _ensure_methods_loaded()
     return list(method_registry.keys())
 
 
 def get_methods_by_type(ts_type: str):
-    return [method for method in method_registry.values() if ts_type in getattr(method, "types", [])]
+    _ensure_methods_loaded()
+    return [m for m in method_registry.values() if ts_type in getattr(m, "types", [])]
 
 
 def import_all_methods(path: Optional[List[str]] = None, package_name: Optional[str] = None):

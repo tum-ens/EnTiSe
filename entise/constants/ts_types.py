@@ -1,6 +1,7 @@
 class Types:
     """Valid timeseries types."""
 
+    # Add new types here as needed, sorted alphabetically for easy reference.
     # BIOMASS = "biomass"  # Biomass energy
     COOLING = "cooling"  # Cooling demand or supply
     # CSP = "csp"  # Concentrated Solar Power

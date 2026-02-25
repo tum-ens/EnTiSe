@@ -1,9 +1,3 @@
-import datetime as dt
-
-import numpy as np
-import pandas as pd
-
-
 class Columns:
     """Column names used in timeseries data."""
 
@@ -54,40 +48,3 @@ class Columns:
     U_VALUE = "u_value[W m-2 K-1]"  # U-value (W/m²K)
     WIND_SPEED = "wind_speed[m s-1]"  # Wind speed (m/s)
     WIND_DIRECTION = "wind_from_direction[degree]"  # Wind direction (degree)
-    DTYPES = {
-        ID: object,
-        AREA: float | int | np.number,
-        DATE: dt.datetime,
-        DATETIME: pd.Timestamp | np.datetime64 | str | int | float,
-        DAY: int,
-        DAY_OF_WEEK: int,
-        DAY_CALENDAR: int,
-        COP: float | int | np.number,
-        DEMAND: float | int | np.number,
-        DURATION: float | int | np.number,
-        DURATION_SIGMA: float | int | np.number,
-        EVENT: str,
-        FLOW_RATE: float | int | np.number,
-        FLOW_RATE_SIGMA: float | int | np.number,
-        GAIN: float | int | np.number,
-        LOAD: float | int | np.number,
-        MONTH: int | np.number,
-        OCCUPATION: float,
-        ORIENTATION: float | int | np.number,
-        PROBABILITY: float | np.number,
-        PROBABILITY_DAY: float | np.number,
-        SHADING: float | int | np.number,
-        SOLAR_DHI: float | int | np.number,
-        SOLAR_DNI: float | int | np.number,
-        SOLAR_GHI: float | int | np.number,
-        TEMP_IN: float | int | np.number,
-        TEMP_OUT: float | int | np.number,
-        TEMP_WATER: float | int | np.number,
-        TEMP_WATER_COLD: float | int | np.number,
-        TEMP_WATER_HOT: float | int | np.number,
-        TILT: float | int | np.number,
-        TIME: str,
-        G_VALUE: float | int | np.number,
-        WIND_SPEED: float | int | np.number,
-        WIND_DIRECTION: float | int | np.number,
-    }
