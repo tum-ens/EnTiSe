@@ -1,4 +1,3 @@
-
 """
 Helper utilities for the PyLPG method
 """
@@ -21,7 +20,18 @@ logger = logging.getLogger(__name__)
 def _silence_fds():
     """Temporarily redirect OS-level stdout/stderr (fd 1 and 2) to os.devnull.
     Silences output from native extensions and child processes.
+
+    Notes:
+    - On Windows, low-level fd redirection can raise WinError 1 ("Incorrect function") in
+      native/CLR code paths used by pylpg. To keep benchmarks stable, we disable
+      fd-level silencing on Windows and simply yield (no-op). If needed, set the
+      env var ENTISE_PYLPG_SILENCE_FDS=1 to force silencing (use with caution).
     """
+    # No-op on Windows by default to avoid sporadic WinError 1 from native libs
+    if os.name == "nt" and os.environ.get("ENTISE_PYLPG_SILENCE_FDS", "0") != "1":
+        yield
+        return
+
     devnull_fd = os.open(os.devnull, os.O_RDWR)
     try:
         saved_out = os.dup(1)
@@ -39,6 +49,7 @@ def _silence_fds():
     finally:
         os.close(devnull_fd)
 
+
 def run_year_chunk(
     *,
     obj_id: str,
@@ -53,9 +64,9 @@ def run_year_chunk(
     Run PyLPG for one chunk (minute resolution). Returns a DataFrame indexed by datetime.
     """
     try:
+        import pylpg
         from pylpg.lpg_execution import execute_lpg_tsib
         from pylpg.lpgpythonbindings import EnergyIntensityType
-        import pylpg
     except Exception as e:
         raise ImportError("[pylpg] Requires the 'pyloadprofilegenerator' (pylpg) package.") from e
 
