@@ -1,111 +1,112 @@
 {{ method_name }}
-=========================
+{{ '=' * (method_name|length) }}
 
-{% if hasattr(cls, 'name') and cls.name %}
-**Method Key:** ``{{ cls.name }}``
-
-.. note::
-   This is the key required to call this method when using bulk generation with TimeSeriesGenerator.
-{% else %}
-**Method Key:** ``{{ method_name }}``
-
-.. note::
-   This is the class name. For auxiliary methods, the key is determined by the selector class.
-{% endif %}
-
-Description
------------
+Overview
+--------
 
 {{ description }}
 
-Requirements
--------------
+Key facts
+---------
 
-Required Keys
-~~~~~~~~~~~~~
+- Method key: ``{{ method_key }}``
+{% if supported_types %}
+- Supported types:
+
+  {% for t in supported_types %}
+  - ``{{ t }}``
+  {% endfor %}
+{% endif %}
+
+Requirements
+------------
+
+Required keys (specify in objects)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 {% if required_keys %}
+{% for k in required_keys %}- ``{{ k }}``
+{% endfor %}
+{% else %}
+- None
+{% endif %}
+
+Optional keys (specify in objects)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+{% if optional_keys %}
+{% for k in optional_keys %}- ``{{ k }}``
+{% endfor %}
+{% else %}
+- None
+{% endif %}
+
+Required data (specify in data)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+{% if required_data %}
+{% for k in required_data %}- ``{{ k }}``
+{% endfor %}
+{% else %}
+- None
+{% endif %}
+
+Optional data (specify in data)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+{% if optional_data %}
+{% for k in optional_data %}- ``{{ k }}``
+{% endfor %}
+{% else %}
+- None
+{% endif %}
+
+Outputs
+-------
+
+Summary metrics
+~~~~~~~~~~~~~~~
+
+{% if output_summary %}
 .. list-table::
    :widths: auto
    :header-rows: 1
 
    * - Key
-     - Type
-   {% for key, dtype in required_keys.items() %}
-   * - ``{{ key }}``
-     - ``{{ dtype.__name__ }}``
+     - Description
+   {% for k, v in output_summary.items() %}
+   * - ``{{ k }}``
+     - {{ v }}
    {% endfor %}
-{% else %}
-None
-{% endif %}
-
-
-Required Timeseries
-~~~~~~~~~~~~~~~~~~~
-
-{% if required_timeseries %}
-{% for ts_key, schema in required_timeseries.items() %}
-**Timeseries Key:** ``{{ ts_key }}``
-
-{% if 'columns_required' in schema %}
-**Required Columns**
-
-.. list-table::
-   :widths: auto
-   :header-rows: 1
-
-   * - Column
-     - Type
-   {% for col, col_type in schema['columns_required'].items() %}
-   * - ``{{ col }}``
-     - ``{{ col_type.__name__ if hasattr(col_type, '__name__') else col_type }}``
-   {% endfor %}
-{% endif %}
-
-{% if 'cols_optional' in schema %}
-**Optional Columns**
-
-.. list-table::
-   :widths: auto
-   :header-rows: 1
-
-   * - Column
-     - Type
-   {% for col, col_type in schema['cols_optional'].items() %}
-   * - ``{{ col }}``
-     - ``{{ col_type.__name__ if hasattr(col_type, '__name__') else col_type }}``
-   {% endfor %}
-{% endif %}
-
-{% if 'dtype' in schema %}
-**DataFrame Type:** ``{{ schema['dtype'].__name__ if hasattr(schema['dtype'], '__name__') else schema['dtype'] }}``
-{% endif %}
-
-{% endfor %}
-{% else %}
-None
-{% endif %}
-
-
-
-Dependencies
--------------
-
-{% if dependencies %}
-- {{ dependencies | join(", ") }}
 {% else %}
 - None
 {% endif %}
 
-Methods
--------
+Timeseries columns
+~~~~~~~~~~~~~~~~~~
+
+{% if output_timeseries %}
+.. list-table::
+   :widths: auto
+   :header-rows: 1
+
+   * - Column
+     - Description
+   {% for k, v in output_timeseries.items() %}
+   * - ``{{ k }}``
+     - {{ v }}
+   {% endfor %}
+{% else %}
+- None
+{% endif %}
+
+Public methods
+--------------
 
 {% for method, info in methods.items() %}
-**{{ method }}**:
-
+- {{ method }}
 
   .. code-block:: python
 
      {{ info.source_code | indent(3) }}
-
 {% endfor %}

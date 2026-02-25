@@ -1,10 +1,8 @@
-.. EnTiSe documentation master file, created by
-   sphinx-quickstart on Tue Dec 17 14:37:34 2024.
 
-.. figure:: ../img/logo_TUM.png
+.. figure:: ../img/logo.png
    :width: 200px
    :align: right
-   :alt: TUM Logo
+   :alt: EnTiSe Logo
 
 ====================
 EnTiSe Documentation
@@ -13,11 +11,13 @@ EnTiSe Documentation
 **EnTiSe** (Energy Time Series) is a Python framework for generating synthetic time series data for energy systems research.
 It provides a flexible and extensible platform for creating realistic time series for:
 
-* **HVAC** (Heating, Ventilation, and Air Conditioning)
-* **DHW** (Drinking Hot-Water)
-* **Electricity** consumption and generation (under development)
-* **Mobility** patterns and energy demand (under development)
-* **Occupancy** profiles for buildings (under development)
+* **Drinking Hot-Water**
+* **Electricity**
+* **Heat Pumps**
+* **HVAC**
+* **Occupancy**
+* **PV**
+* **Wind**
 
 EnTiSe is designed to support a wide range of research applications in the energy domain:
 
@@ -25,29 +25,28 @@ EnTiSe is designed to support a wide range of research applications in the energ
 * **Renewable Energy Integration**: Model the variability of renewable energy sources and their impact on energy systems
 * **Demand Response**: Analyze the potential for demand-side management and flexibility
 * **Energy System Planning**: Support the design and sizing of energy systems with realistic load profiles
-* **Policy Analysis**: Evaluate the impact of energy policies on system performance and emissions
 
 The framework can be integrated with other energy modeling tools and workflows, serving as a foundation for comprehensive energy systems analysis.
 
 Key Features
 ------------
 
-* **Modular Design**: Easily extensible with new methods and strategies
+* **Modular Design**: Easily extensible with new methods and strategies independent of existing methods
 * **Flexible Pipeline**: Automatic dependency resolution between methods
-* **Multiple Domains**: Support for HVAC, electricity, mobility, and occupancy
-* **Research-Focused**: Designed for energy systems researchers
-* **Reproducible**: Generate consistent time series for scientific analysis
+* **Multiple Domains**: Support for HVAC, electricity, and more
 
 Quick Start
 -----------
 
+For those wanting to quickly get started with EnTiSe, here is a simple example of how to use the `Generator` to create synthetic time series data for a building's thermal behavior. We recommend having a look at the :ref:`examples` to get a better understanding of the available parameters and methods.
+
 .. code-block:: python
 
-   from entise.core.generator import TimeSeriesGenerator
+   from entise import Generator
    import pandas as pd
 
    # Initialize the generator
-   gen = TimeSeriesGenerator()
+   gen = Generator()
 
    # Add objects (e.g., buildings)
    gen.add_objects({
@@ -69,8 +68,7 @@ Quick Start
    # Generate time series
    summary, df = gen.generate(data)
 
-Documentation Contents
------------------------
+
 
 .. toctree::
    :maxdepth: 1
@@ -79,6 +77,7 @@ Documentation Contents
    installation
    getting_started
    workflow
+   architecture
    methods/index
    services/index
    examples
