@@ -77,6 +77,11 @@ import matplotlib.gridspec as gridspec
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import warnings
+
+warnings.simplefilter("default")  # undo "error" policy if present
+warnings.filterwarnings("ignore", category=FutureWarning)
+warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 # Ensure repo root is importable
 THIS_DIR = os.path.abspath(os.path.dirname(__file__))
@@ -180,9 +185,23 @@ def benchmark_one(
         objects, data = cached
         objects_scaled = scale_objects(objects, num_objects)
 
-        t0 = time.perf_counter()
-        _summary, _df = run_simulation(objects_scaled, data, workers=workers)
-        dt = time.perf_counter() - t0
+        # Demote warnings locally so they never become exceptions during a run
+        with warnings.catch_warnings(record=True) as wlist:
+            warnings.resetwarnings()
+            warnings.simplefilter("default")  # neutralize any global "error" policy
+            warnings.filterwarnings("ignore", category=FutureWarning)
+            warnings.filterwarnings("ignore", category=DeprecationWarning)
+            # Optional: quiet generic user warnings during benchmarks
+            # warnings.filterwarnings("ignore", category=UserWarning)
+
+            t0 = time.perf_counter()
+            _summary, _df = run_simulation(objects_scaled, data, workers=workers)
+            dt = time.perf_counter() - t0
+
+        # Serialize any captured warnings for visibility (non-fatal)
+        warn_txt = "; ".join(
+            [f"{type(w.message).__name__}: {str(w.message)}" for w in wlist]
+        ) if wlist else None
 
         return {
             "method": method,
@@ -192,7 +211,7 @@ def benchmark_one(
             "runtime_sec": dt,
             "iter_per_sec": (num_objects / dt) if dt > 0 else None,
             "status": "ok",
-            "error": None,
+            "error": warn_txt,
         }
     except Exception as e:  # noqa: BLE001
         return {
