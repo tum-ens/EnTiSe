@@ -18,6 +18,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Changed
 - Changed internal naming of core methods and parameters for improved clarity (`#90`, `!62`)
+- Update documentation to reflect new methods and changes (`#89`, `!61`)
 
 ## [1.1.0] New HVAC models and performance improvements - 2025-12-16
 ### Added
