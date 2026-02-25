@@ -75,8 +75,8 @@ class Objects:
     OCCUPANTS_PER_HOUSEHOLD = "occupants_per_household"  # Number of occupants per household
     ORIENTATION = "orientation[degree]"  # Orientation (degrees; 180 = south)
     POWER = "power[W]"  # Power (W)
-    POWER_COOLING = f"{POWER}_cooling[W]"  # Power cooling (W)
-    POWER_HEATING = f"{POWER}_heating[W]"  # Power heating (W)
+    POWER_COOLING = "power_cooling[W]"  # Power cooling (W)
+    POWER_HEATING = "power_heating[W]"  # Power heating (W)
     PROFILE = "profile"  # Type of profile, e.g. H0 for demandlib electricity
     PV_ARRAYS = "pv_arrays"  # PV array configuration (dict)
     PV_INVERTER = "pv_inverter"  # PV inverter configuration (dict)
