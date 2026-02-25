@@ -181,7 +181,7 @@ We are happy if you want to contribute to this repository! Have a look at the gu
 
 Coding Standards
 -----------------
-This repository follows consistent coding styles. Refer to `CONTRIBUTING.md <CONTRIBUTING.md>`_ for detailed standards.
+This repository follows consistent coding styles. Refer to `CONTRIBUTING.md <./docs/guides/CONTRIBUTING.md>`_ for detailed standards.
 
 Changelog
 ----------
