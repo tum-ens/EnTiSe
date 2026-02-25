@@ -156,7 +156,7 @@ class Demandlib(Method):
         df.index.name = C.DATETIME
 
         idx = ts.index.to_series()
-        dt_s = (idx[1] - idx[0]).total_seconds()
+        dt_s = (idx.iat[1] - idx.iat[0]).total_seconds()
         demand_wh = int(round(float(ts.sum()) * dt_s / 3600.0))
         load_max_w = int(round(float(ts.max())))
 
