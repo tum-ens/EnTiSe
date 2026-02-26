@@ -61,9 +61,10 @@ docs = [
     "sphinxcontrib-mermaid",
     "sphinx-rtd-theme",
 ]
-districtheatingsim = [
-    "districtheatingsim @ git+https://github.com/JonasPfeiffer123/DistrictHeatingSim.git ; python_version >= '3.11' and python_version < '3.12'",
-]
+# Commented out for PyPI compatibility - install manually if needed
+# districtheatingsim = [
+#     "districtheatingsim @ git+https://github.com/JonasPfeiffer123/DistrictHeatingSim.git ; python_version >= '3.11' and python_version < '3.12'",
+# ]
 
 [project.urls]
 "Homepage" = "https://gitlab.lrz.de/tum-ens/need/entise"
@@ -95,6 +96,3 @@ line-ending = "auto"
 
 [tool.ruff.lint.isort]
 known-first-party = ["entise"]
-
-[tool.uv.publish]
-repositories = { testpypi = "https://test.pypi.org/legacy/" }
