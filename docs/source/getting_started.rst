@@ -3,14 +3,14 @@
 Getting Started
 ===============
 
-Welcome to EnTiSe, the framework for generating timeseries data for HVAC, Electricity, Mobility, and Occupancy types. This guide will walk you through the basics of setting up and using EnTiSe for the first time.
+This guide will walk you through the basics of setting up and using EnTiSe for the first time.
 
 Prerequisites
 -------------
 
 Before getting started, ensure you have:
 
-- Python 3.8 or higher installed.
+- Python 3.10 to 3.13 installed.
 - EnTiSe installed. If not, refer to the :ref:`installation` guide.
 
 Quickstart Example
@@ -25,8 +25,8 @@ Batch Processing
 ~~~~~~~~~~~~~~~~
 
 In batch processing you define all the parameters for all time series types beforehand and then create them all at once.
-This is a simple example for one object and one time series type but you can extend it to thousands and millions of
-time series.
+This is a simple example for one object and one time series type but you can extend it to thousands and millions of time series.
+In the :ref:`examples`, we defined several objects in a csv file and then load them into the generator. The same applies to the input data.
 
 1. **Import the Required Components**
 
@@ -34,26 +34,27 @@ Start by importing the necessary classes:
 
 .. code-block:: python
 
-    from entise.core.generator import TimeSeriesGenerator
+    from entise import Generator
     import pandas as pd
 
 2. **Prepare Input Data**
 
-Define objects (metadata) and timeseries data that EnTiSe will process:
+Define objects (metadata) and data that EnTiSe will process. Objects describe the characteristics of the time series you want to generate, while data provides the necessary input for the generation process, i.e. all data that does not fit into a dataframe but is required for the generation process. In this example, we define a simple object for an HVAC system and mock weather data.
 
 .. code-block:: python
 
     # Define an object for HVAC
     object_row = {
-        "id": "building1",
-        "hvac": "1R1C",
-        "resistance": 2.0,
-        "capacitance": 1e5,
-        "temp_init": 20.0,
-        "temp_min": 20.0,
-        "temp_max": 24.0,
-        "power_heating": 3000.0,
-        "power_cooling": 3000.0,
+        "id": "building1",  # Unique identifier for the object which always needs to be specified
+        "hvac": "1R1C",  # This specifies the method to use for generating the HVAC time series
+        "resistance": 2.0,  # This is the thermal resistance in degrees Celsius per watt
+        "capacitance": 1e5,  # This is the thermal capacitance in joules per degree Celsius
+        "temp_init": 20.0,  # This is the initial indoor temperature in degrees Celsius
+        "temp_min": 20.0,  # This is the minimum allowed indoor temperature in degrees Celsius
+        "temp_max": 24.0,  # This is the maximum allowed indoor temperature in degrees Celsius
+        "power_heating": 3000.0,  # This is the maximum heating power in watts
+        "power_cooling": 3000.0,  # This is the maximum cooling power in watts
+        "weather": "weather",  # This references the key in the data dictionary that contains the weather DataFrame
     }
 
     # Mock weather data
@@ -68,12 +69,12 @@ Define objects (metadata) and timeseries data that EnTiSe will process:
 
 3. **Create and Run the Generator**
 
-Use the `TimeSeriesGenerator` to process your objects and data:
+Use the `Generator` to process your objects and data:
 
 .. code-block:: python
 
     # Initialize the generator
-    gen = TimeSeriesGenerator()
+    gen = Generator()
 
     # Add the object(s)
     gen.add_objects(object_row)
@@ -93,104 +94,39 @@ The `summary` will contain summary metrics, and `timeseries` will hold the gener
     print("\nTimeseries Data:")
     print(df)
 
-Expected Output:
-
-.. code-block:: text
-
-    Summary Metrics:
-                                 hvac_energy_demand  hvac_power_demand
-    building1                                  72.0               3000
-
-    Timeseries Data:
-                             hvac_energy_demand  hvac_power_demand  hvac_temperature
-    2025-01-01 00:00:00+00:00                3.0             3000.0              20.0
-    2025-01-01 01:00:00+00:00                3.0             3000.0              20.0
-    2025-01-01 02:00:00+00:00                3.0             3000.0              20.0
-    ...                                       ...               ...               ...
 
 Direct Method Access
 ~~~~~~~~~~~~~~~~~~~~
 
-In addition to using the TimeSeriesGenerator for batch processing, you can also directly import and use methods:
+You can also call a method directly when you want fine-grained control or to embed EnTiSe in an existing pipeline. In this case you can either provide the parameters directly or use the same objects and data as in the batch processing example. Below is an example for the PVLib method using the direct method access.
 
 .. code-block:: python
 
-    # Import a specific method
     from entise.methods.pv import PVLib
 
-    # Create an instance
-    pvlib = PVLib()
-
-    # Method 1: Using dictionaries
-    obj = {
-        "id": "pv_system_1",
-        "latitude": 48.1,
-        "longitude": 11.6,
-        "power": 5000,  # 5 kW system
-        "azimuth": 180,  # South-facing
-        "tilt": 30,
-    }
-    data = {
-        "weather": weather_df,  # DataFrame with solar radiation data
-    }
-    result = pvlib.generate(obj, data)
-
-    # Method 2: Using named parameters directly
-    result = pvlib.generate(
-        latitude=48.1,
-        longitude=11.6,
-        power=5000,
-        azimuth=180,
-        tilt=30,
-        weather=weather_df
+    pv = PVLib()
+    result = pv.generate(
+        latitude=48.1,  # Latitude of the location
+        longitude=11.6,  # Longitude of the location
+        power=5000,  # Maximum power output of the solar system in watts
+        weather=weather_df,  # DataFrame with solar radiation data
     )
 
-    # Method 3: Combining both approaches
-    obj = {"latitude": 48.1, "longitude": 11.6}
-    data = {"weather": weather_df}
-    result = pvlib.generate(
-        obj=obj,
-        data=data,
-        power=5000,  # This overrides any "power" value in obj
-        azimuth=180,
-        tilt=30
-    )
-
-    # Access results
     summary = result["summary"]
     timeseries = result["timeseries"]
 
-    print("Summary Metrics:")
-    print(summary)
-
-    print("\nTimeseries Data:")
-    print(timeseries)
-
-This approach is useful when you want to:
-
-1. Work with a single method directly
-2. Have more control over the generation process
-3. Integrate EnTiSe methods into your own workflows
 
 Understanding the Workflow
 --------------------------
 
-Here’s a breakdown of how EnTiSe processes your data:
+- Define objects and provide input data (e.g., weather).
+- EnTiSe selects methods and strategies based on your inputs.
+- A dependency resolver ensures correct execution order.
+- You get a summary and a detailed timeseries DataFrame.
 
-1. **Objects**: Define the metadata for the timeseries you want to generate.
-2. **Input Data**: Provide the required timeseries data (e.g., weather data, occupancy data).
-3. **Method Selection**: EnTiSe selects the appropriate method based on the object properties.
-4. **Strategy Selection**: For auxiliary calculations (like solar gains or internal gains), EnTiSe selects the most appropriate strategy based on the available data.
-5. **Pipeline Processing**: Methods are executed in a pipeline, with dependencies automatically resolved.
-6. **Outputs**: EnTiSe generates summary metrics and detailed timeseries for each object.
+See :ref:`workflow` for the full conceptual guide, decision charts, and troubleshooting.
 
 Available Methods
 -----------------
 
 For a list of available methods, refer to the :ref:`methods` section in this documentation.
-
-Next Steps
-----------
-
-- Explore the :ref:`workflow` section to understand the full lifecycle of timeseries generation.
-- Check out the :ref:`examples` for practical applications.

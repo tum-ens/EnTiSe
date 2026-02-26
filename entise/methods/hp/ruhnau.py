@@ -1,15 +1,3 @@
-"""Heat pump COP calculation based on Ruhnau et al. (2019).
-
-This module implements a heat pump COP (Coefficient of Performance) calculation method
-based on the paper by Ruhnau et al. (2019) "Time series of heat demand and heat pump
-efficiency for energy system modeling".
-
-The implementation follows the Method pattern established in the project architecture
-and provides functionality to calculate COP time series for different heat pump types
-(air, ground, water source) and heating systems (floor heating, radiator, water heating)
-based on temperature differences.
-"""
-
 import logging
 
 import pandas as pd
@@ -58,20 +46,28 @@ DHW_PARAMS = "dhw_parameters"
 
 
 class Ruhnau(Method):
-    """Heat pump COP calculation based on Ruhnau et al. (2019).
+    """Heat pump COP model following Ruhnau et al. (2019).
 
-    Implements COP calculations for different heat pump types (air, ground, water source)
-    and heating systems (floor heating, radiator, water heating) based on temperature differences.
+    Purpose and scope:
+    - Computes coefficient of performance (COP) time series for heat pumps by
+      relating COP to the instantaneous temperature lift between the source
+      (ambient/ground/water) and the sink (space heating or DHW). Source/sink
+      types map to typical supply setpoints and optional temperature gradients.
 
-    Attributes:
-        types (list): List of time series types this method can generate (HP only).
-        name (str): Name identifier for the method.
-        required_keys (list): Required input parameters (weather).
-        optional_keys (list): Optional input parameters (hp_source, hp_sink, hp_temp, correction_factor).
-        required_timeseries (list): Required time series inputs (weather).
-        optional_timeseries (list): Optional time series inputs (none).
-        output_summary (dict): Mapping of output summary keys to descriptions.
-        output_timeseries (dict): Mapping of output time series keys to descriptions.
+    Method outline:
+    - Parameterize COP as a quadratic function of the temperature lift ΔT based
+      on coefficients for air/soil/water systems, and adjust via a correction
+      factor to reflect realistic performance (defrosting, auxiliaries).
+    - Provide parallel COP streams for space heating and DHW if desired.
+
+    Typical use:
+    - Combine with HVAC load time series to estimate electrical demand of HP
+      systems, or evaluate seasonal performance under different setpoints.
+
+    Reference:
+    - Ruhnau, O., Hirth, L., & Praktiknjo, A. (2019). Time series of heat demand
+      and heat pump efficiency for energy system modeling. Energy Policy, 125,
+      704–715. doi:10.1016/j.enpol.2019.111179
     """
 
     types = [Types.HP]
@@ -86,8 +82,8 @@ class Ruhnau(Method):
         O.CORRECTION_FACTOR,
         O.HP_SYSTEM,
     ]
-    required_timeseries = [O.WEATHER]
-    optional_timeseries = [O.HP_SYSTEM]
+    required_data = [O.WEATHER]
+    optional_data = [O.HP_SYSTEM]
     output_summary = {
         f"{Types.HP}{SEP}{Types.HEATING}_avg[1]": "average heating COP value",
         f"{Types.HP}{SEP}{Types.HEATING}_min[1]": "minimum heating COP value",
@@ -105,6 +101,7 @@ class Ruhnau(Method):
         self,
         obj: dict = None,
         data: dict = None,
+        results: dict | None = None,
         ts_type: str = Types.HP,
         *,
         weather: pd.DataFrame = None,
@@ -122,6 +119,7 @@ class Ruhnau(Method):
         Args:
             obj (dict, optional): Dictionary with heat pump parameters
             data (dict, optional): Dictionary with input data
+            results (dict, optional): Dictionary with results from previously generated time series
             ts_type (str, optional): Time series type to generate
             weather (pd.DataFrame, optional): Weather data with temperatures
             hp_source (str, optional): Heat pump source type ('ASHP', 'GSHP', 'WSHP')

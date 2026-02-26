@@ -6,7 +6,7 @@ import pandas as pd
 import pytest
 
 from entise.constants import Types
-from entise.core.generator import TimeSeriesGenerator
+from entise.core.generator import Generator
 
 DATA_DIR = os.path.dirname(__file__)
 
@@ -38,7 +38,7 @@ def test_jordan_vajen_all_objects(inputs):
     objects_df, shared_data = inputs
 
     # Process all objects
-    gen = TimeSeriesGenerator()
+    gen = Generator()
     gen.add_objects(objects_df)
     summary, df = gen.generate(shared_data, workers=1)
 
@@ -77,7 +77,7 @@ def test_jordan_vajen_individual_objects(inputs):
         obj_id = obj_row["id"]
 
         # Process this object
-        gen = TimeSeriesGenerator()
+        gen = Generator()
         gen.add_objects(obj_row.to_dict())
         summary, df = gen.generate(shared_data, workers=1)
 
@@ -112,7 +112,7 @@ def test_jordan_vajen_dwelling_size_impact(inputs):
     large_obj = objects_by_size.iloc[-1]
 
     # Process these objects
-    gen = TimeSeriesGenerator()
+    gen = Generator()
     gen.add_objects(small_obj.to_dict())
     gen.add_objects(large_obj.to_dict())
     summary, df = gen.generate(shared_data, workers=1)
@@ -137,7 +137,7 @@ def test_jordan_vajen_holidays(inputs):
     no_holidays_obj = objects_df[objects_df["holidays_location"].isna()].iloc[0]
 
     # Process these objects
-    gen = TimeSeriesGenerator()
+    gen = Generator()
     gen.add_objects(pt_holidays_obj.to_dict())
     gen.add_objects(ar_holidays_obj.to_dict())
     gen.add_objects(no_holidays_obj.to_dict())
@@ -186,7 +186,7 @@ def test_jordan_vajen_weekday_weekend(inputs):
     obj = objects_df.iloc[0]
 
     # Process this object
-    gen = TimeSeriesGenerator()
+    gen = Generator()
     gen.add_objects(obj.to_dict())
     summary, df = gen.generate(shared_data, workers=1)
 
@@ -235,7 +235,7 @@ def test_jordan_vajen_edge_cases(inputs):
     ]
 
     # Process all objects at once
-    gen = TimeSeriesGenerator()
+    gen = Generator()
     for edge_case in edge_cases:
         gen.add_objects(edge_case)
     summary, df = gen.generate(shared_data, workers=1)

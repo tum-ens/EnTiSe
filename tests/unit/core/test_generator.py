@@ -7,16 +7,16 @@ from entise.constants import Keys as K
 from entise.constants import Objects as O
 from entise.constants import Types
 from entise.core.base import Method
-from entise.core.generator import TimeSeriesGenerator
+from entise.core.generator import Generator
 
 
 class DummyHVAC(Method):
     types = [Types.HVAC]
     name = "dummy"
     required_keys = []
-    required_timeseries = []
+    required_data = []
 
-    def generate(self, obj, data, ts_type):
+    def generate(self, obj, data, results, ts_type):
         n = 24
         ts = pd.DataFrame(
             {
@@ -30,7 +30,7 @@ class DummyHVAC(Method):
 
 
 def test_generator_runs_basic_case():
-    gen = TimeSeriesGenerator()
+    gen = Generator()
     objects = pd.DataFrame([{O.ID: "obj1", Types.HVAC: "dummy"}])
     data = {}
 
@@ -44,7 +44,7 @@ def test_generator_runs_basic_case():
 
 
 def test_generator_raises_for_missing_strategy():
-    gen = TimeSeriesGenerator()
+    gen = Generator()
     objects = pd.DataFrame([{O.ID: "objX", Types.HVAC: "not_registered"}])
     data = {}
 

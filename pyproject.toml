@@ -26,12 +26,15 @@ keywords = ["energy", "time series", "simulation"]
 dependencies = [
     "cattrs",
     "chardet>=5.0.0",
+    "demandlib",
+    "pyloadprofilegenerator",
     "holidays>=0.50",
     "joblib>=1.0.0",
     "matplotlib>=3.1.0",
+    "notebook>=7.5.4",
     "numpy>=2.0.0",
     "openmeteo-requests",
-    "pandas>=2.0.0",
+    "pandas<3.0.0",
     "pint",
     "pvlib>=0.12.0",
     "requests-cache",
@@ -53,8 +56,13 @@ dev = [
     "uv>=0.7.8",
 ]
 docs = [
+    "myst-nb",
     "sphinx",
+    "sphinxcontrib-mermaid",
     "sphinx-rtd-theme",
+]
+districtheatingsim = [
+    "districtheatingsim @ git+https://github.com/JonasPfeiffer123/DistrictHeatingSim.git ; python_version >= '3.11' and python_version < '3.12'",
 ]
 
 [project.urls]
@@ -67,6 +75,9 @@ packages = ["entise"]
 
 [tool.hatch.version]
 source = "vcs"
+
+[tool.hatch.metadata]
+allow-direct-references = true
 
 [tool.hatch.build.targets.wheel]
 packages = ["entise"]

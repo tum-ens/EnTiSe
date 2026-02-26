@@ -1,24 +1,3 @@
-"""DHW generation module based on the Jordan & Vajen methodology.
-
-This module implements a domestic hot water (DHW) demand generation method based on
-Jordan & Vajen (2005): "DHWcalc: PROGRAM TO GENERATE DOMESTIC HOT WATER PROFILES
-WITH STATISTICAL MEANS FOR USER DEFINED CONDITIONS". The implementation follows the
-Method pattern established in the project architecture.
-
-The module provides functionality to:
-- Process input parameters for DHW demand calculation
-- Generate daily demand values based on dwelling size
-- Calculate DHW demand time series based on activity profiles
-- Compute summary statistics for the generated time series
-
-The main class, JordanVajen, inherits from the Method base class and implements the
-required interface for integration with the EnTiSe framework.
-
-Source: Jordan, U., & Vajen, K. (2005). DHWcalc: PROGRAM TO GENERATE DOMESTIC HOT WATER
-PROFILES WITH STATISTICAL MEANS FOR USER DEFINED CONDITIONS. Universität Marburg.
-URL: https://www.researchgate.net/publication/237651871_DHWcalc_PROGRAM_TO_GENERATE_DOMESTIC_HOT_WATER_PROFILES_WITH_STATISTICAL_MEANS_FOR_USER_DEFINED_CONDITIONS
-"""
-
 import logging
 
 import numpy as np
@@ -43,36 +22,24 @@ logger = logging.getLogger(__name__)
 
 
 class JordanVajen(Method):
-    """Implements a DHW demand generation method based on Jordan & Vajen methodology.
+    """This module implements a domestic hot water (DHW) demand generation method based on
+    Jordan & Vajen (2005): "DHWcalc: PROGRAM TO GENERATE DOMESTIC HOT WATER PROFILES
+    WITH STATISTICAL MEANS FOR USER DEFINED CONDITIONS". The implementation follows the
+    Method pattern established in the project architecture.
 
-    This class provides functionality to generate domestic hot water (DHW) demand
-    time series based on dwelling size and activity profiles. It uses the Jordan & Vajen
-    (2005) methodology to model DHW demand, taking into account factors such as
-    seasonal variations, daily activity patterns, and water temperatures.
+    The module provides functionality to:
+    - Process input parameters for DHW demand calculation
+    - Generate daily demand values based on dwelling size
+    - Calculate DHW demand time series based on activity profiles
+    - Compute summary statistics for the generated time series
 
-    The class follows the Method pattern defined in the EnTiSe framework, implementing
-    the required interface for time series generation methods.
+    The main class, JordanVajen, inherits from the Method base class and implements the
+    required interface for integration with the EnTiSe framework.
 
-    Attributes:
-        types (list): List of time series types this method can generate (DHW only).
-        name (str): Name identifier for the method.
-        required_keys (list): Required input parameters (datetimes, dwelling_size).
-        optional_keys (list): Optional input parameters (activity data, temperatures, etc.).
-        required_timeseries (list): Required time series inputs (datetimes).
-        optional_timeseries (list): Optional time series inputs (activity data, temperatures).
-        output_summary (dict): Mapping of output summary keys to descriptions.
-        output_timeseries (dict): Mapping of output time series keys to descriptions.
+    Source: Jordan, U., & Vajen, K. (2005). DHWcalc: PROGRAM TO GENERATE DOMESTIC HOT WATER
+    PROFILES WITH STATISTICAL MEANS FOR USER DEFINED CONDITIONS. Universität Marburg.
+    URL: https://www.researchgate.net/publication/237651871_DHWcalc_PROGRAM_TO_GENERATE_DOMESTIC_HOT_WATER_PROFILES_WITH_STATISTICAL_MEANS_FOR_USER_DEFINED_CONDITIONS
 
-    Example:
-        >>> from entise.methods.dhw.jordan_vajen import JordanVajen
-        >>> from entise.core.generator import TimeSeriesGenerator
-        >>>
-        >>> # Create a generator and add objects
-        >>> gen = TimeSeriesGenerator()
-        >>> gen.add_objects(objects_df)  # DataFrame with dwelling parameters
-        >>>
-        >>> # Generate time series
-        >>> summary, timeseries = gen.generate(data)  # data contains datetime information
     """
 
     types = [Types.DHW]
@@ -88,8 +55,8 @@ class JordanVajen(Method):
         O.SEASONAL_PEAK_DAY,
         O.SEED,
     ]
-    required_timeseries = [O.DATETIMES]
-    optional_timeseries = [
+    required_data = [O.DATETIMES]
+    optional_data = [
         O.DHW_ACTIVITY,
         O.DHW_DEMAND_PER_SIZE,
         O.TEMP_WATER_COLD,
@@ -121,6 +88,7 @@ class JordanVajen(Method):
         self,
         obj: dict = None,
         data: dict = None,
+        results: dict | None = None,
         ts_type: str = Types.DHW,
         *,
         datetimes: pd.DataFrame = None,
@@ -143,6 +111,7 @@ class JordanVajen(Method):
         Args:
             obj (dict, optional): Dictionary containing DHW system parameters. Defaults to None.
             data (dict, optional): Dictionary containing input data. Defaults to None.
+            results (dict, optional): Dictionary with results from previously generated time series
             ts_type (str, optional): Time series type to generate. Defaults to Types.DHW.
             datetimes (pd.DataFrame, required): DataFrame with datetime information. Defaults to None.
             dwelling_size (float, required): Size of the dwelling in square meters. Defaults to None.

@@ -4,7 +4,7 @@ import pandas as pd
 import pytest
 
 from entise.constants import Columns as C
-from entise.core.generator import TimeSeriesGenerator
+from entise.core.generator import Generator
 
 DATA_DIR = os.path.dirname(__file__)
 
@@ -29,7 +29,7 @@ def test_hvac_7r2c_all_objects(inputs):
     objects_df, shared_data = inputs
 
     for _, obj_row in objects_df.iterrows():
-        gen = TimeSeriesGenerator()
+        gen = Generator()
         gen.add_objects(obj_row.to_dict())
         summary, ts = gen.generate(shared_data, workers=1)
 
@@ -44,7 +44,7 @@ def test_hvac_7r2c_output_structure(inputs):
     objects_df, shared_data = inputs
     obj_row = objects_df.iloc[0]
 
-    gen = TimeSeriesGenerator()
+    gen = Generator()
     gen.add_objects(obj_row.to_dict())
     summary, ts = gen.generate(shared_data, workers=1)
 
@@ -82,7 +82,7 @@ def test_hvac_7r2c_physical_constraints(inputs):
     objects_df, shared_data = inputs
     obj_row = objects_df.iloc[0]
 
-    gen = TimeSeriesGenerator()
+    gen = Generator()
     gen.add_objects(obj_row.to_dict())
     summary, ts = gen.generate(shared_data, workers=1)
 
@@ -107,7 +107,7 @@ def test_hvac_7r2c_multiple_objects(inputs):
     """Test 7R2C with multiple objects simultaneously."""
     objects_df, shared_data = inputs
 
-    gen = TimeSeriesGenerator()
+    gen = Generator()
     gen.add_objects(objects_df)
     summary, ts = gen.generate(shared_data, workers=1)
 

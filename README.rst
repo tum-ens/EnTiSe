@@ -1,11 +1,14 @@
 
-======
-EnTiSe
-======
+.. figure:: docs/img/logo.png
+   :alt: EnTiSe logo
+   :width: 300px
 
-A simple tool for generating time series data related to energy systems and building operations.
+
 
 |badge_license| |badge_pypi| |badge_python| |badge_documentation|
+
+
+A simple tool for generating time series data related to energy systems and building operations.
 
 .. contents::
     :depth: 1
@@ -52,7 +55,7 @@ For development or the latest features, you can install directly from the reposi
 
 .. code-block:: bash
 
-   pip install git+https://github.com/tum-ens/need/entise.git
+   pip install git+https://github.com/tum-ens/entise.git
 
 Or clone the repository and install in development mode:
 
@@ -89,14 +92,14 @@ EnTiSe provides two flexible ways to generate time series data:
 Batch Processing
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-For generating multiple time series at once, you can use the `TimeSeriesGenerator` and either add objects one by one or in bulk using DataFrames or dictionaries:
+For generating multiple time series at once, you can use the `Generator` and either add objects one by one or in bulk using DataFrames or dictionaries:
 
 .. code-block:: python
 
-   from entise.core.generator import TimeSeriesGenerator
+   from entise import Generator
 
    # Initialize the generator
-   gen = TimeSeriesGenerator()
+   gen = Generator()
 
    # Add objects (e.g., buildings)
    gen.add_objects({
@@ -154,7 +157,6 @@ Integrated:
 - Domestic Hot Water (DHW)
 - Heat pump (COP)
 - HVAC (Heating, Ventilation, and Air Conditioning)
-- Mobility (transportation-related data)
 - Occupancy data
 - Solar Photovoltaic (PV)
 - Wind energy
@@ -164,6 +166,7 @@ Planned:
 - Concentrated Solar Power (CSP) (https://oemof-thermal.readthedocs.io/en/latest/concentrating_solar_power.html)
 - Geothermal energy
 - Hydroelectric power (https://github.com/IdahoLabResearch/HydroGenerate or https://github.com/9505-PNNL/wmpy_power or https://www.theoj.org/joss-papers/joss.03294/10.21105.joss.03294.pdf)
+- Mobility (https://emobpy.readthedocs.io/en/latest/)
 - Solar thermal (https://oemof-thermal.readthedocs.io or https://www.theoj.org/joss-papers/joss.03294/10.21105.joss.03294.pdf)
 - Tidal energy
 - Wave energy
@@ -174,12 +177,11 @@ Please see the `documentation <https://entise.readthedocs.io>`_ for further info
 
 Contribution and Code Quality
 ==============================
-Everyone is invited to develop this repository.
-Please follow the workflow described in the `CONTRIBUTING.md <CONTRIBUTING.md>`_.
+We are happy if you want to contribute to this repository! Have a look at the guides in our docs for more information on how to contribute and our coding standards.
 
 Coding Standards
 -----------------
-This repository follows consistent coding styles. Refer to `CONTRIBUTING.md <CONTRIBUTING.md>`_ for detailed standards.
+This repository follows consistent coding styles. Refer to `CONTRIBUTING.md <./docs/guides/CONTRIBUTING.md>`_ for detailed standards.
 
 Changelog
 ----------
@@ -191,7 +193,6 @@ License and Citation
 =====================
 | The code of this repository is licensed under the **MIT License** (MIT).
 | See `LICENSE <LICENSE>`_ for rights and obligations.
-| See `CITATION.cff <CITATION.cff>`_ for citation of this repository.
 | Copyright: `EnTiSe <https://gitlab.lrz.de/tum-ens/need/entise>`_ (c) `TU Munich - ENS <https://www.epe.ed.tum.de/en/ens/homepage/>`_ | `MIT <LICENSE>`_
 
 

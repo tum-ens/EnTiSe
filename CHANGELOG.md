@@ -9,6 +9,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ---
 
 ## [Unreleased]
+### Added
+- Added benchmarking script for comparing different methods (`#87`, `!59`)
+- Added heating method based on demandlib's BDEW method (`#70`, `!63`)
+- Added occupancy detection method GeoMA (`#58`, `!43`)
+- Added occupancy detection method PHT (`#66`, `!46`)
+- Added electricity method based on demandlib's BDEW method (`#56`, `!48`)
+- Added optional batching to reduce parallel overhead and improve throughput (`#75`, `!67`)
+
+### Changed
+- Changed internal naming of core methods and parameters for improved clarity (`#90`, `!62`)
+- Update documentation to reflect new methods and changes (`#89`, `!61`)
 
 ## [1.1.0] New HVAC models and performance improvements - 2025-12-16
 ### Added
@@ -110,3 +121,7 @@ This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html):
 3. **Link Issues or MRs**: Where possible, reference related issues or merge requests for easy tracking.
 4. **Date Each Release**: Add the release date in `YYYY-MM-DD` format for each version.
 5. **Organize Unreleased Changes**: Document ongoing changes under the `[Unreleased]` section, which can be merged into the next release version.
+
+
+### Changed
+- Generator: Progress bar now shows during execution and counts objects, not batches, in both sequential and parallel modes. This improves visibility of long-running runs with joblib by updating on batch completion using per-batch object counts.

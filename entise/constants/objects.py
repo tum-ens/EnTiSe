@@ -15,6 +15,9 @@ class Objects:
     AREA_M = "area_m[m2]"  # Area of the building mass (m2)
     AREA_TOT = "area_tot[m2]"  # Total area (m2)
     AZIMUTH = "azimuth[degree]"  # Azimuth (degrees; 0/360 = North)
+    BASELINE_OFFSET = "baseline_offset"  # Value substracted from moving average, to reduce detection sensitivity
+    BUILDING_CLASS = "building_class"
+    BUILDING_TYPE = "building_type"
     C_1_AW = "C_1_AW[J K-1]"  # Thermal capacitance of the outer walls (J/K)
     C_1_IW = "C_1_IW[J K-1]"  # Thermal capacitance of the inner walls (J/K)
     C_M = "C_m[J K-1]"  # Thermal capacitance of the building mass (J/K)
@@ -24,10 +27,14 @@ class Objects:
     CORRECTION_FACTOR = "correction_factor"  # Correction factor for calculations
     DATETIMES = "datetimes"
     DEMAND = "demand"
+    DEMAND_KWH = "demand[kWh]"
+    DETECTION_THRESHOLD = "detection_threshold"  # Minimal value from which occupancy is assigned
     DHW_ACTIVITY = "dhw_activity"  # DHW activity filename
     DHW_DEMAND_PER_SIZE = "dhw_demand_per_size[m2]"  # DHW demand per size, i.e. m2
     DHW_DEMAND_PER_PERSON = "dhw_demand_per_person"  # DHW demand per person
+    DHW_SHARE = "dhw_share"
     DWELLING_SIZE = "dwelling_size[m2]"  # Size of dwelling (m2)
+    ENERGY_INTENSITY = "energy_intensity"  # Energy intensity mode (string/enum)
     FILE = "filename"  # File
     FRAC_RAD_AW = "fraction_rad_AW"  # Fraction of radiant gains that go to outer walls
     FRAC_CONV_INTERNAL = "fraction_conv_internal"  # Fraction of total gains that is convective to air
@@ -46,8 +53,9 @@ class Objects:
     H_TR_W = "H_tr_w[W K-1]"  # Transmission heat transfer coefficient between windows and exterior (W/K)
     H_VE = "H_ve[W K-1]"  # Ventilation heat transfer coefficient between indoor air and exterior (W/K)
     HEIGHT = "height[m]"  # Height (m)
-    HOUSEHOLD_TYPE = "household_type"  # Type of household
     HOLIDAYS_LOCATION = "holidays_location"  # Location from which to get the holidays from (e.g. BY,DE)
+    HOUSEHOLDS = "households"  # Number of households
+    HOUSEHOLD_TYPE = "household_type"  # Type of household
     HP_SINK = "hp_sink"  # Heat pump sink type (floor, radiator, water)
     HP_SOURCE = "hp_source"  # Heat pump source type (air, soil, water)
     HP_SYSTEM = "hp_system"  # HP system configuration
@@ -58,12 +66,20 @@ class Objects:
     LOAD_BASE = f"{LOAD}_base"  # Base load
     LOAD_MAX = f"{LOAD}_max"
     LON = "longitude[degree]"  # Longitude (degree north)
-    OCCUPATION = "occupation"  # Occupancy (for timeseries files)
+    LAMBDA = "lambda_occ"  # Weighting factor for occupancy, e.g. GeoMA/PHT
+    NIGHT_SCHEDULE = "night_schedule"
+    NIGHT_SCHEDULE_START = f"{NIGHT_SCHEDULE}_start"  # Start hour for detecting nightly occupancy schedule
+    NIGHT_SCHEDULE_END = f"{NIGHT_SCHEDULE}_end"  # End hour for detecting nightly occupancy schedule
+    OCCUPANCY = "occupancy"  # Occupancy (for timeseries files)
+    OCCUPANCY_AVG = f"average_{OCCUPANCY}"  # Average occupancy over a certain timeseries
     OCCUPANTS = "occupants"  # Number of occupants
+    OCCUPANTS_PER_HOUSEHOLD = "occupants_per_household"  # Number of occupants per household
     ORIENTATION = "orientation[degree]"  # Orientation (degrees; 180 = south)
     POWER = "power[W]"  # Power (W)
-    POWER_COOLING = f"{POWER}_cooling[W]"  # Power cooling (W)
-    POWER_HEATING = f"{POWER}_heating[W]"  # Power heating (W)
+    POWER_COOLING = "power_cooling[W]"  # Power cooling (W)
+    POWER_HEATING = "power_heating[W]"  # Power heating (W)
+    PROFILE = "profile"  # Type of profile, e.g. H0 for demandlib electricity
+    PROFILE_TYPE = "profile_type"  # Type of profile, e.g. HEF03 for disrictheatingsim
     PV_ARRAYS = "pv_arrays"  # PV array configuration (dict)
     PV_INVERTER = "pv_inverter"  # PV inverter configuration (dict)
     R_1_AW = "R_1_AW[K W-1]"  # Thermal resistance of the outer walls (K/W)
@@ -95,6 +111,7 @@ class Objects:
     TEMP_SET = f"set_{TEMP}"  # Set temperature (°C)
     TEMP_SINK = f"sink_{TEMP}"  # Heat pump sink temperature setting (°C)
     TEMP_SUPPLY = f"supply_{TEMP}"  # Supply temperature (°C)
+    TEMPERATURE_SERIES = "temperature_series"
     THERMAL_INERTIA = "thermal_inertia"  # Thermal inertia [0, 1]
     TILT = "tilt[degree]"  # Tilt (degrees; 0 = horizontal)
     TRANSMITTANCE = "transmittance[W m-2 K-1]"  # Transmittance (W/m2/K)
@@ -104,7 +121,8 @@ class Objects:
     VENTILATION_FACTOR = "ventilation_factor[h-1]"  # 1/h
     VENTILATION_SPLIT = "ventilation_split"  # Ventilation split factor
     VERBOSE = "verbose"  # Verbose
-    WEATHER = "weather"  # Weather data
+    WEATHER = "weather"  # Weather
+    WIND_CLASS = "wind_class"
     WIND_MODEL = "wind_model"  # Model chain (wind)
     WINDOWS = "windows"  # Windows
     YEARLY_DHW_DEMAND = "yearly_dhw_demand[m3 m-2 a-1]"  # Yearly DHW demand in m³ per m²

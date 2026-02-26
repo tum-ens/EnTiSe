@@ -40,38 +40,38 @@ _WEATHER_CACHE: dict[tuple, pd.DataFrame] = {}
 
 
 class R7C2(Method):
-    """
-    Implements the VDI 6007 7R2C (7-Resistor, 2-Capacitor) thermal model for building simulation.
+    """7R2C HVAC model aligned with VDI 6007 multi‑node transient method.
 
-    This model represents a thermal zone using two main thermal masses:
-    1.  **AW (Außenwände):** External, non-adiabatic components (walls, windows, roofs).
-    2.  **IW (Innenwände):** Internal, adiabatic components (partitions, intermediate floors).
+    Purpose and scope:
+    - Represents a thermal zone with two thermal masses and multiple heat‑transfer
+      paths to capture phase shifts and damping effects beyond 1R1C/5R1C models.
+      Suitable for envelope studies, solar‑gain interactions, and scenarios where
+      interior vs exterior mass coupling matters.
 
-    The model resolves the heat balance for three temperature nodes:
-    * **theta_m_aw:** Temperature of the thermal mass of exterior components.
-    * **theta_m_iw:** Temperature of the thermal mass of interior components.
-    * **theta_air:** Indoor air temperature.
+    Conceptual structure:
+    - Two capacitances: exterior mass (AW = Außenwände) and interior mass (IW = Innenwände).
+    - Seven resistances connect masses, surfaces, indoor air, and outside, including
+      parallel window/opaque paths on the AW side and a radiative “star” network that
+      couples surfaces and air.
+    - Three principal temperature states are resolved per step:
+      • theta_m_aw (exterior mass),
+      • theta_m_iw (interior mass),
+      • theta_air (indoor air).
+    - Internal and solar gains are split into convective (air) and radiant parts
+      distributed to AW/IW surfaces via σ parameters (sigma_aw, sigma_iw; remainder convective).
+    - Ventilation is split into mechanical and infiltration parts and applied to the air node.
 
-    Key Features:
-    * **Window Integration:** Windows are modeled as part of the AW path (parallel conductance),
-        affecting the equivalent resistance `R_rest_AW` and `R_1_AW`.
-    * **Solar Distribution:** Solar gains are split between convective (air) and radiative parts
-        (hitting AW and IW surfaces) based on VDI 6007-1 guidelines.
-    * **Equivalent Outdoor Temperature (T_eq):** Uses a conductance-weighted average of sol-air temperature
-        (opaque parts) and dry-bulb temperature (windows) to drive the AW node.
-    * **Initialization:** Includes an internal warm-up loop to settle thermal mass temperatures before the
-        main simulation period, preventing initialization bias.
+    Notes:
+    - Windows are modeled as a parallel conductance in the AW branch, affecting the
+      equivalent resistance split between opaque and transparent parts.
+    - The equivalent outdoor temperature T_eq for the AW path is a conductance‑weighted
+      blend of sol‑air temperature (opaque) and ambient dry‑bulb (windows).
+    - Includes a stabilization of initial states to reduce sensitivity to initial conditions.
+    - For lighter‑weight simulations with fewer states consider 5R1C (ISO 13790); for
+      quicker control‑oriented studies consider 1R1C.
 
-    Required Inputs (in `obj`):
-    * `R_1_AW`, `C_1_AW`: Resistance/Capacity of the inner layer of exterior walls.
-    * `R_rest_AW`: Resistance of the outer layer of exterior walls (including windows).
-    * `R_1_IW`, `C_1_IW`: Resistance/Capacity of interior walls.
-    * `R_alpha_star_IL`, `R_alpha_star_AW`, `R_alpha_star_IW`: Radiative star network resistances.
-
-    Returns:
-    * Indoor Air Temperature
-    * Heating Load (Power & Demand)
-    * Cooling Load (Power & Demand)
+    Reference:
+    - VDI 6007: Calculation of transient thermal response of rooms and buildings (7R2C concept).
     """
 
     types = [Types.HVAC]
@@ -127,8 +127,8 @@ class R7C2(Method):
         O.VENTILATION,
     ]
 
-    required_timeseries = [O.WEATHER]
-    optional_timeseries = [O.WINDOWS, O.GAINS_INTERNAL, O.GAINS_SOLAR, O.H_VE, O.T_EQ]  # Hint set of common auxiliaries
+    required_data = [O.WEATHER]
+    optional_data = [O.WINDOWS, O.GAINS_INTERNAL, O.GAINS_SOLAR, O.H_VE, O.T_EQ]  # Hint set of common auxiliaries
 
     output_summary = {
         f"{Types.HEATING}{SEP}{C.DEMAND}[Wh]": "total heating demand",
@@ -143,7 +143,9 @@ class R7C2(Method):
         f"{Types.COOLING}{SEP}{C.LOAD}[W]": "cooling load",
     }
 
-    def generate(self, obj: dict = None, data: dict = None, ts_type: str = Types.HVAC, **kwargs) -> dict:
+    def generate(
+        self, obj: dict = None, data: dict = None, results: dict = None, ts_type: str = Types.HVAC, **kwargs
+    ) -> dict:
         obj, data = self._process_kwargs(obj, data, **kwargs)
         obj, data = self._get_input_data(obj, data, ts_type)
         data = self._prepare_inputs(obj, data)
@@ -357,14 +359,14 @@ class R7C2(Method):
     def _prepare_data_tables(self, obj: dict, data: dict, method_type: str = Types.HVAC) -> dict:
         data_out = {}
 
-        for key in self.required_timeseries:
+        for key in self.required_data:
             ts_key = self.get_with_method_backup(obj, key, method_type, key)
             ts_data = self.get_with_backup(data, ts_key)
             if ts_data is None:
                 raise ValueError(f"Required timeseries key '{ts_key}' for '{key}' not found in data.")
             data_out[key] = ts_data
 
-        for key in self.optional_timeseries:
+        for key in self.optional_data:
             ts_key = self.get_with_method_backup(obj, key, method_type)
             ts_data = self.get_with_backup(data, ts_key)
             if ts_data is not None:
@@ -452,27 +454,27 @@ def calculate_timeseries_7r2c(
     n_len = len(idx)
 
     # Weather
-    T_out_arr = weather[C.TEMP_AIR].to_numpy(dtype=float)
-    T_eq_arr = series["T_eq"]["T_eq"].to_numpy(dtype=float)
+    T_out_arr = weather[C.TEMP_AIR].to_numpy(dtype=float).ravel()
+    T_eq_arr = series["T_eq"]["T_eq"].to_numpy(dtype=float).ravel()
 
     # Gains
-    g_int_arr = series["gains"]["g_int"].to_numpy(dtype=float)
-    g_sol_arr = series["gains"]["g_sol"].to_numpy(dtype=float)
+    g_int_arr = series["gains"]["g_int"].to_numpy(dtype=float).ravel()
+    g_sol_arr = series["gains"]["g_sol"].to_numpy(dtype=float).ravel()
 
     # Ventilation
-    Hve_vent_arr = series["ventilation"]["Hve_vent"].to_numpy(dtype=float)
-    Hve_inf_arr = series["ventilation"]["Hve_inf"].to_numpy(dtype=float)
+    Hve_vent_arr = series["ventilation"]["Hve_vent"].to_numpy(dtype=float).ravel()
+    Hve_inf_arr = series["ventilation"]["Hve_inf"].to_numpy(dtype=float).ravel()
 
     # Controls
-    T_min_arr = controls[O.TEMP_MIN].to_numpy(dtype=float)
-    T_max_arr = controls[O.TEMP_MAX].to_numpy(dtype=float)
-    T_sup_arr = controls[O.TEMP_SUPPLY].to_numpy(dtype=float)
+    T_min_arr = controls[O.TEMP_MIN].to_numpy(dtype=float).ravel()
+    T_max_arr = controls[O.TEMP_MAX].to_numpy(dtype=float).ravel()
+    T_sup_arr = controls[O.TEMP_SUPPLY].to_numpy(dtype=float).ravel()
 
-    P_heat_arr = controls[O.POWER_HEATING].to_numpy(dtype=float)
-    P_cool_arr = controls[O.POWER_COOLING].to_numpy(dtype=float)
+    P_heat_arr = controls[O.POWER_HEATING].to_numpy(dtype=float).ravel()
+    P_cool_arr = controls[O.POWER_COOLING].to_numpy(dtype=float).ravel()
 
-    on_heat_arr = controls[O.ACTIVE_HEATING].to_numpy(dtype=bool)
-    on_cool_arr = controls[O.ACTIVE_COOLING].to_numpy(dtype=bool)
+    on_heat_arr = controls[O.ACTIVE_HEATING].to_numpy(dtype=bool).ravel()
+    on_cool_arr = controls[O.ACTIVE_COOLING].to_numpy(dtype=bool).ravel()
 
     # Parameters
     T_init = params[O.TEMP_INIT]

@@ -39,20 +39,32 @@ _WEATHER_CACHE: dict[tuple, pd.DataFrame] = {}
 
 
 class R5C1(Method):
-    """5R1C (ISO 13790) HVAC demand and temperature simulation.
+    """5R1C HVAC model aligned with ISO 13790's simplified dynamic method.
 
-    This method simulates the heating and cooling demand of a building using the 5R1C model as defined in ISO 13790.
-    It accounts for thermal capacitance, resistances, internal gains, solar gains, and ventilation effects.
+    Purpose and scope:
+    - Captures key heat transfer paths between indoor air, internal surfaces,
+      thermal mass, and exterior using five resistances and one aggregated
+      capacitance (building mass). Better represents radiant/convective splits
+      and envelope interactions than 1R1C, while remaining efficient for
+      large‑scale simulations.
 
-    Attributes:
-        types (list): List of method types.
-        name (str): Name of the method.
-        required_keys (list): List of required object keys.
-        optional_keys (list): List of optional object keys.
-        required_timeseries (list): List of required timeseries keys.
-        optional_timeseries (list): List of optional timeseries keys.
-        output_summary (dict): Summary of output metrics.
-        output_timeseries (dict): Timeseries output metrics.
+    Conceptual structure:
+    - Capacitance C_m (building thermal mass) exchanges with internal surfaces
+      via H_tr,ms and with indoor air via H_tr,is; windows and opaque elements
+      couple to exterior via H_tr,w and H_tr,em. Optional sky correction via H_tr,op,sky.
+    - Internal and solar gains are split into radiant/convective parts and routed
+      to air, surfaces, and mass using σ parameters.
+    - Ventilation losses are handled via H_ve (scalar or timeseries).
+
+    Notes:
+    - Implements the ISO 13790 simplified dynamic method assumptions (lumped mass
+      and linear heat transfer). Parameter mapping follows standard notation.
+    - For even richer transient behavior and phase shifts, consider a 7R2C model
+      (see VDI 6007).
+
+    Reference:
+    - ISO 13790: Energy performance of buildings — Calculation of energy use for
+      space heating and cooling (simplified dynamic method).
     """
 
     types = [Types.HVAC]
@@ -98,8 +110,8 @@ class R5C1(Method):
         O.GAINS_SOLAR,
         O.VENTILATION,
     ]
-    required_timeseries = [O.WEATHER]
-    optional_timeseries = [O.WINDOWS, O.GAINS_INTERNAL, O.GAINS_SOLAR, O.VENTILATION]
+    required_data = [O.WEATHER]
+    optional_data = [O.WINDOWS, O.GAINS_INTERNAL, O.GAINS_SOLAR, O.VENTILATION]
     output_summary = {
         f"{Types.HEATING}{SEP}{C.DEMAND}[Wh]": "total heating demand",
         f"{Types.HEATING}{SEP}{O.LOAD_MAX}[W]": "maximum heating load",
@@ -112,7 +124,9 @@ class R5C1(Method):
         f"{Types.COOLING}{SEP}{C.LOAD}[W]": "cooling load",
     }
 
-    def generate(self, obj: dict = None, data: dict = None, ts_type: str = Types.HVAC, **kwargs) -> dict:
+    def generate(
+        self, obj: dict = None, data: dict = None, results: dict = None, ts_type: str = Types.HVAC, **kwargs
+    ) -> dict:
         obj, data = self._process_kwargs(obj, data, **kwargs)
         obj, data = self._get_input_data(obj, data, ts_type)
         data = self._prepare_inputs(obj, data)
@@ -327,14 +341,14 @@ class R5C1(Method):
     def _prepare_data_tables(self, obj: dict, data: dict, method_type: str = Types.HVAC) -> dict:
         data_out = {}
 
-        for key in self.required_timeseries:
+        for key in self.required_data:
             ts_key = self.get_with_method_backup(obj, key, method_type, key)
             ts_data = self.get_with_backup(data, ts_key)
             if ts_data is None:
                 raise ValueError(f"Required timeseries key '{ts_key}' for '{key}' not found in data.")
             data_out[key] = ts_data
 
-        for key in self.optional_timeseries:
+        for key in self.optional_data:
             ts_key = self.get_with_method_backup(obj, key, method_type)
             ts_data = self.get_with_backup(data, ts_key)
             if ts_data is not None:
@@ -373,28 +387,28 @@ def calculate_timeseries_5r1c(
     idx: pd.DatetimeIndex = meta["index"]
     dt_s: float = float(meta["dt_s"])
     weather: pd.DataFrame = meta[O.WEATHER]
-    T_out_arr = weather[C.TEMP_AIR].to_numpy(dtype=float)
+    T_out_arr = weather[C.TEMP_AIR].to_numpy(dtype=float).ravel()
 
     n_len = len(idx)
 
     # Gains
-    g_int_arr = series["gains"]["g_int"].to_numpy(dtype=float)
-    g_sol_arr = series["gains"]["g_sol"].to_numpy(dtype=float)
+    g_int_arr = series["gains"]["g_int"].to_numpy(dtype=float).ravel()
+    g_sol_arr = series["gains"]["g_sol"].to_numpy(dtype=float).ravel()
 
     # Ventilation
-    Hve_vent_arr = series["ventilation"]["Hve_vent"].to_numpy(dtype=float)
-    Hve_inf_arr = series["ventilation"]["Hve_inf"].to_numpy(dtype=float)
+    Hve_vent_arr = series["ventilation"]["Hve_vent"].to_numpy(dtype=float).ravel()
+    Hve_inf_arr = series["ventilation"]["Hve_inf"].to_numpy(dtype=float).ravel()
 
     # Controls
-    T_min_arr = controls[O.TEMP_MIN].to_numpy(dtype=float)
-    T_max_arr = controls[O.TEMP_MAX].to_numpy(dtype=float)
-    T_sup_arr = controls[O.TEMP_SUPPLY].to_numpy(dtype=float)
+    T_min_arr = controls[O.TEMP_MIN].to_numpy(dtype=float).ravel()
+    T_max_arr = controls[O.TEMP_MAX].to_numpy(dtype=float).ravel()
+    T_sup_arr = controls[O.TEMP_SUPPLY].to_numpy(dtype=float).ravel()
 
-    P_heat_arr = controls[O.POWER_HEATING].to_numpy(dtype=float)
-    P_cool_arr = controls[O.POWER_COOLING].to_numpy(dtype=float)
+    P_heat_arr = controls[O.POWER_HEATING].to_numpy(dtype=float).ravel()
+    P_cool_arr = controls[O.POWER_COOLING].to_numpy(dtype=float).ravel()
 
-    on_heat_arr = controls[O.ACTIVE_HEATING].to_numpy(dtype=bool)
-    on_cool_arr = controls[O.ACTIVE_COOLING].to_numpy(dtype=bool)
+    on_heat_arr = controls[O.ACTIVE_HEATING].to_numpy(dtype=bool).ravel()
+    on_cool_arr = controls[O.ACTIVE_COOLING].to_numpy(dtype=bool).ravel()
 
     # Parameters
     T_init = params[O.TEMP_INIT]

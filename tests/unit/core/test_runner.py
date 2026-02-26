@@ -6,7 +6,7 @@ from entise.constants import Keys as K
 from entise.constants import Objects as O
 from entise.constants import Types
 from entise.core.base import Method
-from entise.core.runner import RowExecutor
+from entise.core.runner import Runner
 
 
 class DummyHVAC(Method):
@@ -14,7 +14,7 @@ class DummyHVAC(Method):
     name = "runner_dummy"
     required_keys = []
 
-    def generate(self, obj, data, ts_type):
+    def generate(self, obj, data, results, ts_type):
         ts = pd.DataFrame({f"{C.LOAD}_{Types.HEATING}": np.ones(10), f"{C.TEMP_IN}": np.full(10, 22.0)})
         summary = {f"{O.DEMAND}_{Types.HEATING}": float(ts[f"{C.LOAD}_{Types.HEATING}"].sum())}
         return {K.SUMMARY: summary, K.TIMESERIES: ts}
@@ -25,8 +25,8 @@ def test_runner_executes_main_method():
     data = {}
     strategies = {Types.HVAC: "runner_dummy"}
 
-    runner = RowExecutor(static_inputs, data, strategies)
-    results = runner.run_main_methods()
+    runner = Runner(static_inputs, data, strategies)
+    results = runner.run_methods()
 
     assert Types.HVAC in results
     assert isinstance(results[Types.HVAC][K.SUMMARY], dict)
@@ -45,7 +45,7 @@ class CachingDummy(Method):
     name = "cache_test"
     required_keys = []
 
-    def generate(self, obj, data, ts_type):
+    def generate(self, obj, data, results, ts_type):
         CallCounter.count += 1
         ts = pd.DataFrame({f"{C.LOAD}_{Types.HEATING}": np.ones(5)})
         summary = {f"{O.DEMAND}_{Types.HEATING}": float(ts[f"{C.LOAD}_{Types.HEATING}"].sum())}
@@ -58,7 +58,7 @@ def test_runner_uses_cache():
     data = {}
     strategies = {Types.HVAC: "cache_test"}
 
-    runner = RowExecutor(static_inputs, data, strategies)
+    runner = Runner(static_inputs, data, strategies)
 
     # Call twice — second one should hit the cache
     result_1 = runner.resolve(Types.HVAC)

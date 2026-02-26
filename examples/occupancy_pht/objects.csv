@@ -1,0 +1,13 @@
+id,occupancy,electricity,occupancy:baseline_offset,occupancy:detection_threshold,occupancy:lambda_occ,occupancy:night_schedule,occupancy:night_schedule_start,occupancy:night_schedule_end,electricity:filename
+1,PHT,file,0.05,0.3,,FALSE,,,demand_2_occupants
+2,PHT,file,0.05,0.3,,TRUE,,,demand_2_occupants
+3,PHT,file,0.05,0.7,,TRUE,,,demand_2_occupants
+4,PHT,file,0.05,0.3,,FALSE,,,demand_1_occupants
+5,PHT,file,0.05,0.3,0.10,TRUE,,,demand_1_occupants
+6,PHT,file,0.05,0.05,,,,,demand_1_occupants
+7,PHT,file,0.05,0.3,,FALSE,20:00,,demand_2_occupants
+8,PHT,file,0.10,0.3,0.15,TRUE,,,demand_2_occupants
+9,PHT,file,0.05,0.05,,,,22:00,demand_2_occupants
+10,PHT,file,0.05,0.3,,FALSE,,,demand_4_occupants
+11,PHT,file,0.10,0.3,,TRUE,18:00,00:00,demand_4_occupants
+12,PHT,file,0.05,0.05,,,,,demand_4_occupants

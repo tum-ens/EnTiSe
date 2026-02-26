@@ -11,6 +11,13 @@ different aspect of the library, from basic usage to more complex scenarios. You
    :maxdepth: 1
 
    examples/dhw_jordanvajen/runme
-   examples/dhw_probabilistic/runme
-   examples/hvac_rc/runme
+   examples/electricity_demandlib/runme
+   examples/heat_demandlib/runme
+   examples/hp_ruhnau/runme
+   examples/hvac_1r1c/runme
+   examples/hvac_5r1c/runme
+   examples/hvac_7r2c/runme
+   examples/occupancy_geoma/runme
+   examples/occupancy_pht/runme
    examples/pv_pvlib/runme
+   examples/wind_wplib/runme

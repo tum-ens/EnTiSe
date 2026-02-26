@@ -23,7 +23,7 @@ class InternalInactive(AuxiliaryMethod):
     extension of the `AuxiliaryMethod` class.
     """
 
-    required_timeseries = [O.WEATHER]
+    required_data = [O.WEATHER]
 
     def get_input_data(self, obj, data):
         return {O.WEATHER: data[O.WEATHER]}
@@ -43,7 +43,7 @@ class InternalConstant(AuxiliaryMethod):
     """
 
     required_keys = [O.GAINS_INTERNAL]
-    required_timeseries = [O.WEATHER]
+    required_data = [O.WEATHER]
 
     def generate(self, obj, data):
         gains_internal = obj.get(O.GAINS_INTERNAL, DEFAULT_GAINS_INTERNAL)
@@ -81,7 +81,7 @@ class InternalTimeSeries(AuxiliaryMethod):
 
     required_keys = [O.GAINS_INTERNAL_COL]
     optional_keys = [O.ID]
-    required_timeseries = [O.GAINS_INTERNAL]
+    required_data = [O.GAINS_INTERNAL]
 
     def generate(self, obj, data):
         gains_internal = obj.get(O.GAINS_INTERNAL)
@@ -130,7 +130,7 @@ class InternalOccupancy(Method):
 
     name = "InternalGainsOccupancy"
     required_keys = [O.INHABITANTS, O.GAINS_INTERNAL_PER_PERSON]
-    required_timeseries = [Types.OCCUPANCY]
+    required_data = [Types.OCCUPANCY]
     output_timeseries = {}
 
     def generate(self, obj, data, ts_type=None):
