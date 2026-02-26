@@ -34,7 +34,7 @@ It always has the format `MAJOR.MINOR.PATCH`, e.g. `1.0.0`.
     ```
 - **Build Test**: Verify the package builds correctly:
     ```bash
-    python -m build --wheel --sdist
+    uv build
     ```
 
 ### 2. 📝 Update the `CHANGELOG.md`
