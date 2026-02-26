@@ -1,10 +1,10 @@
 import logging
+from contextlib import contextmanager
 from typing import Any, Dict, List, Tuple
 
 import pandas as pd
 from joblib import Parallel, delayed
 from joblib import parallel as joblib_parallel
-from contextlib import contextmanager
 from tqdm import tqdm
 
 from entise.constants import VALID_TYPES
@@ -20,6 +20,7 @@ def tqdm_joblib(tqdm_object):
     This avoids dependency on tqdm.contrib and works with joblib's internal
     BatchCompletionCallBack so the bar updates on task completion.
     """
+
     class TqdmBatchCompletionCallback(joblib_parallel.BatchCompletionCallBack):
         def __call__(self, *args, **kwargs):
             try:
@@ -134,7 +135,7 @@ class Generator:
 
         # Fast path: sequential
         if workers == 1:
-            iterator = tqdm(object_params, disable=not show_progress)
+            iterator = tqdm(object_params, disable=not show_progress, unit="obj")
             results = [self._safe_process_object(obj, data) for obj in iterator]
             return self._collect_results(results)
 
@@ -146,10 +147,12 @@ class Generator:
         if batch_size is None:
             # Split evenly across workers
             import math
+
             jobs = workers
             if jobs in (-1, 0):
                 try:
                     from joblib.externals.loky import cpu_count
+
                     jobs = cpu_count()
                 except Exception:
                     jobs = 1

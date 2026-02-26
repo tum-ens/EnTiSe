@@ -32,6 +32,7 @@ class Objects:
     DHW_ACTIVITY = "dhw_activity"  # DHW activity filename
     DHW_DEMAND_PER_SIZE = "dhw_demand_per_size[m2]"  # DHW demand per size, i.e. m2
     DHW_DEMAND_PER_PERSON = "dhw_demand_per_person"  # DHW demand per person
+    DHW_SHARE = "dhw_share"
     DWELLING_SIZE = "dwelling_size[m2]"  # Size of dwelling (m2)
     ENERGY_INTENSITY = "energy_intensity"  # Energy intensity mode (string/enum)
     FILE = "filename"  # File
@@ -78,6 +79,7 @@ class Objects:
     POWER_COOLING = "power_cooling[W]"  # Power cooling (W)
     POWER_HEATING = "power_heating[W]"  # Power heating (W)
     PROFILE = "profile"  # Type of profile, e.g. H0 for demandlib electricity
+    PROFILE_TYPE = "profile_type"  # Type of profile, e.g. HEF03 for disrictheatingsim
     PV_ARRAYS = "pv_arrays"  # PV array configuration (dict)
     PV_INVERTER = "pv_inverter"  # PV inverter configuration (dict)
     R_1_AW = "R_1_AW[K W-1]"  # Thermal resistance of the outer walls (K/W)
@@ -109,6 +111,7 @@ class Objects:
     TEMP_SET = f"set_{TEMP}"  # Set temperature (°C)
     TEMP_SINK = f"sink_{TEMP}"  # Heat pump sink temperature setting (°C)
     TEMP_SUPPLY = f"supply_{TEMP}"  # Supply temperature (°C)
+    TEMPERATURE_SERIES = "temperature_series"
     THERMAL_INERTIA = "thermal_inertia"  # Thermal inertia [0, 1]
     TILT = "tilt[degree]"  # Tilt (degrees; 0 = horizontal)
     TRANSMITTANCE = "transmittance[W m-2 K-1]"  # Transmittance (W/m2/K)
