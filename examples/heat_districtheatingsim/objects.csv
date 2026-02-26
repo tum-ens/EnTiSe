@@ -1,0 +1,11 @@
+id,heating,demand[kWh],profile_type,dhw_share,weather
+1,districtheatingsim,5578,HEF03,0.1,weather
+2,districtheatingsim,17015,HEF04,0.2,weather
+3,districtheatingsim,10735,,0.0,weather
+4,districtheatingsim,11792,HEF05,0.3,weather
+5,districtheatingsim,34877,HEF03,0.1,weather
+6,districtheatingsim,34877,HMF04,0.0,weather
+7,districtheatingsim,52314,GKO03,0.1,weather
+8,districtheatingsim,5185,GKO01,0.2,weather
+9,districtheatingsim,23180,GKO02,0.15,weather
+10,districtheatingsim,106140,GKO03,0.3,weather

@@ -1,0 +1,3 @@
+id,types,heating,annual_demand,building_type,subtype,dhw_share,active_heating,datetimes,temperature_series
+dhs_csv_01,"['heating']",districtheatsim,8760.0,EFH,1,0.2,1,weather,temperature
+dhs_csv_02,"['heating']",districtheatsim,17520.0,EFH,1,0.2,1,weather,temperature
