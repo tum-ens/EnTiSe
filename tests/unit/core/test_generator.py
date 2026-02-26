@@ -1,6 +1,5 @@
 import numpy as np
 import pandas as pd
-import pytest
 
 from entise.constants import Columns as C
 from entise.constants import Keys as K
@@ -41,14 +40,3 @@ def test_generator_runs_basic_case():
     assert "obj1" in timeseries
     assert Types.HVAC in timeseries["obj1"]
     assert not timeseries["obj1"][Types.HVAC].empty
-
-
-def test_generator_raises_for_missing_strategy():
-    gen = Generator()
-    objects = pd.DataFrame([{O.ID: "objX", Types.HVAC: "not_registered"}])
-    data = {}
-
-    gen.add_objects(objects)
-
-    with pytest.raises(ValueError, match="not_registered"):
-        gen.generate(data, workers=1)

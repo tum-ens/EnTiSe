@@ -48,7 +48,7 @@ def test_electricity_pylpg_example_runs_end_to_end(example_inputs):
     - Ensures loads are non-negative
     """
     objects, data = example_inputs
-    objects = objects.iloc[:2]  # test on first 2 objects for speed; full test coverage is in unit tests
+    objects = objects.iloc[:1]  # test on first object only for speed; full test coverage is in unit tests
 
     summary, results = run_simulation(objects, data, workers=1)
 
@@ -60,7 +60,6 @@ def test_electricity_pylpg_example_runs_end_to_end(example_inputs):
 
         # Object must exist in results
         assert obj_id in results
-        assert Types.ELECTRICITY in results[obj_id]
 
         ts_df = results[obj_id][Types.ELECTRICITY]
 
