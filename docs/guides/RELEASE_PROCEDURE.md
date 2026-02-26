@@ -34,7 +34,7 @@ It always has the format `MAJOR.MINOR.PATCH`, e.g. `1.0.0`.
     ```
 - **Build Test**: Verify the package builds correctly:
     ```bash
-    python -m build --wheel --sdist
+    uv build
     ```
 
 ### 2. 📝 Update the `CHANGELOG.md`
@@ -110,24 +110,24 @@ It always has the format `MAJOR.MINOR.PATCH`, e.g. `1.0.0`.
 - **Build the package** with the new tag:
     ```bash
     # Clean previous builds
-    rm -rf dist/
+    uv run python -c "import shutil; shutil.rmtree('dist', ignore_errors=True)"
 
     # Build with hatch-vcs (version automatically from tag)
-    python -m build
+    uv build
     ```
 - **Upload to Test-PyPI**:
     ```bash
-    python -m twine upload --repository testpypi dist/*
+    uv publish --repository testpypi
     ```
 - **Verify on Test-PyPI**: Check [https://test.pypi.org/project/entise/](https://test.pypi.org/project/entise/)
 - **Test Installation from Test-PyPI**:
     ```bash
     # Create a clean test environment
-    python -m venv test_env
+    uv venv test_env
     source test_env/bin/activate  # On Windows: test_env\Scripts\activate
 
     # Install from Test-PyPI
-    pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ entise
+    uv pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ entise
 
     # Test basic functionality
     python -c "import entise; print('Import successful')"
@@ -147,12 +147,12 @@ It always has the format `MAJOR.MINOR.PATCH`, e.g. `1.0.0`.
 - **Final Build** (if needed):
     ```bash
     # Only if you haven't built already or made changes
-    rm -rf dist/
-    python -m build
+    uv run python -c "import shutil; shutil.rmtree('dist', ignore_errors=True)"
+    uv build
     ```
 - **Upload to PyPI**:
     ```bash
-    python -m twine upload dist/*
+    uv publish
     ```
 - **Enter Credentials**: Use your PyPI username and password (or API token) when prompted.
 
@@ -161,11 +161,11 @@ It always has the format `MAJOR.MINOR.PATCH`, e.g. `1.0.0`.
 - **Test Installation from PyPI**:
     ```bash
     # Create fresh environment
-    python -m venv verify_env
+    uv venv verify_env
     source verify_env/bin/activate  # On Windows: verify_env\Scripts\activate
 
     # Install from PyPI
-    pip install entise==1.0.0
+    uv pip install entise==1.0.0  # replace with actual version number
 
     # Test functionality
     python -c "import entise; print('PyPI installation successful')"

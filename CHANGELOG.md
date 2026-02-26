@@ -9,6 +9,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ---
 
 ## [Unreleased]
+
+
+## [1.2.0] New methods, batching and benchmarking script - 2026-02-26
 ### Added
 - Added benchmarking script for comparing different methods (`#87`, `!59`)
 - Added heating method based on demandlib's BDEW method (`#70`, `!63`)
@@ -16,10 +19,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Added occupancy detection method PHT (`#66`, `!46`)
 - Added electricity method based on demandlib's BDEW method (`#56`, `!48`)
 - Added optional batching to reduce parallel overhead and improve throughput (`#75`, `!67`)
+- Added heating method based on districtheatingsim's BDEW method - only works with python 3.11 (`#78`, `!60`)
+- Added electricity method based on pyLPG (`#62`, `!52`)
 
 ### Changed
 - Changed internal naming of core methods and parameters for improved clarity (`#90`, `!62`)
 - Update documentation to reflect new methods and changes (`#89`, `!61`)
+
+### Fixed
+- Ensure arrays are 1‑D via `.ravel()` in 7R2C and 5R1C HVAC models to prevent shape errors during computation. (b6d26cd)
+- Handle Windows-specific edge case in `_silence_fds` to avoid `WinError 1`; allow override via environment variable. (93b300b)
+- Handle warnings gracefully in `examples/benchmark.py` to prevent run interruptions; warnings are logged. (b85ab33)
+- Ensure all methods are loaded before accessing or listing strategies in `core/registry.py`. (7adb130)
+- Correct naming for `POWER_COOLING` and `POWER_HEATING` in `constants/objects.py`. (4c0ef9d)
 
 ## [1.1.0] New HVAC models and performance improvements - 2025-12-16
 ### Added
@@ -121,7 +133,3 @@ This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html):
 3. **Link Issues or MRs**: Where possible, reference related issues or merge requests for easy tracking.
 4. **Date Each Release**: Add the release date in `YYYY-MM-DD` format for each version.
 5. **Organize Unreleased Changes**: Document ongoing changes under the `[Unreleased]` section, which can be merged into the next release version.
-
-
-### Changed
-- Generator: Progress bar now shows during execution and counts objects, not batches, in both sequential and parallel modes. This improves visibility of long-running runs with joblib by updating on batch completion using per-batch object counts.
