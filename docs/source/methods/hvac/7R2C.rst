@@ -1,0 +1,195 @@
+7R2C
+====
+
+Overview
+--------
+
+7R2C HVAC model aligned with VDI 6007 multi‑node transient method.
+
+Purpose and scope:
+
+- Represents a thermal zone with two thermal masses and multiple heat‑transfer paths to capture phase shifts and damping effects beyond 1R1C/5R1C models. Suitable for envelope studies, solar‑gain interactions, and scenarios where interior vs exterior mass coupling matters.
+
+Conceptual structure:
+
+- Two capacitances: exterior mass (AW = Außenwände) and interior mass (IW = Innenwände).
+
+- Seven resistances connect masses, surfaces, indoor air, and outside, including parallel window/opaque paths on the AW side and a radiative “star” network that couples surfaces and air.
+
+- Three principal temperature states are resolved per step: • theta_m_aw (exterior mass), • theta_m_iw (interior mass), • theta_air (indoor air).
+
+- Internal and solar gains are split into convective (air) and radiant parts distributed to AW/IW surfaces via σ parameters (sigma_aw, sigma_iw; remainder convective).
+
+- Ventilation is split into mechanical and infiltration parts and applied to the air node.
+
+Notes:
+
+- Windows are modeled as a parallel conductance in the AW branch, affecting the equivalent resistance split between opaque and transparent parts.
+
+- The equivalent outdoor temperature T_eq for the AW path is a conductance‑weighted blend of sol‑air temperature (opaque) and ambient dry‑bulb (windows).
+
+- Includes a stabilization of initial states to reduce sensitivity to initial conditions.
+
+- For lighter‑weight simulations with fewer states consider 5R1C (ISO 13790); for quicker control‑oriented studies consider 1R1C.
+
+Reference:
+
+- VDI 6007: Calculation of transient thermal response of rooms and buildings (7R2C concept).
+
+
+Key facts
+---------
+
+- Method key: ``7R2C``
+
+- Supported types:
+
+  
+  - ``hvac``
+  
+
+
+Requirements
+------------
+
+Required keys (specify in objects)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+- ``R_1_AW[K W-1]``
+- ``C_1_AW[J K-1]``
+- ``R_1_IW[K W-1]``
+- ``C_1_IW[J K-1]``
+- ``R_alpha_star_IL[K W-1]``
+- ``R_alpha_star_AW[K W-1]``
+- ``R_alpha_star_IW[K W-1]``
+- ``R_rest_AW[K W-1]``
+- ``weather``
+
+
+
+Optional keys (specify in objects)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+- ``power_heating[W]``
+- ``power_cooling[W]``
+- ``active_heating``
+- ``active_cooling``
+- ``active_gains_internal``
+- ``active_gains_solar``
+- ``active_ventilation``
+- ``init_temperature[C]``
+- ``min_temperature[C]``
+- ``max_temperature[C]``
+- ``supply_temperature[C]``
+- ``area[m2]``
+- ``height[m]``
+- ``fraction_conv_internal``
+- ``fraction_rad_AW``
+- ``sigma_7R2C_AW``
+- ``sigma_7R2C_IW``
+- ``H_ve[W K-1]``
+- ``ventilation_split``
+- ``T_eq[C]``
+- ``T_eq[C]_column``
+- ``T_eq_alpha_SW[1]``
+- ``T_eq_h_o[W m-2 K-1]``
+- ``gains_internal[W]``
+- ``gains_solar[W]``
+- ``ventilation[W K-1]``
+
+
+
+Required data (specify in data)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+- ``weather``
+
+
+
+Optional data (specify in data)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+- ``windows``
+- ``gains_internal[W]``
+- ``gains_solar[W]``
+- ``H_ve[W K-1]``
+- ``T_eq[C]``
+
+
+
+Outputs
+-------
+
+Summary metrics
+~~~~~~~~~~~~~~~
+
+
+.. list-table::
+   :widths: auto
+   :header-rows: 1
+
+   * - Key
+     - Description
+   
+   * - ``heating:demand[Wh]``
+     - total heating demand
+   
+   * - ``heating:load_max[W]``
+     - maximum heating load
+   
+   * - ``cooling:demand[Wh]``
+     - total cooling demand
+   
+   * - ``cooling:load_max[W]``
+     - maximum cooling load
+   
+
+
+Timeseries columns
+~~~~~~~~~~~~~~~~~~
+
+
+.. list-table::
+   :widths: auto
+   :header-rows: 1
+
+   * - Column
+     - Description
+   
+   * - ``indoor_temperature[C]``
+     - indoor air temperature
+   
+   * - ``heating:load[W]``
+     - heating load
+   
+   * - ``cooling:load[W]``
+     - cooling load
+   
+
+
+Public methods
+--------------
+
+
+- generate
+
+  .. code-block:: python
+
+         def generate(
+           self, obj: dict = None, data: dict = None, results: dict = None, ts_type: str = Types.HVAC, **kwargs
+       ) -> dict:
+           obj, data = self._process_kwargs(obj, data, **kwargs)
+           obj, data = self._get_input_data(obj, data, ts_type)
+           data = self._prepare_inputs(obj, data)
+
+           temp_in, p_heat, p_cool = calculate_timeseries_7r2c(**data)
+
+           meta = data["meta"]
+           return self._format_output(
+               temp_in.round(3), p_heat.round().astype(int), p_cool.round().astype(int), meta["index"], meta["dt_s"]
+           )
+
