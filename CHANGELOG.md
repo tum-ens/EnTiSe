@@ -9,6 +9,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ---
 
 ## [Unreleased]
+### Added
+- Added a 1R0C model for quick validations (`#93`, `!65`)
+
+### Fixed
+- Fixed the docs build by adding method rsts directly and fixing the notebooks titles (`#96`, `!70`)
 
 
 ## [1.2.0] New methods, batching and benchmarking script - 2026-02-26

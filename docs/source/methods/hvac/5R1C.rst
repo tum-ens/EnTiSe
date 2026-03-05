@@ -1,0 +1,181 @@
+5R1C
+====
+
+Overview
+--------
+
+5R1C HVAC model aligned with ISO 13790's simplified dynamic method.
+
+Purpose and scope:
+
+- Captures key heat transfer paths between indoor air, internal surfaces, thermal mass, and exterior using five resistances and one aggregated capacitance (building mass). Better represents radiant/convective splits and envelope interactions than 1R1C, while remaining efficient for large‑scale simulations.
+
+Conceptual structure:
+
+- Capacitance C_m (building thermal mass) exchanges with internal surfaces via H_tr,ms and with indoor air via H_tr,is; windows and opaque elements couple to exterior via H_tr,w and H_tr,em. Optional sky correction via H_tr,op,sky.
+
+- Internal and solar gains are split into radiant/convective parts and routed to air, surfaces, and mass using σ parameters.
+
+- Ventilation losses are handled via H_ve (scalar or timeseries).
+
+Notes:
+
+- Implements the ISO 13790 simplified dynamic method assumptions (lumped mass and linear heat transfer). Parameter mapping follows standard notation.
+
+- For even richer transient behavior and phase shifts, consider a 7R2C model (see VDI 6007).
+
+Reference:
+
+- ISO 13790: Energy performance of buildings — Calculation of energy use for space heating and cooling (simplified dynamic method).
+
+
+Key facts
+---------
+
+- Method key: ``5R1C``
+
+- Supported types:
+
+  
+  - ``hvac``
+  
+
+
+Requirements
+------------
+
+Required keys (specify in objects)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+- ``H_tr_is[W K-1]``
+- ``H_tr_ms[W K-1]``
+- ``H_tr_w[W K-1]``
+- ``H_tr_em[W K-1]``
+- ``C_m[J K-1]``
+- ``weather``
+
+
+
+Optional keys (specify in objects)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+- ``power_heating[W]``
+- ``power_cooling[W]``
+- ``active_heating``
+- ``active_cooling``
+- ``active_gains_internal``
+- ``active_gains_solar``
+- ``active_ventilation``
+- ``init_temperature[C]``
+- ``min_temperature[C]``
+- ``max_temperature[C]``
+- ``supply_temperature[C]``
+- ``area[m2]``
+- ``height[m]``
+- ``area_m[m2]``
+- ``area_tot[m2]``
+- ``H_ve[W K-1]``
+- ``H_tr_op_sky[W K-1]``
+- ``sigma_surface``
+- ``fraction_conv_internal``
+- ``fraction_rad_surface``
+- ``fraction_rad_mass``
+- ``windows``
+- ``gains_internal[W]``
+- ``gains_solar[W]``
+- ``ventilation[W K-1]``
+
+
+
+Required data (specify in data)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+- ``weather``
+
+
+
+Optional data (specify in data)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+- ``windows``
+- ``gains_internal[W]``
+- ``gains_solar[W]``
+- ``ventilation[W K-1]``
+
+
+
+Outputs
+-------
+
+Summary metrics
+~~~~~~~~~~~~~~~
+
+
+.. list-table::
+   :widths: auto
+   :header-rows: 1
+
+   * - Key
+     - Description
+   
+   * - ``heating:demand[Wh]``
+     - total heating demand
+   
+   * - ``heating:load_max[W]``
+     - maximum heating load
+   
+   * - ``cooling:demand[Wh]``
+     - total cooling demand
+   
+   * - ``cooling:load_max[W]``
+     - maximum cooling load
+   
+
+
+Timeseries columns
+~~~~~~~~~~~~~~~~~~
+
+
+.. list-table::
+   :widths: auto
+   :header-rows: 1
+
+   * - Column
+     - Description
+   
+   * - ``indoor_temperature[C]``
+     - indoor air temperature
+   
+   * - ``heating:load[W]``
+     - heating load
+   
+   * - ``cooling:load[W]``
+     - cooling load
+   
+
+
+Public methods
+--------------
+
+
+- generate
+
+  .. code-block:: python
+
+         def generate(
+           self, obj: dict = None, data: dict = None, results: dict = None, ts_type: str = Types.HVAC, **kwargs
+       ) -> dict:
+           obj, data = self._process_kwargs(obj, data, **kwargs)
+           obj, data = self._get_input_data(obj, data, ts_type)
+           data = self._prepare_inputs(obj, data)
+
+           temp_in, p_heat, p_cool = calculate_timeseries_5r1c(**data)
+           meta = data["meta"]
+           return self._format_output(
+               temp_in.round(3), p_heat.round().astype(int), p_cool.round().astype(int), meta["index"], meta["dt_s"]
+           )
+

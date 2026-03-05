@@ -1,0 +1,251 @@
+1R1C
+====
+
+Overview
+--------
+
+1R1C thermal RC model (single resistance, single capacitance).
+
+Purpose and scope:
+
+- Computes indoor air temperature and heating/cooling load required to keep setpoints using a minimal grey‑box model with one thermal resistance (R) to ambient and one thermal capacitance (C) representing the zone’s thermal inertia. Ventilation losses and internal/solar gains can be accounted for via auxiliary strategies or direct inputs.
+
+Model sketch (discrete time):
+
+- T_in[t+1] = T_in[t] + (Δt/C)·( (T_out[t] − T_in[t])/R + G_int[t] + G_sol[t] + H_ve[t]·(T_out[t] − T_in[t]) + P_heat[t] − P_cool[t] )
+
+- P_heat/P_cool are clipped to maximum device powers and only active when setpoint violations would occur.
+
+Typical use:
+
+- Quick load estimates, large batch simulations, or control studies where a lightweight model is sufficient and detailed envelope dynamics are not required. For more detailed dynamics, consider 5R1C (ISO 13790) or 7R2C (VDI 6007).
+
+References:
+
+- Grey‑box RC modeling of buildings (overview): many texts incl. ISO 13790 annexes; see also VDI 6007 for extended multi‑node approaches.
+
+
+Key facts
+---------
+
+- Method key: ``1R1C``
+
+- Supported types:
+
+  
+  - ``hvac``
+  
+
+
+Requirements
+------------
+
+Required keys (specify in objects)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+- ``capacitance[J K-1]``
+- ``resistance[K W-1]``
+- ``weather``
+
+
+
+Optional keys (specify in objects)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+- ``power_heating[W]``
+- ``power_cooling[W]``
+- ``active_heating``
+- ``active_cooling``
+- ``active_gains_internal``
+- ``active_gains_solar``
+- ``active_ventilation``
+- ``init_temperature[C]``
+- ``min_temperature[C]``
+- ``max_temperature[C]``
+- ``area[m2]``
+- ``height[m]``
+- ``gains_internal[W]``
+- ``gains_internal_column``
+- ``ventilation[W K-1]``
+- ``ventilation_column``
+- ``gains_solar[W]``
+- ``windows``
+
+
+
+Required data (specify in data)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+- ``weather``
+
+
+
+Optional data (specify in data)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+- ``windows``
+- ``gains_internal[W]``
+- ``gains_solar[W]``
+- ``ventilation[W K-1]``
+
+
+
+Outputs
+-------
+
+Summary metrics
+~~~~~~~~~~~~~~~
+
+
+.. list-table::
+   :widths: auto
+   :header-rows: 1
+
+   * - Key
+     - Description
+   
+   * - ``heating:demand[Wh]``
+     - total heating demand
+   
+   * - ``heating:load_max[W]``
+     - maximum heating load
+   
+   * - ``cooling:demand[Wh]``
+     - total cooling demand
+   
+   * - ``cooling:load_max[W]``
+     - maximum cooling load
+   
+
+
+Timeseries columns
+~~~~~~~~~~~~~~~~~~
+
+
+.. list-table::
+   :widths: auto
+   :header-rows: 1
+
+   * - Column
+     - Description
+   
+   * - ``indoor_temperature[C]``
+     - indoor air temperature
+   
+   * - ``heating:load[W]``
+     - heating load
+   
+   * - ``cooling:load[W]``
+     - cooling load
+   
+
+
+Public methods
+--------------
+
+
+- generate
+
+  .. code-block:: python
+
+         def generate(
+           self,
+           obj: dict = None,
+           data: dict = None,
+           results: dict | None = None,
+           ts_type: str = Types.HVAC,
+           *,
+           capacitance: float = None,
+           resistance: float = None,
+           weather: pd.DataFrame = None,
+           power_heating: float = None,
+           power_cooling: float = None,
+           active_heating: bool = None,
+           active_cooling: bool = None,
+           ventilation: float = None,
+           temp_init: float = None,
+           temp_min: float = None,
+           temp_max: float = None,
+           gains_internal: pd.DataFrame = None,
+           gains_solar: pd.DataFrame = None,
+           area: float = None,
+           height: float = None,
+       ):
+           """Generate HVAC time series based on input parameters and weather data.
+
+           This method implements the abstract generate method from the Method base class.
+           It processes the input parameters, calculates the indoor temperature and energy
+           demand time series, and returns both the time series and summary statistics.
+
+           Args:
+               obj (dict, optional): Dictionary containing building parameters.
+               data (dict, optional): Dictionary containing input data.
+               results (dict, optional): Dictionary with results from previously generated time series
+               ts_type (str, optional): Time series type to generate. Defaults to Types.HVAC.
+               capacitance (float, optional): Thermal capacitance in J/K.
+               resistance (float, optional): Thermal resistance in K/W.
+               weather (pd.DataFrame, optional): Weather data with outdoor temperature.
+               power_heating (float, optional): Maximum heating power in W.
+               power_cooling (float, optional): Maximum cooling power in W.
+               active_heating (bool, optional): Whether heating is active.
+               active_cooling (bool, optional): Whether cooling is active.
+               ventilation (float, optional): Ventilation rate in W/K.
+               temp_init (float, optional): Initial indoor temperature in °C.
+               temp_min (float, optional): Minimum indoor temperature in °C.
+               temp_max (float, optional): Maximum indoor temperature in °C.
+               gains_internal (pd.DataFrame, optional): Internal heat gains in W.
+               gains_solar (pd.DataFrame, optional): Solar heat gains in W.
+               area (float, optional): Heated area in m².
+               height (float, optional): Heated height in m³.
+
+           Returns:
+               dict: Dictionary containing:
+                   - "summary" (dict): Summary statistics including total heating and
+                     cooling demand, and maximum heating and cooling loads.
+                   - "timeseries" (pd.DataFrame): Time series of indoor temperature,
+                     heating load, and cooling load with timestamps as index.
+
+           Raises:
+               Exception: If required data is missing or invalid.
+           """
+           obj, data = self._process_kwargs(
+               obj,
+               data,
+               capacitance=capacitance,
+               resistance=resistance,
+               weather=weather,
+               power_heating=power_heating,
+               power_cooling=power_cooling,
+               active_heating=active_heating,
+               active_cooling=active_cooling,
+               ventilation=ventilation,
+               temp_init=temp_init,
+               temp_min=temp_min,
+               temp_max=temp_max,
+               gains_internal=gains_internal,
+               gains_solar=gains_solar,
+               area=area,
+               height=height,
+           )
+           obj, data = self._get_input_data(obj, data, ts_type)
+
+           # Timestep in seconds (assuming a regular time grid)
+           idx = data[O.WEATHER][C.DATETIME].values.astype("datetime64[ns]")
+           timestep = np.float32((idx[1] - idx[0]) / np.timedelta64(1, "s"))
+
+           # Precompute auxiliary data
+           data[O.GAINS_INTERNAL] = InternalGains().generate(obj, data)
+           data[O.GAINS_SOLAR] = SolarGains().generate(obj, data)
+           data[O.VENTILATION] = Ventilation().generate(obj, data)
+
+           # Compute temperature and energy demand
+           temp_in, p_heat, p_cool = calculate_timeseries_1r1c(obj, data, timestep)
+
+           logger.debug(f"[HVAC R1C1] {ts_type}: max heating {p_heat.max()}, cooling {p_cool.max()}")
+
+           return self._format_output(temp_in, p_heat, p_cool, data, timestep)
+
