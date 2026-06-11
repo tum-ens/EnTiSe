@@ -61,6 +61,11 @@ docs = [
     "sphinxcontrib-mermaid",
     "sphinx-rtd-theme",
 ]
+# Optional database storage backends (entise.io.storage)
+storage = [
+    "sqlalchemy>=2.0",
+    "psycopg2-binary",
+]
 # Commented out for PyPI compatibility - install manually if needed
 # districtheatingsim = [
 #     "districtheatingsim @ git+https://github.com/JonasPfeiffer123/DistrictHeatingSim.git ; python_version >= '3.11' and python_version < '3.12'",

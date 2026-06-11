@@ -97,11 +97,20 @@ class Generator:
         pre_dispatch: int | str = "2*n_jobs",
         backend: str = "loky",
         show_progress: bool = True,
+        storage: Any = None,
+        store_ids: List[Any] | None = None,
+        stream_chunk_size: int = 500,
     ) -> Tuple[pd.DataFrame, Dict[str, pd.DataFrame]]:
         """
         Generates time series data by processing objects in parallel or sequentially
         based on the number of workers specified. Supports batching to reduce
         scheduling and serialization overhead when running in parallel.
+
+        If a ``storage`` sink is provided, results are streamed to it in chunks
+        instead of being collected and returned: each chunk is computed, written to
+        ``storage`` and then released, keeping memory bounded for very large runs. In
+        that mode the returned time series dict is empty (the data lives in the sink)
+        while the summary DataFrame is still returned in full.
 
         Args:
             data (dict): Dictionary containing input data used for processing.
@@ -118,11 +127,22 @@ class Generator:
                 "threading" for threads). Defaults to "loky".
             show_progress (bool, optional): If True, display a progress bar. In
                 parallel mode, the bar updates on batch completion. Defaults to True.
+            storage (TimeseriesStorage, optional): Sink implementing
+                ``setup`` / ``write_batch`` / ``finalize``. When provided, the
+                generated time series are streamed to it and not returned.
+                Defaults to None (legacy behaviour: collect and return).
+            store_ids (list, optional): When ``storage`` is given, restrict the
+                objects whose time series are written to the sink to this set of ids.
+                Other objects are still computed (and appear in the summary) but are
+                not persisted. Defaults to None (store all).
+            stream_chunk_size (int, optional): Number of objects computed and written
+                per chunk when streaming to ``storage``. Bounds peak memory usage.
+                Defaults to 500.
 
         Returns:
-            Tuple[pd.DataFrame, Dict[str, pd.DataFrame]]: A tuple containing the
-            consolidated DataFrame of results and a dictionary of individual results
-            per object.
+            Tuple[pd.DataFrame, Dict[str, pd.DataFrame]]: The consolidated summary
+            DataFrame and a dictionary of per-object time series. When ``storage`` is
+            used, the time series dictionary is empty.
 
         Raises:
             ValueError: If no objects are added to the processing pipeline before
@@ -133,17 +153,49 @@ class Generator:
 
         object_params = self.objects.to_dict("records")
 
+        if storage is not None:
+            return self._generate_streaming(
+                object_params,
+                data,
+                storage=storage,
+                store_ids=store_ids,
+                stream_chunk_size=stream_chunk_size,
+                workers=workers,
+                batch_size=batch_size,
+                pre_dispatch=pre_dispatch,
+                backend=backend,
+                show_progress=show_progress,
+            )
+
+        results = self._execute(
+            object_params, data, workers, batch_size, pre_dispatch, backend, show_progress
+        )
+        return self._collect_results(results)
+
+    def _execute(
+        self,
+        object_params: List[Dict[str, Any]],
+        data: Dict[str, pd.DataFrame],
+        workers: int,
+        batch_size: int | None,
+        pre_dispatch: int | str,
+        backend: str,
+        show_progress: bool,
+    ) -> List[Dict[str, Any]]:
+        """Run the (sequential or parallel) processing of a list of objects.
+
+        Returns the raw list of per-object result dicts (unconsolidated).
+        """
+        n = len(object_params)
+        if n == 0:
+            return []
+
         # Fast path: sequential
         if workers == 1:
             iterator = tqdm(object_params, disable=not show_progress, unit="obj")
-            results = [self._safe_process_object(obj, data) for obj in iterator]
-            return self._collect_results(results)
+            return [self._safe_process_object(obj, data) for obj in iterator]
 
         # Determine batch size (in objects per joblib-dispatched batch)
-        n = len(object_params)
-        if n == 0:
-            return self._collect_results([])
-
         if batch_size is None:
             # Split evenly across workers
             import math
@@ -175,7 +227,62 @@ class Generator:
         else:
             results = process(delayed(self._safe_process_object)(obj, data) for obj in object_params)
 
-        return self._collect_results(results)
+        return results
+
+    def _generate_streaming(
+        self,
+        object_params: List[Dict[str, Any]],
+        data: Dict[str, pd.DataFrame],
+        storage: Any,
+        store_ids: List[Any] | None,
+        stream_chunk_size: int,
+        workers: int,
+        batch_size: int | None,
+        pre_dispatch: int | str,
+        backend: str,
+        show_progress: bool,
+    ) -> Tuple[pd.DataFrame, Dict[str, pd.DataFrame]]:
+        """Compute objects in chunks, streaming each chunk to ``storage``.
+
+        Keeps memory bounded (only one chunk of time series is held at a time) and
+        lets the sink build its index once, in ``finalize()``.
+        """
+        store_ids_set = None if store_ids is None else {str(s) for s in store_ids}
+        chunk = max(1, int(stream_chunk_size))
+        n = len(object_params)
+        summaries: Dict[Any, Any] = {}
+
+        storage.setup()
+        try:
+            for start in range(0, n, chunk):
+                sub = object_params[start : start + chunk]
+                self.logger.info(
+                    "Streaming chunk %d-%d of %d objects",
+                    start + 1,
+                    min(start + chunk, n),
+                    n,
+                )
+                results = self._execute(
+                    sub, data, workers, batch_size, pre_dispatch, backend, show_progress
+                )
+
+                chunk_ts: Dict[Any, Dict[str, pd.DataFrame]] = {}
+                for result in results:
+                    obj_id = result[O.ID]
+                    summaries[obj_id] = result[K.SUMMARY]
+                    if store_ids_set is None or str(obj_id) in store_ids_set:
+                        chunk_ts[obj_id] = result[K.TIMESERIES]
+
+                storage.write_batch(chunk_ts)
+                del results, chunk_ts
+
+            storage.finalize()
+        except Exception:
+            storage.close()
+            raise
+
+        summary_df = pd.DataFrame.from_dict(summaries, orient="index")
+        return summary_df, {}
 
     def _process_object(self, obj: dict, data: Dict[str, pd.DataFrame]) -> Dict[str, Any]:
         obj_id = obj.get(O.ID, None)
