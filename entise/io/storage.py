@@ -74,6 +74,8 @@ class StorageConfig:
         data_table: Name of the time series data table.
         metadata_table: Name of the metadata table.
         index_name: Name of the data-table index managed with the index-once strategy.
+        stream_chunk_size: Number of objects EnTiSe computes and writes per chunk when
+            streaming to this sink. Bounds peak memory usage.
         synchronous_commit_off: If True, disable ``synchronous_commit`` during the COPY
             transaction for faster (slightly less durable) loads.
     """
@@ -85,6 +87,7 @@ class StorageConfig:
     data_table: str = "entise_ts_data"
     metadata_table: str = "entise_ts_metadata"
     index_name: str = "entise_ts_data_idx"
+    stream_chunk_size: int = 500
     synchronous_commit_off: bool = True
 
     @classmethod
@@ -109,6 +112,9 @@ class TimeseriesStorage(ABC):
     Lifecycle: :meth:`setup` once -> :meth:`write_batch` per chunk -> :meth:`finalize`
     once. On error paths, :meth:`close` releases resources without committing.
     """
+
+    #: Number of objects EnTiSe computes and hands to :meth:`write_batch` per chunk.
+    chunk_size: int = 500
 
     @abstractmethod
     def setup(self) -> None:
@@ -164,6 +170,7 @@ class PostgresTimescaleStorage(TimeseriesStorage):
 
         self.engine = engine
         self.config = config
+        self.chunk_size = config.stream_chunk_size
         self._sa_text = text
         self._sa_MetaData = MetaData
         self._sa_Table = Table

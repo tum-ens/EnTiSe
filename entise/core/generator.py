@@ -98,8 +98,6 @@ class Generator:
         backend: str = "loky",
         show_progress: bool = True,
         storage: Any = None,
-        store_ids: List[Any] | None = None,
-        stream_chunk_size: int = 500,
     ) -> Tuple[pd.DataFrame, Dict[str, pd.DataFrame]]:
         """
         Generates time series data by processing objects in parallel or sequentially
@@ -129,15 +127,9 @@ class Generator:
                 parallel mode, the bar updates on batch completion. Defaults to True.
             storage (TimeseriesStorage, optional): Sink implementing
                 ``setup`` / ``write_batch`` / ``finalize``. When provided, the
-                generated time series are streamed to it and not returned.
-                Defaults to None (legacy behaviour: collect and return).
-            store_ids (list, optional): When ``storage`` is given, restrict the
-                objects whose time series are written to the sink to this set of ids.
-                Other objects are still computed (and appear in the summary) but are
-                not persisted. Defaults to None (store all).
-            stream_chunk_size (int, optional): Number of objects computed and written
-                per chunk when streaming to ``storage``. Bounds peak memory usage.
-                Defaults to 500.
+                generated time series are streamed to it in chunks (of
+                ``storage.chunk_size`` objects) and not returned. Defaults to None
+                (legacy behaviour: collect and return).
 
         Returns:
             Tuple[pd.DataFrame, Dict[str, pd.DataFrame]]: The consolidated summary
@@ -158,8 +150,6 @@ class Generator:
                 object_params,
                 data,
                 storage=storage,
-                store_ids=store_ids,
-                stream_chunk_size=stream_chunk_size,
                 workers=workers,
                 batch_size=batch_size,
                 pre_dispatch=pre_dispatch,
@@ -234,8 +224,6 @@ class Generator:
         object_params: List[Dict[str, Any]],
         data: Dict[str, pd.DataFrame],
         storage: Any,
-        store_ids: List[Any] | None,
-        stream_chunk_size: int,
         workers: int,
         batch_size: int | None,
         pre_dispatch: int | str,
@@ -245,10 +233,10 @@ class Generator:
         """Compute objects in chunks, streaming each chunk to ``storage``.
 
         Keeps memory bounded (only one chunk of time series is held at a time) and
-        lets the sink build its index once, in ``finalize()``.
+        lets the sink build its index once, in ``finalize()``. The chunk size is taken
+        from the sink (``storage.chunk_size``).
         """
-        store_ids_set = None if store_ids is None else {str(s) for s in store_ids}
-        chunk = max(1, int(stream_chunk_size))
+        chunk = max(1, int(getattr(storage, "chunk_size", 500)))
         n = len(object_params)
         summaries: Dict[Any, Any] = {}
 
@@ -270,8 +258,7 @@ class Generator:
                 for result in results:
                     obj_id = result[O.ID]
                     summaries[obj_id] = result[K.SUMMARY]
-                    if store_ids_set is None or str(obj_id) in store_ids_set:
-                        chunk_ts[obj_id] = result[K.TIMESERIES]
+                    chunk_ts[obj_id] = result[K.TIMESERIES]
 
                 storage.write_batch(chunk_ts)
                 del results, chunk_ts
