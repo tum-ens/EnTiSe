@@ -74,8 +74,6 @@ class StorageConfig:
         data_table: Name of the time series data table.
         metadata_table: Name of the metadata table.
         index_name: Name of the data-table index managed with the index-once strategy.
-        use_timescaledb: If True, create the data table as a TimescaleDB hypertable
-            (falling back to a plain table if the extension is unavailable).
         synchronous_commit_off: If True, disable ``synchronous_commit`` during the COPY
             transaction for faster (slightly less durable) loads.
     """
@@ -87,7 +85,6 @@ class StorageConfig:
     data_table: str = "entise_ts_data"
     metadata_table: str = "entise_ts_metadata"
     index_name: str = "entise_ts_data_idx"
-    use_timescaledb: bool = True
     synchronous_commit_off: bool = True
 
     @classmethod
@@ -96,8 +93,8 @@ class StorageConfig:
 
         The ``series`` entry must be a list of dicts compatible with
         :class:`SeriesSpec`. Keys that are not fields of this dataclass (e.g. caller
-        flags such as ``enabled``, ``stream_chunk_size`` or ``store_ids``) are ignored,
-        so the full configuration block can be passed in as-is.
+        flags such as ``store_timeseries``, ``stream_chunk_size`` or ``store_plz``) are
+        ignored, so the full configuration block can be passed in as-is.
         """
         cfg = dict(cfg)
         series = [SeriesSpec(**s) for s in cfg.pop("series")]
@@ -246,34 +243,32 @@ class PostgresTimescaleStorage(TimeseriesStorage):
                 )
             )
 
+            try:
+                conn.execute(text("CREATE EXTENSION IF NOT EXISTS timescaledb;"))
+            except Exception as exc:
+                logger.warning("Could not ensure timescaledb extension (continuing): %s", exc)
+
             created = False
-            if cfg.use_timescaledb:
-                try:
-                    conn.execute(text("CREATE EXTENSION IF NOT EXISTS timescaledb;"))
-                except Exception as exc:
-                    logger.warning("Could not ensure timescaledb extension (continuing): %s", exc)
-                try:
-                    conn.execute(
-                        text(
-                            f"""
-                            CREATE TABLE IF NOT EXISTS {cfg.schema}.{cfg.data_table} (
-                                ts_metadata_id integer,
-                                time timestamptz,
-                                value double precision
-                            )
-                            WITH (
-                                timescaledb.hypertable,
-                                timescaledb.partition_column="time",
-                                timescaledb.segmentby="ts_metadata_id"
-                            );
-                            """
+            try:
+                conn.execute(
+                    text(
+                        f"""
+                        CREATE TABLE IF NOT EXISTS {cfg.schema}.{cfg.data_table} (
+                            ts_metadata_id integer,
+                            time timestamptz,
+                            value double precision
                         )
+                        WITH (
+                            timescaledb.hypertable,
+                            timescaledb.partition_column="time",
+                            timescaledb.segmentby="ts_metadata_id"
+                        );
+                        """
                     )
-                    created = True
-                except Exception as exc:
-                    logger.warning(
-                        "Hypertable creation failed, falling back to a plain table: %s", exc
-                    )
+                )
+                created = True
+            except Exception as exc:
+                logger.warning("Hypertable creation failed, falling back to a plain table: %s", exc)
 
             if not created:
                 conn.execute(
