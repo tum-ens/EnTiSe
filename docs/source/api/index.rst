@@ -1,7 +1,7 @@
 .. _api:
 
 API Reference
-============
+=============
 
 This section provides detailed API documentation for the EnTiSe package.
 

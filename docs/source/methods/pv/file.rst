@@ -40,27 +40,27 @@ Key facts
 
 - Supported types:
 
-  
+
   - ``occupancy``
-  
-  - ``pv``
-  
-  - ``hvac``
-  
-  - ``hp``
-  
-  - ``wind``
-  
-  - ``mobility``
-  
-  - ``heating``
-  
+
   - ``dhw``
-  
+
+  - ``heating``
+
+  - ``mobility``
+
+  - ``wind``
+
   - ``electricity``
-  
+
   - ``cooling``
-  
+
+  - ``hvac``
+
+  - ``pv``
+
+  - ``hp``
+
 
 
 Requirements
@@ -169,4 +169,3 @@ Public methods
                "summary": {},
                "timeseries": timeseries,
            }
-

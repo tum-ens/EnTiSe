@@ -6,23 +6,31 @@ Overview
 
 1R1C thermal RC model (single resistance, single capacitance).
 
-Purpose and scope:
+Purpose and scope
+Computes indoor air temperature and heating/cooling load required
+to keep setpoints using a minimal grey-box model with one thermal
+resistance (R) to ambient and one thermal capacitance (C)
+representing the zone's thermal inertia. Ventilation losses and
+internal/solar gains can be accounted for via auxiliary strategies
+or direct inputs.
 
-- Computes indoor air temperature and heating/cooling load required to keep setpoints using a minimal grey‑box model with one thermal resistance (R) to ambient and one thermal capacitance (C) representing the zone’s thermal inertia. Ventilation losses and internal/solar gains can be accounted for via auxiliary strategies or direct inputs.
+Model sketch (discrete time)
+``T_in[t+1] = T_in[t] + (Δt/C) · ( (T_out[t] − T_in[t])/R
++ G_int[t] + G_sol[t] + H_ve[t]·(T_out[t] − T_in[t])
++ P_heat[t] − P_cool[t] )``. ``P_heat`` / ``P_cool`` are clipped to
+maximum device powers and only active when setpoint violations
+would occur.
 
-Model sketch (discrete time):
+Typical use
+Quick load estimates, large batch simulations, or control studies
+where a lightweight model is sufficient and detailed envelope
+dynamics are not required. For more detailed dynamics, consider
+5R1C (ISO 13790) or 7R2C (VDI 6007).
 
-- T_in[t+1] = T_in[t] + (Δt/C)·( (T_out[t] − T_in[t])/R + G_int[t] + G_sol[t] + H_ve[t]·(T_out[t] − T_in[t]) + P_heat[t] − P_cool[t] )
-
-- P_heat/P_cool are clipped to maximum device powers and only active when setpoint violations would occur.
-
-Typical use:
-
-- Quick load estimates, large batch simulations, or control studies where a lightweight model is sufficient and detailed envelope dynamics are not required. For more detailed dynamics, consider 5R1C (ISO 13790) or 7R2C (VDI 6007).
-
-References:
-
-- Grey‑box RC modeling of buildings (overview): many texts incl. ISO 13790 annexes; see also VDI 6007 for extended multi‑node approaches.
+References
+Grey-box RC modeling of buildings (overview): many texts incl.
+ISO 13790 annexes; see also VDI 6007 for extended multi-node
+approaches.
 
 
 Key facts
@@ -64,6 +72,9 @@ Optional keys (specify in objects)
 - ``init_temperature[C]``
 - ``min_temperature[C]``
 - ``max_temperature[C]``
+- ``deadband[K]``
+- ``target_humidity_rel[1]``
+- ``gains_internal_latent[W]``
 - ``area[m2]``
 - ``height[m]``
 - ``gains_internal[W]``
@@ -115,10 +126,10 @@ Summary metrics
      - maximum heating load
 
    * - ``cooling:demand[Wh]``
-     - total cooling demand
+     - total cooling demand (sensible + latent)
 
    * - ``cooling:load_max[W]``
-     - maximum cooling load
+     - maximum cooling load (sensible + latent)
 
 
 
@@ -140,7 +151,13 @@ Timeseries columns
      - heating load
 
    * - ``cooling:load[W]``
-     - cooling load
+     - total cooling load (sensible + latent)
+
+   * - ``cooling:sensible_load[W]``
+     - sensible cooling load
+
+   * - ``cooling:latent_load[W]``
+     - latent cooling load
 
 
 
@@ -162,8 +179,8 @@ Public methods
            capacitance: float = None,
            resistance: float = None,
            weather: pd.DataFrame = None,
-           power_heating: float = None,
-           power_cooling: float = None,
+           power_heating: float | pd.Series = None,
+           power_cooling: float | pd.Series = None,
            active_heating: bool = None,
            active_cooling: bool = None,
            ventilation: float = None,
@@ -189,15 +206,19 @@ Public methods
                capacitance (float, optional): Thermal capacitance in J/K.
                resistance (float, optional): Thermal resistance in K/W.
                weather (pd.DataFrame, optional): Weather data with outdoor temperature.
-               power_heating (float, optional): Maximum heating power in W.
-               power_cooling (float, optional): Maximum cooling power in W.
+               power_heating (float or pd.Series, optional): Maximum heating power in W.
+               power_cooling (float or pd.Series, optional): Maximum cooling power in W.
                active_heating (bool, optional): Whether heating is active.
                active_cooling (bool, optional): Whether cooling is active.
                ventilation (float, optional): Ventilation rate in W/K.
                temp_init (float, optional): Initial indoor temperature in °C.
                temp_min (float, optional): Minimum indoor temperature in °C.
                temp_max (float, optional): Maximum indoor temperature in °C.
-               gains_internal (pd.DataFrame, optional): Internal heat gains in W.
+               gains_internal (pd.DataFrame, optional): Internal SENSIBLE heat gains in W.
+                   Do NOT include the latent portion here — pass that via
+                   `gains_internal_latent[W]` on the object. ASHRAE metabolic
+                   tables split a seated occupant as ~75 W sensible + ~55 W
+                   latent; the sensible number is what belongs in this input.
                gains_solar (pd.DataFrame, optional): Solar heat gains in W.
                area (float, optional): Heated area in m².
                height (float, optional): Heated height in m³.
@@ -233,9 +254,13 @@ Public methods
            )
            obj, data = self._get_input_data(obj, data, ts_type)
 
-           # Timestep in seconds (assuming a regular time grid)
-           idx = data[O.WEATHER][C.DATETIME].values.astype("datetime64[ns]")
-           timestep = np.float32((idx[1] - idx[0]) / np.timedelta64(1, "s"))
+           # Timestep in seconds (assuming a regular time grid). Compute from
+           # just the first two timestamps — casting the whole column via
+           # `.values.astype("datetime64[ns]")` costs ~20 ms/object on a
+           # timezone-aware DatetimeIndex because pandas materializes the object
+           # dtype first. Only the delta matters.
+           dt_col = data[O.WEATHER][C.DATETIME]
+           timestep = np.float32((dt_col.iloc[1] - dt_col.iloc[0]).total_seconds())
 
            # Precompute auxiliary data
            data[O.GAINS_INTERNAL] = InternalGains().generate(obj, data)
@@ -245,6 +270,38 @@ Public methods
            # Compute temperature and energy demand
            temp_in, p_heat, p_cool = calculate_timeseries_1r1c(obj, data, timestep)
 
-           logger.debug(f"[HVAC R1C1] {ts_type}: max heating {p_heat.max()}, cooling {p_cool.max()}")
+           # Latent-cooling post-pass (issue #103). Decoupled from the T_in
+           # dynamics — 1R1C carries no humidity state — so this runs vectorised
+           # after the sensible solver, leaving the numba path untouched.
+           # `p_cool` returned by the solver is already sensible-clipped to
+           # `power_cooling` (the total cap); the post-pass may clip it further
+           # if latent load pushes the total over that cap.
+           weather_df = data[O.WEATHER]
+           p_cool_max_arr = resolve_ts_or_scalar(
+               obj, data, O.POWER_COOLING, weather_df.index, default=DEFAULT_POWER_COOLING
+           ).to_numpy(dtype=np.float32, copy=False)
+           h_ve_arr = data[O.VENTILATION].to_numpy(dtype=np.float32, copy=False).ravel()
+           gains_lat_arr = resolve_ts_or_scalar(
+               obj, data, O.GAINS_INTERNAL_LATENT, weather_df.index, default=DEFAULT_GAINS_INTERNAL_LATENT
+           ).to_numpy(dtype=np.float32, copy=False)
+           active_cool = bool(obj.get(O.ACTIVE_COOLING, DEFAULT_ACTIVE_COOLING))
+           if active_cool:
+               p_cool_sensible, p_cool_latent = compute_latent_cooling(
+                   weather=weather_df,
+                   p_cool_sensible=p_cool,
+                   p_cool_max=p_cool_max_arr,
+                   h_ve=h_ve_arr,
+                   gains_internal_latent=gains_lat_arr,
+                   temp_max_c=float(obj.get(O.TEMP_MAX, DEFAULT_TEMP_MAX)),
+                   target_humidity_rel=float(obj.get(O.TARGET_HUMIDITY_REL, DEFAULT_TARGET_HUMIDITY_REL)),
+               )
+           else:
+               p_cool_sensible = p_cool
+               p_cool_latent = np.zeros_like(p_cool)
 
-           return self._format_output(temp_in, p_heat, p_cool, data, timestep)
+           logger.debug(
+               f"[HVAC R1C1] {ts_type}: max heating {p_heat.max()}, "
+               f"cooling sensible {p_cool_sensible.max()}, latent {p_cool_latent.max()}"
+           )
+
+           return self._format_output(temp_in, p_heat, p_cool_sensible, p_cool_latent, data, timestep)

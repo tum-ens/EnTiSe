@@ -6,27 +6,33 @@ Overview
 
 5R1C HVAC model aligned with ISO 13790's simplified dynamic method.
 
-Purpose and scope:
+Purpose and scope
+Captures key heat transfer paths between indoor air, internal
+surfaces, thermal mass, and exterior using five resistances and
+one aggregated capacitance (building mass). Better represents
+radiant/convective splits and envelope interactions than 1R1C,
+while remaining efficient for large-scale simulations.
 
-- Captures key heat transfer paths between indoor air, internal surfaces, thermal mass, and exterior using five resistances and one aggregated capacitance (building mass). Better represents radiant/convective splits and envelope interactions than 1R1C, while remaining efficient for large‑scale simulations.
+Conceptual structure
+Capacitance ``C_m`` (building thermal mass) exchanges with
+internal surfaces via ``H_tr,ms`` and with indoor air via
+``H_tr,is``; windows and opaque elements couple to exterior via
+``H_tr,w`` and ``H_tr,em``. Optional sky correction via
+``H_tr,op,sky``. Internal and solar gains are split into
+radiant/convective parts and routed to air, surfaces, and mass
+using σ parameters. Ventilation losses are handled via ``H_ve``
+(scalar or timeseries).
 
-Conceptual structure:
+Notes
+Implements the ISO 13790 simplified dynamic method assumptions
+(lumped mass and linear heat transfer). Parameter mapping follows
+standard notation. For even richer transient behavior and phase
+shifts, consider a 7R2C model (see VDI 6007).
 
-- Capacitance C_m (building thermal mass) exchanges with internal surfaces via H_tr,ms and with indoor air via H_tr,is; windows and opaque elements couple to exterior via H_tr,w and H_tr,em. Optional sky correction via H_tr,op,sky.
-
-- Internal and solar gains are split into radiant/convective parts and routed to air, surfaces, and mass using σ parameters.
-
-- Ventilation losses are handled via H_ve (scalar or timeseries).
-
-Notes:
-
-- Implements the ISO 13790 simplified dynamic method assumptions (lumped mass and linear heat transfer). Parameter mapping follows standard notation.
-
-- For even richer transient behavior and phase shifts, consider a 7R2C model (see VDI 6007).
-
-Reference:
-
-- ISO 13790: Energy performance of buildings — Calculation of energy use for space heating and cooling (simplified dynamic method).
+Reference
+ISO 13790: Energy performance of buildings — Calculation of
+energy use for space heating and cooling (simplified dynamic
+method).
 
 
 Key facts
@@ -36,9 +42,9 @@ Key facts
 
 - Supported types:
 
-  
+
   - ``hvac``
-  
+
 
 
 Requirements
@@ -71,6 +77,9 @@ Optional keys (specify in objects)
 - ``init_temperature[C]``
 - ``min_temperature[C]``
 - ``max_temperature[C]``
+- ``deadband[K]``
+- ``target_humidity_rel[1]``
+- ``gains_internal_latent[W]``
 - ``supply_temperature[C]``
 - ``area[m2]``
 - ``height[m]``
@@ -121,19 +130,19 @@ Summary metrics
 
    * - Key
      - Description
-   
+
    * - ``heating:demand[Wh]``
      - total heating demand
-   
+
    * - ``heating:load_max[W]``
      - maximum heating load
-   
+
    * - ``cooling:demand[Wh]``
-     - total cooling demand
-   
+     - total cooling demand (sensible + latent)
+
    * - ``cooling:load_max[W]``
-     - maximum cooling load
-   
+     - maximum cooling load (sensible + latent)
+
 
 
 Timeseries columns
@@ -146,16 +155,22 @@ Timeseries columns
 
    * - Column
      - Description
-   
+
    * - ``indoor_temperature[C]``
      - indoor air temperature
-   
+
    * - ``heating:load[W]``
      - heating load
-   
+
    * - ``cooling:load[W]``
-     - cooling load
-   
+     - total cooling load (sensible + latent)
+
+   * - ``cooling:sensible_load[W]``
+     - sensible cooling load
+
+   * - ``cooling:latent_load[W]``
+     - latent cooling load
+
 
 
 Public methods
@@ -175,7 +190,12 @@ Public methods
 
            temp_in, p_heat, p_cool = calculate_timeseries_5r1c(**data)
            meta = data["meta"]
+           p_cool_sensible, p_cool_latent = self._apply_latent_cooling(obj, data, p_cool)
            return self._format_output(
-               temp_in.round(3), p_heat.round().astype(int), p_cool.round().astype(int), meta["index"], meta["dt_s"]
+               temp_in.round(3),
+               p_heat.round().astype(int),
+               p_cool_sensible.round().astype(int),
+               p_cool_latent.round().astype(int),
+               meta["index"],
+               meta["dt_s"],
            )
-

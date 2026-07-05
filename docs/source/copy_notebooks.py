@@ -1,7 +1,37 @@
 import glob
+import json
 import os
 import shutil
 from pathlib import Path
+
+# Some example notebooks were saved without a kernelspec / language_info,
+# which makes myst-nb emit "No source code lexer found for notebook cell N"
+# during the Sphinx build. We inject a minimal Python3 kernelspec on copy
+# so the source notebooks remain untouched.
+_DEFAULT_KERNELSPEC = {
+    "display_name": "Python 3",
+    "language": "python",
+    "name": "python3",
+}
+_DEFAULT_LANGUAGE_INFO = {
+    "name": "python",
+    "pygments_lexer": "ipython3",
+    "mimetype": "text/x-python",
+    "file_extension": ".py",
+}
+
+
+def _copy_with_kernelspec(src: Path, dest: Path) -> None:
+    """Copy a notebook, filling in missing kernelspec/language_info metadata."""
+    with open(src, encoding="utf-8") as fh:
+        nb = json.load(fh)
+    metadata = nb.setdefault("metadata", {})
+    if not metadata.get("kernelspec"):
+        metadata["kernelspec"] = dict(_DEFAULT_KERNELSPEC)
+    if not metadata.get("language_info"):
+        metadata["language_info"] = dict(_DEFAULT_LANGUAGE_INFO)
+    with open(dest, "w", encoding="utf-8") as fh:
+        json.dump(nb, fh, indent=1)
 
 
 def copy_notebooks_to_docs():
@@ -33,8 +63,14 @@ def copy_notebooks_to_docs():
         # Create the destination directory if it doesn't exist
         os.makedirs(dest_path.parent, exist_ok=True)
 
-        # Copy the notebook
-        shutil.copy2(notebook_path, dest_path)
+        # Copy the notebook with kernelspec metadata filled in if missing
+        try:
+            _copy_with_kernelspec(notebook_path, dest_path)
+        except (json.JSONDecodeError, OSError):
+            # Fall back to a plain copy so the build does not fail on a
+            # single malformed notebook — the "no lexer" warning will
+            # simply reappear for that one.
+            shutil.copy2(notebook_path, dest_path)
         print(f"Copied {notebook_path} to {dest_path}")
 
 
@@ -59,10 +95,12 @@ def generate_examples_index():
         f.write("Examples\n")
         f.write("========\n\n")
         f.write(
-            "This section provides examples of how to use EnTiSe for generating timeseries data. Each example demonstrates a\n"
+            "This section provides examples of how to use EnTiSe for generating timeseries data. "
+            "Each example demonstrates a\n"
         )
         f.write(
-            "different aspect of the library, from basic usage to more complex scenarios. You can find the examples in the\n"
+            "different aspect of the library, from basic usage to more complex scenarios. "
+            "You can find the examples in the\n"
         )
         f.write("``examples`` directory of the repository.\n\n")
         f.write(".. toctree::\n")

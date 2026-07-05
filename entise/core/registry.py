@@ -12,7 +12,13 @@ def _ensure_methods_loaded():
     if _methods_loaded:
         return
     import entise.methods as _methods_pkg
+
+    # Skip private (underscore-prefixed) modules — these hold optional-dep
+    # accelerators like ``_R1C1_numba`` and are imported lazily by their
+    # public dispatchers. Matches the filter in ``entise/methods/__init__.py``.
     for _, modname, _ in pkgutil.walk_packages(_methods_pkg.__path__, _methods_pkg.__name__ + "."):
+        if any(part.startswith("_") for part in modname.split(".")):
+            continue
         importlib.import_module(modname)
     _methods_loaded = True
 
@@ -53,6 +59,8 @@ def import_all_methods(path: Optional[List[str]] = None, package_name: Optional[
         raise ValueError("Both path and package_name must be provided to avoid circular imports.")
 
     for _, modname, _ in pkgutil.walk_packages(path, package_name + "."):
+        if any(part.startswith("_") for part in modname.split(".")):
+            continue
         importlib.import_module(modname)
 
 

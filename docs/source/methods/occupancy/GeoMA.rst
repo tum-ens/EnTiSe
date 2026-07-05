@@ -6,21 +6,22 @@ Overview
 
 Binary occupancy inference from electricity demand via a Geometric Moving Average (GeoMA).
 
-Purpose and scope:
+Purpose and scope
+Compares the log-transformed instantaneous power against its
+exponentially weighted moving average (EWM). If the current
+reading exceeds the EWM (geometric mean on the original scale),
+occupancy=1 else 0. An optional nightly schedule can force
+unoccupied states during specified hours.
 
-- Compares the log‑transformed instantaneous power against its exponentially weighted moving average (EWM). If the current reading exceeds the EWM (geometric mean on the original scale), occupancy=1 else 0. An optional nightly schedule can force unoccupied states during specified hours.
+Notes
+Electricity demand supplies the timestamp index; no separate
+clock needed. Uses log10 with a small epsilon to avoid log(0)
+and stabilize low values. Smoothing parameter ``Objects.LAMBDA``
+tunes responsiveness of the EWM.
 
-Notes:
-
-- Electricity demand supplies the timestamp index; no separate clock needed.
-
-- Uses log10 with a small epsilon to avoid log(0) and stabilize low values.
-
-- Smoothing parameter ``Objects.LAMBDA`` tunes responsiveness of the EWM.
-
-Related methods:
-
-- See also PHT (Page–Hinkley Test) for change‑point based detection on the same input.
+Related methods
+See also PHT (Page–Hinkley Test) for change-point based
+detection on the same input.
 
 
 Key facts
@@ -30,9 +31,9 @@ Key facts
 
 - Supported types:
 
-  
+
   - ``occupancy``
-  
+
 
 
 Requirements
@@ -84,10 +85,10 @@ Summary metrics
 
    * - Key
      - Description
-   
+
    * - ``occupancy:average_occupancy``
      - average occupancy
-   
+
 
 
 Timeseries columns
@@ -100,10 +101,10 @@ Timeseries columns
 
    * - Column
      - Description
-   
+
    * - ``occupancy:occupancy[1]``
      - binary occupancy schedule (0/1)
-   
+
 
 
 Public methods
@@ -191,4 +192,3 @@ Public methods
            occ_schedule = calculate_timeseries(processed_obj, processed_data)
 
            return self._format_output(occ_schedule, processed_data)
-

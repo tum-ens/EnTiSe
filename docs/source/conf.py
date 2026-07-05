@@ -11,8 +11,8 @@ sys.path.insert(0, os.path.abspath("../.."))  # Adjust depending on your folder 
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
 project = "EnTiSe"
-copyright = "2026, Markus Doepfert, Hussein Geneva"
-author = "Markus Doepfert, Hussein Geneva"
+copyright = "2026, Markus Doepfert, Hussein Genena"
+author = "Markus Doepfert, Hussein Genena"
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
