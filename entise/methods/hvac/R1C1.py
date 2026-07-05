@@ -21,11 +21,20 @@ from entise.methods.hvac.defaults import (
     DEFAULT_TEMP_MIN,
     DEFAULT_VENTILATION,
 )
+from entise.methods.utils.weather_cache import WeatherCache
 
 logger = logging.getLogger(__name__)
 
-# Module-level caches (per process)
-_WEATHER_CACHE: dict[tuple, pd.DataFrame] = {}
+# Identity-keyed cache — see WeatherCache docstring for rationale.
+_WEATHER_CACHE = WeatherCache()
+
+
+def _preprocess_weather(weather: pd.DataFrame) -> pd.DataFrame:
+    w = weather.copy()
+    w = Method._strip_weather_height(w)
+    w[C.DATETIME] = pd.to_datetime(w[C.DATETIME])
+    w.set_index(C.DATETIME, inplace=True, drop=False)
+    return w
 
 
 class R1C1(Method):
@@ -265,19 +274,10 @@ class R1C1(Method):
         obj_out = {k: v for k, v in obj_out.items() if v is not None}
         data_out = {k: v for k, v in data_out.items() if v is not None}
 
-        # Safe datetime handling
-        weather_cache_key = weather_key
-        weather_cached = _WEATHER_CACHE.get(weather_cache_key)
-        if weather_cached is None:
-            if O.WEATHER in data_out:
-                weather = data_out[O.WEATHER].copy()
-                weather = Method._strip_weather_height(weather)
-                weather[C.DATETIME] = pd.to_datetime(weather[C.DATETIME])
-                weather.set_index(C.DATETIME, inplace=True, drop=False)
-                data_out[O.WEATHER] = weather
-                _WEATHER_CACHE[weather_cache_key] = weather
-        else:
-            data_out[O.WEATHER] = weather_cached
+        # Cache preprocessed weather by DataFrame identity — different
+        # DataFrames get separate entries even under the same weather-key.
+        if O.WEATHER in data_out:
+            data_out[O.WEATHER] = _WEATHER_CACHE.get_or_build(data_out[O.WEATHER], _preprocess_weather)
 
         return obj_out, data_out
 
