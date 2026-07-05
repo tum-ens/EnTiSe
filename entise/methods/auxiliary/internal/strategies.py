@@ -110,12 +110,16 @@ class InternalTimeSeries(AuxiliaryMethod):
         col = col if isinstance(col, str) else str(object_id)
         try:
             internal_gains = internal_gains.loc[:, col]
-        except KeyError:
+        except KeyError as err:
             log.error('Internal gains column "%s" does not exist', col)
             raise Warning(
                 f"Neither explicit (column name) or implicit (column id) are specified." f"Given input column: {col}"
-            )
-        return pd.DataFrame({O.GAINS_INTERNAL: internal_gains}, index=internal_gains.index)
+            ) from err
+        # Match the dtype of the constant/inactive paths so downstream
+        # consumers (e.g. the R1C1 numba wrapper) get a zero-copy view.
+        return pd.DataFrame(
+            {O.GAINS_INTERNAL: internal_gains.astype(np.float32, copy=False)}, index=internal_gains.index
+        )
 
 
 class InternalOccupancy(Method):
