@@ -459,30 +459,29 @@ class R1C1(Method):
 def calculate_timeseries_1r1c(obj: dict, data: dict, timestep: float) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Calculate HVAC time series using a 1R1C model.
 
-    This function simulates the thermal behavior of a building using a simple
-    one-resistance, one-capacitance (1R1C) model. It calculates the indoor temperature
-    and the heating and cooling power required to maintain comfort conditions.
+    Integrates the lumped-capacitance ODE
+
+        C · dT/dt = G_tot · (T_ss − T) + P_h − P_c ,
+        G_tot = 1/R + H_ve ,
+        T_ss  = T_out + (G_int + G_sol) / G_tot ,
+
+    with the **analytical exponential update** for each step under piecewise-constant
+    forcings. This solution is exact (up to float32 round-off) for constant
+    T_out/H_ve/gains over one step and is unconditionally stable for any Δt/τ,
+    unlike the explicit-Euler scheme it replaces.
+
+    The controller inverts the analytical update to pick the minimum heating
+    or cooling power that lands the next-step temperature exactly on the
+    active setpoint, then clips to the device power limit.
 
     Args:
-        obj (dict): A dictionary containing building parameters such as thermal
-            resistance, capacitance, initial temperature, temperature limits, and
-            heating/cooling capabilities.
-        data (dict): A dictionary containing time-series data such as weather
-            information, solar gains, internal gains, and ventilation rates.
-        timestep (float): The time step in seconds for the simulation.
+        obj (dict): Building parameters (R, C, setpoints, power limits, flags).
+        data (dict): Time-series inputs (weather, gains, ventilation conductance).
+        timestep (float): Simulation step in seconds.
 
     Returns:
-        tuple: A tuple containing:
-            - temp_in (np.ndarray): Array of indoor temperatures over time.
-            - p_heat (np.ndarray): Array of heating power over time.
-            - p_cool (np.ndarray): Array of cooling power over time.
-
-    Notes:
-        - The function simulates the building's thermal behavior time step by time step
-        - At each time step, it calculates the net heat transfer, the required heating
-          and cooling power, and the resulting indoor temperature
-        - The simulation accounts for thermal inertia, heat gains, and heat losses
-        - The function uses NumPy for efficient numerical computations and is trimmed for speed
+        tuple[np.ndarray, np.ndarray, np.ndarray]:
+            (indoor_temperature, heating_power, cooling_power).
     """
     # Get objects
     thermal_resistance = np.float32(obj[O.RESISTANCE])
@@ -509,96 +508,108 @@ def calculate_timeseries_1r1c(obj: dict, data: dict, timestep: float) -> tuple[n
 
     temp_in[0] = temp_init
 
-    # Precompute invariants for the inner loop (these reduce the number of divisions to speed up calculations)
+    # Precompute loop invariants
     inv_resistance = np.float32(1.0) / thermal_resistance
-    inv_timestep = np.float32(1.0) / timestep
-    timestep_over_cap = timestep / thermal_capacitance
+    dt = np.float32(timestep)
+    dt_over_cap = dt / thermal_capacitance
 
-    # Loop state
     temp_prev = temp_in[0]
 
     for t in range(1, n_steps):
-        # Passive heat transfer and gains
-        net_transfer = calc_net_heat_transfer(
-            temp_air[t], temp_prev, solar_gains[t], internal_gains[t], ventilation[t], inv_resistance
-        )
+        g_tot, decay, gain = calc_step_dynamics(ventilation[t], inv_resistance, dt, thermal_capacitance, dt_over_cap)
+        t_ss_pas = calc_passive_steady_state(temp_air[t], solar_gains[t], internal_gains[t], g_tot, dt_over_cap)
+        t_pas_next = calc_passive_next_temp(temp_prev, t_ss_pas, decay)
 
-        # Heating power
-        p_heat[t] = calc_heating_power(
-            temp_prev, temp_min, thermal_capacitance, inv_timestep, net_transfer, power_heat_max, active_heat
-        )
+        p_heat[t] = calc_heating_power(t_pas_next, temp_min, gain, power_heat_max, active_heat)
+        p_cool[t] = calc_cooling_power(t_pas_next, temp_max, gain, power_cool_max, active_cool)
 
-        # Cooling power
-        p_cool[t] = calc_cooling_power(
-            temp_prev, temp_max, thermal_capacitance, inv_timestep, net_transfer, power_cool_max, active_cool
-        )
-
-        # Indoor temperature
-        temp_prev = calc_temp_in(temp_prev, net_transfer, p_heat[t], p_cool[t], timestep_over_cap)
+        temp_prev = t_pas_next + gain * (p_heat[t] - p_cool[t])
         temp_in[t] = temp_prev
 
     return temp_in, p_heat, p_cool
 
 
-def calc_net_heat_transfer(
-    temp_air: float,
-    temp_prev: float,
-    solar_gains: float,
-    internal_gains: float,
+# Below the small-G_tot threshold the analytical form (1 − exp(−x))/G_tot
+# becomes numerically 0/0. Envelope conductances for real buildings are
+# ≥ ~1 W/K, so this branch is defensive only.
+_G_TOT_EPS = np.float32(1e-9)
+
+
+def calc_step_dynamics(
     ventilation: float,
     inv_resistance: float,
+    dt: float,
+    capacitance: float,
+    dt_over_cap: float,
+) -> tuple[float, float, float]:
+    """Return (G_tot, decay, gain) for one time step.
+
+    - G_tot [W/K]: 1/R + H_ve
+    - decay [-]: exp(-Δt · G_tot / C)  — 1R1C impulse response
+    - gain [K/W]: (1 − decay) / G_tot  — sensitivity of T_next to (P_h − P_c)
+
+    In the small-G_tot limit the ODE degenerates into a pure integrator;
+    gain → Δt/C, decay → 1. Handled explicitly to avoid 0/0.
+    """
+    g_tot = inv_resistance + ventilation
+    if g_tot > _G_TOT_EPS:
+        x = dt * g_tot / capacitance
+        one_minus_decay = -np.expm1(-x)  # numerically stable for small x
+        decay = np.float32(1.0) - one_minus_decay
+        gain = one_minus_decay / g_tot
+    else:
+        decay = np.float32(1.0)
+        gain = dt_over_cap
+    return g_tot, decay, gain
+
+
+def calc_passive_steady_state(
+    temp_air: float,
+    solar_gains: float,
+    internal_gains: float,
+    g_tot: float,
+    dt_over_cap: float,
 ) -> float:
-    """Calculate net heat transfer for a building zone."""
-    delta_temp = temp_air - temp_prev
-    conduction_loss = delta_temp * inv_resistance
-    ventilation_loss = ventilation * delta_temp
-    return conduction_loss + ventilation_loss + solar_gains + internal_gains
+    """Passive steady-state temperature T_ss (no active heating/cooling)."""
+    if g_tot > _G_TOT_EPS:
+        return temp_air + (solar_gains + internal_gains) / g_tot
+    # Pure integrator: no finite steady state; return T_air so the caller's
+    # analytical update collapses to a Euler step driven by gains alone.
+    return temp_air
+
+
+def calc_passive_next_temp(temp_prev: float, t_ss_pas: float, decay: float) -> float:
+    """Next-step temperature under passive forcing only."""
+    return t_ss_pas + (temp_prev - t_ss_pas) * decay
 
 
 def calc_heating_power(
-    temp_prev: float,
+    t_pas_next: float,
     temp_min: float,
-    thermal_capacitance: float,
-    inv_timestep: float,
-    net_transfer: float,
+    gain: float,
     power_heat_max: float,
     active: bool,
 ) -> float:
-    """Calculate required heating power for a building zone."""
+    """Analytical inversion: minimum P_h that lifts T_next to T_min."""
     if not active:
         return 0
-
-    required_heating_power = thermal_capacitance * (temp_min - temp_prev) * inv_timestep - net_transfer
-
-    if required_heating_power > 0:
-        return min(required_heating_power, power_heat_max)
-
-    return 0
+    if t_pas_next >= temp_min:
+        return 0
+    required = (temp_min - t_pas_next) / gain
+    return required if required < power_heat_max else power_heat_max
 
 
 def calc_cooling_power(
-    temp_prev: float,
+    t_pas_next: float,
     temp_max: float,
-    thermal_capacitance: float,
-    inv_timestep: float,
-    net_transfer: float,
+    gain: float,
     power_cool_max: float,
     active: bool,
 ) -> float:
-    """Calculate required cooling power for a building zone."""
+    """Analytical inversion: minimum P_c that pulls T_next down to T_max."""
     if not active:
         return 0
-
-    required_cooling_power = thermal_capacitance * (temp_prev - temp_max) * inv_timestep + net_transfer
-
-    if required_cooling_power > 0:
-        return min(required_cooling_power, power_cool_max)
-
-    return 0
-
-
-def calc_temp_in(
-    temp_prev: float, net_transfer: float, power_heat: float, power_cool: float, timestep_over_cap: float
-) -> float:
-    """Calculate indoor temperature for the next time step."""
-    return temp_prev + timestep_over_cap * (net_transfer + power_heat - power_cool)
+    if t_pas_next <= temp_max:
+        return 0
+    required = (t_pas_next - temp_max) / gain
+    return required if required < power_cool_max else power_cool_max
