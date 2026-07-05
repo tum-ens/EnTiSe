@@ -463,7 +463,29 @@ _G_TOT_EPS = np.float32(1e-9)
 
 
 def calculate_timeseries_1r1c(obj: dict, data: dict, timestep: float) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Calculate HVAC time series using a 1R1C model.
+    """Dispatch to numpy or numba path based on the active accelerator.
+
+    The two paths implement the same physics (analytical exponential update)
+    and produce numerically identical results up to a few ULPs. See
+    :func:`_calculate_timeseries_numpy` for the physics and
+    :mod:`entise.methods.hvac._R1C1_numba` for the JIT-compiled variant.
+
+    The accelerator is chosen by :func:`entise.get_accelerator`, controlled
+    by the ``ENTISE_ACCELERATOR`` environment variable and the
+    :func:`entise.set_accelerator` runtime API.
+    """
+    from entise.perf import get_accelerator
+
+    if get_accelerator() == "numba":
+        # Lazy import: numba is optional (`pip install entise[numba]`).
+        from entise.methods.hvac._R1C1_numba import calculate_timeseries_1r1c as _numba
+
+        return _numba(obj, data, timestep)
+    return _calculate_timeseries_numpy(obj, data, timestep)
+
+
+def _calculate_timeseries_numpy(obj: dict, data: dict, timestep: float) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Calculate HVAC time series using a 1R1C model (pure numpy path).
 
     Integrates the lumped-capacitance ODE
 
