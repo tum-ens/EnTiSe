@@ -11,8 +11,8 @@ from entise.constants import Objects as O
 from entise.core.base import Method
 from entise.core.utils import resolve_ts_or_scalar
 from entise.methods.auxiliary.internal.selector import InternalGains
-from entise.methods.auxiliary.solar.strategies import SolarGainsISO13790
-from entise.methods.auxiliary.ventilation.strategies import VentilationTimeSeries
+from entise.methods.auxiliary.solar.strategies import SolarGainsInactive, SolarGainsISO13790
+from entise.methods.auxiliary.ventilation.strategies import VentilationInactive, VentilationTimeSeries
 from entise.methods.hvac.defaults import (
     DEFAULT_ACTIVE_COOLING,
     DEFAULT_ACTIVE_HEATING,
@@ -183,8 +183,15 @@ class R5C1(Method):
         gains = self._compute_gains(obj, data)
         data_out["series"]["gains"] = gains
 
-        # Ventilation → split into mechanical & infiltration
-        ven_df = VentilationTimeSeries().generate(obj, data).squeeze()  # Calls ISO 13709 conform norm directly
+        # Ventilation → split into mechanical & infiltration.
+        # Honor the ACTIVE_VENTILATION flag: when explicitly False, use the
+        # zero-series path instead of computing ventilation. Applied here
+        # (rather than in the Ventilation selector) because R5C1 bypasses
+        # the selector to hit the ISO-13709-specific TimeSeries strategy.
+        if not bool(obj.get(O.ACTIVE_VENTILATION, True)):
+            ven_df = VentilationInactive().generate(obj, data).squeeze()
+        else:
+            ven_df = VentilationTimeSeries().generate(obj, data).squeeze()
         vent_split = resolve_ts_or_scalar(obj, data, O.VENTILATION_SPLIT, index, default=DEFAULT_VENTILATION_SPLIT)
         Hve_vent_series = ven_df * vent_split
         Hve_inf_series = ven_df * (1.0 - vent_split)
@@ -374,8 +381,14 @@ class R5C1(Method):
     @staticmethod
     def _compute_gains(obj: dict, data: dict) -> pd.DataFrame:
         g_int_df = InternalGains().generate(obj, data)
-        g_sol_df = SolarGainsISO13790().generate(obj, data)  # Calls ISO 13709 conform norm directly
-
+        # Honor the ACTIVE_GAINS_SOLAR flag: when explicitly False, use the
+        # zero-series path instead of running the ISO 13790 solar computation.
+        # Applied here (rather than in the SolarGains selector) because R5C1
+        # bypasses the selector to hit the ISO-13790-specific strategy.
+        if not bool(obj.get(O.ACTIVE_GAINS_SOLAR, True)):
+            g_sol_df = SolarGainsInactive().generate(obj, data)
+        else:
+            g_sol_df = SolarGainsISO13790().generate(obj, data)
         return pd.concat([g_int_df, g_sol_df], axis=1, keys=["g_int", "g_sol"])
 
 
