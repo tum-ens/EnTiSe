@@ -15,6 +15,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Changed
 - Vectorized the impulse-response precomputation in the 1R1C solver so `G_tot`, `decay`, `gain`, and `T_ss_pas` are computed as numpy arrays once per run instead of per step; the Python loop now contains only the temperature recursion and the controller inversion. Output is byte-exact vs. the previous implementation; ~1.5× faster on the example set.
+- Eliminated a per-object `.astype("datetime64[ns]")` on the full weather DATETIME column in R1C0 and R1C1 (only the delta between the first two timestamps is used to compute `Δt`). This alone cut per-object wall time from ~26 ms to ~2.4 ms in a 100-object benchmark on the standard example set — ~11× total speedup on the full pipeline with the numba accelerator enabled. Also preserved float32 dtypes through `SolarGainsPVLib`, `SolarGainsISO13790`, `InternalTimeSeries`, and `VentilationTimeSeries` to avoid follow-on float64↔float32 conversions in downstream solvers.
 
 ### Fixed
 - Fixed the docs build by adding method rsts directly and fixing the notebooks titles (`#96`, `!70`)

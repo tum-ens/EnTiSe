@@ -178,9 +178,13 @@ class SolarGainsPVLib(AuxiliaryMethod):
                 poa = irr["poa_global"].to_numpy(dtype=np.float32, copy=False)
                 _POA_CACHE[poa_key] = poa
 
-            # Compute window gains from POA
-            window_gains = poa * float(window[C.AREA]) * float(window[C.G_VALUE]) * float(window[C.SHADING])
-            total_solar_gains += window_gains.astype(np.float32, copy=False)
+            # Compute window gains from POA. Cast scalars to np.float32 so
+            # `poa * area * g * sh` stays float32 (Python `float` would promote
+            # the intermediate array to float64 and force a copy back).
+            area = np.float32(window[C.AREA])
+            g = np.float32(window[C.G_VALUE])
+            sh = np.float32(window[C.SHADING])
+            total_solar_gains += poa * area * g * sh
 
         return pd.DataFrame({O.GAINS_SOLAR: total_solar_gains}, index=weather.index)
 
@@ -217,32 +221,36 @@ class SolarGainsISO13790(SolarGainsPVLib):
         return inputs
 
     def run(self, weather, windows, latitude, longitude, H_tr_em, H_tr_op_sky):
+        # All constants cast to float32 so downstream arithmetic stays in
+        # float32 and avoids the copy that would otherwise land at the return.
+
         # 1. Calculate Glazed Surface Solar Gains (Windows)
         df_gains = super().run(weather, windows, latitude, longitude)
-        FRAME_FACTOR = 0.2  # p.70 - 11.4.5: Frame area fraction
-        F_W = 0.9  # p.73 - 11.4.2: Non-normal incidence correction
-        df_gains = df_gains * F_W * (1.0 - FRAME_FACTOR)  # p.67 - 11.3.3: Glazed gains
-        gains_windows = df_gains[O.GAINS_SOLAR].to_numpy()
+        FRAME_FACTOR = np.float32(0.2)  # p.70 - 11.4.5: Frame area fraction
+        F_W = np.float32(0.9)  # p.73 - 11.4.2: Non-normal incidence correction
+        df_gains = df_gains * F_W * (np.float32(1.0) - FRAME_FACTOR)  # p.67 - 11.3.3: Glazed gains
+        gains_windows = df_gains[O.GAINS_SOLAR].to_numpy(dtype=np.float32, copy=False)
 
         # 2. Calculate Opaque Surface Solar Gains (Walls, Roofs)
         # We approximate I_sol with GHI and use H_tr_op_sky as U*A for sky-facing surfaces.
-        R_SE = 0.04  # External surface resistance [m2K/W] (simplification)
-        F_R = 0.5  # p. Form factor to sky (0.5 = vertical, 1.0 = horizontal) (simplification)
-        ALPHA_OP = 0.6  # Solar absorption coefficient (Standard default)
-        F_SH_OP = 1.0  # Shading factor
-        I_global = weather[C.SOLAR_GHI].to_numpy()  # Using GHI as a proxy for global irradiance on opaque surfaces
-        gains_opaque = R_SE * H_tr_op_sky * ALPHA_OP * F_SH_OP * I_global * F_R  # p.68 - 11.3.4: Opaque gains
+        R_SE = np.float32(0.04)  # External surface resistance [m2K/W] (simplification)
+        F_R = np.float32(0.5)  # p. Form factor to sky (0.5 = vertical, 1.0 = horizontal) (simplification)
+        ALPHA_OP = np.float32(0.6)  # Solar absorption coefficient (Standard default)
+        F_SH_OP = np.float32(1.0)  # Shading factor
+        H_tr_op_sky_f = np.float32(H_tr_op_sky)
+        I_global = weather[C.SOLAR_GHI].to_numpy(dtype=np.float32, copy=False)
+        gains_opaque = R_SE * H_tr_op_sky_f * ALPHA_OP * F_SH_OP * I_global * F_R  # p.68 - 11.3.4
 
         # 3. Determine Sky Radiation Losses
         # We approximate (U*A) with H_tr_op_sky
-        H_R = 5.0  # p.73 - 11.4.6: External radiative coefficient [W/m2K]
-        DT_ER = 11.0  # p.73 - 11.4.6: Average air-sky temperature difference [K]
-        loss = F_R * R_SE * H_tr_op_sky * H_R * DT_ER  # p.69 - 11.3.5: Sky radiation losses
+        H_R = np.float32(5.0)  # p.73 - 11.4.6: External radiative coefficient [W/m2K]
+        DT_ER = np.float32(11.0)  # p.73 - 11.4.6: Average air-sky temperature difference [K]
+        loss = F_R * R_SE * H_tr_op_sky_f * H_R * DT_ER  # p.69 - 11.3.5
 
         # 4. Net Gains
         net_gains = gains_windows + gains_opaque - loss
 
-        return pd.DataFrame({O.GAINS_SOLAR: net_gains.astype(np.float32)}, index=weather.index)
+        return pd.DataFrame({O.GAINS_SOLAR: net_gains}, index=weather.index)
 
 
 __all__ = [

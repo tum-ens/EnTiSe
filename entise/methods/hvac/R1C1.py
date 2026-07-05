@@ -172,9 +172,13 @@ class R1C1(Method):
         )
         obj, data = self._get_input_data(obj, data, ts_type)
 
-        # Timestep in seconds (assuming a regular time grid)
-        idx = data[O.WEATHER][C.DATETIME].values.astype("datetime64[ns]")
-        timestep = np.float32((idx[1] - idx[0]) / np.timedelta64(1, "s"))
+        # Timestep in seconds (assuming a regular time grid). Compute from
+        # just the first two timestamps — casting the whole column via
+        # `.values.astype("datetime64[ns]")` costs ~20 ms/object on a
+        # timezone-aware DatetimeIndex because pandas materializes the object
+        # dtype first. Only the delta matters.
+        dt_col = data[O.WEATHER][C.DATETIME]
+        timestep = np.float32((dt_col.iloc[1] - dt_col.iloc[0]).total_seconds())
 
         # Precompute auxiliary data
         data[O.GAINS_INTERNAL] = InternalGains().generate(obj, data)
@@ -365,11 +369,12 @@ class R1C1(Method):
           - controls: dict (setpoints, caps, activation flags)
           - params: dict with R1C1 parameters (C, R)
         """
-        # Weather and timestep
+        # Weather and timestep — see note in generate() for why we avoid
+        # materializing the full DATETIME column via astype.
         weather = data[O.WEATHER]
         index = weather.index
-        idx = weather[C.DATETIME].values.astype("datetime64[ns]")
-        dt_s = float((idx[1] - idx[0]) / np.timedelta64(1, "s"))
+        dt_col = weather[C.DATETIME]
+        dt_s = float((dt_col.iloc[1] - dt_col.iloc[0]).total_seconds())
 
         # Gains (R1C1 currently computes auxiliaries unconditionally, keep behavior)
         g_sol_df = data.get(O.GAINS_SOLAR) or SolarGains().generate(obj, {**data, O.WEATHER: weather})
