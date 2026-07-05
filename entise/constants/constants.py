@@ -14,3 +14,10 @@ class Constants(Enum):
 class UnitConversion(Enum):
     CELSIUS2KELVIN = 273.15
     KELVIN2CELSIUS = -273.15
+
+
+# --- Physical properties of dry air at typical building-simulation conditions.
+# Single source of truth so ventilation / RC-solver / latent-cooling code all
+# agree. Any refinement (e.g. bumping CP_AIR to 1005 J/(kg·K)) must land here.
+CP_AIR: float = 1000.0  # J/(kg·K), specific heat capacity at constant pressure
+RHO_AIR: float = 1.2  # kg/m³, air density at ~20 °C, sea level

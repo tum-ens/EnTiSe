@@ -5,14 +5,18 @@ import pandas as pd
 
 from entise.constants import Constants as Const
 from entise.constants import Objects as O
+from entise.constants.constants import CP_AIR, RHO_AIR
 from entise.core.base_auxiliary import AuxiliaryMethod
 
 log = logging.getLogger(__name__)
 
 DEFAULT_VENTILATION = 65  # only for constant calculation (W/K)
 DEFAULT_VENTILATION_FACTOR = 0.5  # 1/h
-AIR_DENSITY = 1.2  # kg/m³
-HEAT_CAPACITY = 1000  # J/kgK
+# Re-exported under the historical names for backward-compat with any
+# downstream that imports them directly. Do not add new call sites — import
+# from ``entise.constants.constants`` instead.
+AIR_DENSITY = RHO_AIR  # kg/m³
+HEAT_CAPACITY = CP_AIR  # J/(kg·K)
 
 
 class VentilationInactive(AuxiliaryMethod):

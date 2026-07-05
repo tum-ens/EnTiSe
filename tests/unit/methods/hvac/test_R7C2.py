@@ -947,3 +947,79 @@ def test_r7c2_wide_deadband_does_not_double_fire(basic_7r2c_object):
         not both.any()
     ), f"Heating and cooling fired simultaneously on {int(both.sum())} steps — wide-band mutex broken."
     assert (p_heat > 0).any() or (p_cool > 0).any()
+
+
+# --- Latent cooling (issue #103) ---------------------------------------------
+
+
+def _wet_weather_7r2c(temp_c: float, rh: float, periods: int, p_pa: float = 101325.0) -> pd.DataFrame:
+    """Wet-summer weather with humidity for the R7C2 latent tests."""
+    index = pd.date_range("2025-06-01", periods=periods, freq="h", tz="UTC")
+    return pd.DataFrame(
+        {
+            C.DATETIME: index,
+            C.TEMP_AIR: np.full(periods, temp_c),
+            C.HUMIDITY_REL: np.full(periods, rh),
+            C.SURFACE_AIR_PRESSURE: np.full(periods, p_pa),
+            C.SOLAR_GHI: np.zeros(periods),
+            C.SOLAR_DHI: np.zeros(periods),
+            C.SOLAR_DNI: np.zeros(periods),
+        },
+        index=index,
+    )
+
+
+def test_r7c2_output_has_sensible_and_latent_columns(basic_7r2c_object):
+    """After #103 R7C2 emits three cooling columns: total, sensible, latent."""
+    weather = _wet_weather_7r2c(30.0, 0.70, 24)
+    result = R7C2().generate(basic_7r2c_object, {O.WEATHER: weather}, Types.HVAC)
+    ts = result["timeseries"]
+
+    assert f"{Types.COOLING}{SEP}{C.LOAD}[W]" in ts.columns
+    assert f"{Types.COOLING}{SEP}sensible_{C.LOAD}[W]" in ts.columns
+    assert f"{Types.COOLING}{SEP}latent_{C.LOAD}[W]" in ts.columns
+
+
+def test_r7c2_wet_summer_produces_positive_latent_load(basic_7r2c_object):
+    """R7C2 latent integration: hot humid outdoor + cool indoor →
+    latent > 0 in steady state, total == sensible + latent."""
+    weather = _wet_weather_7r2c(30.0, 0.70, 168)  # 1 week for the higher-inertia model
+    obj = {**basic_7r2c_object, O.TEMP_INIT: 25.0, O.TEMP_MAX: 25.0, O.ACTIVE_HEATING: False}
+    result = R7C2().generate(obj, {O.WEATHER: weather}, Types.HVAC)
+    ts = result["timeseries"]
+
+    sens_col = f"{Types.COOLING}{SEP}sensible_{C.LOAD}[W]"
+    lat_col = f"{Types.COOLING}{SEP}latent_{C.LOAD}[W]"
+    total_col = f"{Types.COOLING}{SEP}{C.LOAD}[W]"
+
+    assert ts[sens_col].iloc[-1] > 0
+    assert ts[lat_col].iloc[-1] > 0
+    assert ts[total_col].iloc[-1] == pytest.approx(ts[sens_col].iloc[-1] + ts[lat_col].iloc[-1], abs=1)
+
+
+def test_r7c2_active_cooling_false_zeros_latent(basic_7r2c_object):
+    """`active_cooling=False` → no latent even on humid days."""
+    weather = _wet_weather_7r2c(35.0, 0.80, 48)
+    obj = {**basic_7r2c_object, O.ACTIVE_COOLING: False, O.ACTIVE_HEATING: False, O.TEMP_INIT: 25.0}
+    result = R7C2().generate(obj, {O.WEATHER: weather}, Types.HVAC)
+    ts = result["timeseries"]
+
+    assert ts[f"{Types.COOLING}{SEP}latent_{C.LOAD}[W]"].max() == 0
+    assert ts[f"{Types.COOLING}{SEP}sensible_{C.LOAD}[W]"].max() == 0
+
+
+def test_r7c2_power_cooling_caps_total_load(basic_7r2c_object):
+    """`power_cooling[W]` caps the TOTAL (sensible + latent) on every step."""
+    weather = _wet_weather_7r2c(35.0, 0.80, 168)
+    obj = {
+        **basic_7r2c_object,
+        O.TEMP_INIT: 25.0,
+        O.TEMP_MAX: 25.0,
+        O.ACTIVE_HEATING: False,
+        O.POWER_COOLING: 800.0,
+    }
+    result = R7C2().generate(obj, {O.WEATHER: weather}, Types.HVAC)
+    ts = result["timeseries"]
+
+    total_col = f"{Types.COOLING}{SEP}{C.LOAD}[W]"
+    assert ts[total_col].max() <= 800.0 + 1

@@ -1,3 +1,5 @@
+import logging
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -698,6 +700,364 @@ def test_numpy_and_numba_paths_agree():
     assert np.max(np.abs(pc_np - pc_nb)) < 0.5, "cooling power drift between paths"
 
 
+# --- Latent cooling (issue #103) ---------------------------------------------
+# Weather without humidity → the existing regression tests above already
+# guarantee bit-exact output. These tests exercise the humidity-present path
+# and the reinterpretation of `power_cooling[W]` as total nameplate capacity.
+
+
+def _wet_weather(temp_c: float, rh: float, periods: int, p_pa: float = 101325.0) -> pd.DataFrame:
+    """Weather fixture with humidity + pressure columns so the latent
+    post-pass has everything it needs to compute a non-zero latent load."""
+    index = pd.date_range("2025-06-01", periods=periods, freq="h", tz="UTC")
+    return pd.DataFrame(
+        {
+            C.DATETIME: index,
+            C.TEMP_AIR: np.full(periods, temp_c, dtype=np.float64),
+            C.HUMIDITY_REL: np.full(periods, rh, dtype=np.float64),
+            C.SURFACE_AIR_PRESSURE: np.full(periods, p_pa, dtype=np.float64),
+        },
+        index=index,
+    )
+
+
+def test_r1c1_cooling_output_carries_sensible_and_latent_columns():
+    """After #103 the timeseries has three cooling columns: total, sensible,
+    latent. Their names are part of the API — assert they exist."""
+    periods = 24
+    weather_key = "weather_latent_cols"
+    weather = _wet_weather(30.0, 0.7, periods)
+
+    obj = {
+        O.ID: "b_cols",
+        O.CAPACITANCE: 5e6,
+        O.RESISTANCE: 0.01,
+        O.TEMP_INIT: 24.0,
+        O.TEMP_MIN: 15.0,
+        O.TEMP_MAX: 24.0,
+        O.LAT: 48.1,
+        O.LON: 11.6,
+        O.GAINS_INTERNAL: 0,
+        O.VENTILATION: 100.0,
+        O.ACTIVE_HEATING: False,
+        O.ACTIVE_GAINS_SOLAR: False,
+        O.ACTIVE_GAINS_INTERNAL: False,
+        O.WEATHER: weather_key,
+    }
+    result = R1C1().generate(obj, {weather_key: weather}, Types.HVAC)
+    ts = result["timeseries"]
+
+    assert f"{Types.COOLING}{SEP}{C.LOAD}[W]" in ts.columns
+    assert f"{Types.COOLING}{SEP}sensible_{C.LOAD}[W]" in ts.columns
+    assert f"{Types.COOLING}{SEP}latent_{C.LOAD}[W]" in ts.columns
+
+
+def test_r1c1_wet_summer_produces_positive_latent_load():
+    """Hot humid outdoor + cool indoor setpoint → sensible AND latent must be
+    positive in steady state. Sanity check that the post-pass fires."""
+    periods = 96
+    weather_key = "weather_wet_summer"
+    weather = _wet_weather(t_out_c := 30.0, rh_out := 0.70, periods)
+
+    obj = {
+        O.ID: "b_wet",
+        O.CAPACITANCE: 5e6,
+        O.RESISTANCE: 0.01,
+        O.TEMP_INIT: 24.0,
+        O.TEMP_MIN: 15.0,
+        O.TEMP_MAX: 24.0,
+        O.LAT: 48.1,
+        O.LON: 11.6,
+        O.GAINS_INTERNAL: 0,
+        O.VENTILATION: 100.0,
+        O.ACTIVE_HEATING: False,
+        O.ACTIVE_GAINS_SOLAR: False,
+        O.ACTIVE_GAINS_INTERNAL: False,
+        O.WEATHER: weather_key,
+    }
+    result = R1C1().generate(obj, {weather_key: weather}, Types.HVAC)
+    ts = result["timeseries"]
+
+    sens_col = f"{Types.COOLING}{SEP}sensible_{C.LOAD}[W]"
+    lat_col = f"{Types.COOLING}{SEP}latent_{C.LOAD}[W]"
+    total_col = f"{Types.COOLING}{SEP}{C.LOAD}[W]"
+
+    # Steady state: sensible > 0, latent > 0, total == sensible + latent.
+    assert ts[sens_col].iloc[-1] > 0
+    assert ts[lat_col].iloc[-1] > 0
+    assert ts[total_col].iloc[-1] == pytest.approx(ts[sens_col].iloc[-1] + ts[lat_col].iloc[-1], abs=1)
+    # Latent should be non-trivial for these ambient conditions
+    # (30 °C 70 % RH → wet-bulb ~25 °C, moisture removal is real).
+    assert ts[lat_col].max() > 50
+    _ = t_out_c, rh_out  # silence-unused hint
+
+
+def test_r1c1_dry_summer_produces_zero_latent_load():
+    """Hot but dry outdoor → sensible > 0, latent = 0. Confirms the
+    dry-outdoor sign-flip clip works end-to-end."""
+    periods = 96
+    weather_key = "weather_dry_summer"
+    # 40 °C 10 % RH: outdoor ω ~ 0.005 kg/kg, indoor target at 24 °C 50 % RH
+    # is ~0.0094 kg/kg. Ventilation moisture load is negative → latent 0.
+    weather = _wet_weather(40.0, 0.10, periods)
+
+    obj = {
+        O.ID: "b_dry",
+        O.CAPACITANCE: 5e6,
+        O.RESISTANCE: 0.01,
+        O.TEMP_INIT: 24.0,
+        O.TEMP_MIN: 15.0,
+        O.TEMP_MAX: 24.0,
+        O.LAT: 48.1,
+        O.LON: 11.6,
+        O.GAINS_INTERNAL: 0,
+        O.VENTILATION: 100.0,
+        O.ACTIVE_HEATING: False,
+        O.ACTIVE_GAINS_SOLAR: False,
+        O.ACTIVE_GAINS_INTERNAL: False,
+        O.WEATHER: weather_key,
+    }
+    result = R1C1().generate(obj, {weather_key: weather}, Types.HVAC)
+    ts = result["timeseries"]
+
+    sens_col = f"{Types.COOLING}{SEP}sensible_{C.LOAD}[W]"
+    lat_col = f"{Types.COOLING}{SEP}latent_{C.LOAD}[W]"
+    assert ts[sens_col].iloc[-1] > 0
+    assert ts[lat_col].max() == 0
+
+
+def test_r1c1_active_cooling_false_forces_zero_latent():
+    """When `active_cooling` is False, there is no cooling at all — sensible
+    and latent must both be zero even on a hot, humid day."""
+    periods = 48
+    weather_key = "weather_cooling_off"
+    weather = _wet_weather(35.0, 0.80, periods)
+
+    obj = {
+        O.ID: "b_cool_off",
+        O.CAPACITANCE: 5e6,
+        O.RESISTANCE: 0.01,
+        O.TEMP_INIT: 24.0,
+        O.TEMP_MIN: 15.0,
+        O.TEMP_MAX: 24.0,
+        O.ACTIVE_COOLING: False,
+        O.ACTIVE_HEATING: False,
+        O.LAT: 48.1,
+        O.LON: 11.6,
+        O.GAINS_INTERNAL: 0,
+        O.VENTILATION: 100.0,
+        O.ACTIVE_GAINS_SOLAR: False,
+        O.ACTIVE_GAINS_INTERNAL: False,
+        O.WEATHER: weather_key,
+    }
+    result = R1C1().generate(obj, {weather_key: weather}, Types.HVAC)
+    ts = result["timeseries"]
+
+    lat_col = f"{Types.COOLING}{SEP}latent_{C.LOAD}[W]"
+    sens_col = f"{Types.COOLING}{SEP}sensible_{C.LOAD}[W]"
+    assert ts[lat_col].max() == 0
+    assert ts[sens_col].max() == 0
+
+
+def test_r1c1_power_cooling_caps_total_load_sensible_priority():
+    """`power_cooling[W]` is now the TOTAL nameplate cap. When the physics
+    would demand more than the cap, sensible is served first (thermostat
+    priority) and latent is clipped to the remainder. Steady-state sensible
+    must equal the cap; latent must be zero if sensible alone hits the cap."""
+    periods = 96
+    weather_key = "weather_undersized_total"
+    weather = _wet_weather(35.0, 0.80, periods)
+
+    # (T_out - T_max)/R = (35-24)/0.01 = 1100 W sensible steady-state.
+    # Cap set below that → sensible is clipped, latent should be zero.
+    P_cap = 800.0
+
+    obj = {
+        O.ID: "b_undersized_total",
+        O.CAPACITANCE: 5e6,
+        O.RESISTANCE: 0.01,
+        O.TEMP_INIT: 24.0,
+        O.TEMP_MIN: 15.0,
+        O.TEMP_MAX: 24.0,
+        O.POWER_COOLING: P_cap,
+        O.LAT: 48.1,
+        O.LON: 11.6,
+        O.GAINS_INTERNAL: 0,
+        O.VENTILATION: 100.0,
+        O.ACTIVE_HEATING: False,
+        O.ACTIVE_GAINS_SOLAR: False,
+        O.ACTIVE_GAINS_INTERNAL: False,
+        O.WEATHER: weather_key,
+    }
+    result = R1C1().generate(obj, {weather_key: weather}, Types.HVAC)
+    ts = result["timeseries"]
+
+    sens_col = f"{Types.COOLING}{SEP}sensible_{C.LOAD}[W]"
+    lat_col = f"{Types.COOLING}{SEP}latent_{C.LOAD}[W]"
+    total_col = f"{Types.COOLING}{SEP}{C.LOAD}[W]"
+
+    # Total load never exceeds the cap.
+    assert ts[total_col].max() <= P_cap + 1
+    # In steady state, sensible saturates at the cap; latent goes to zero.
+    assert ts[sens_col].iloc[-1] == pytest.approx(P_cap, rel=0.02)
+    assert ts[lat_col].iloc[-1] == 0
+
+
+def test_r1c1_gains_internal_latent_adds_to_latent_load():
+    """Positive `gains_internal_latent[W]` must add to the latent load
+    additively on top of the ventilation-driven part."""
+    periods = 96
+    weather_key = "weather_int_latent"
+    weather = _wet_weather(28.0, 0.55, periods)
+
+    base_obj = {
+        O.ID: "b_int_lat",
+        O.CAPACITANCE: 5e6,
+        O.RESISTANCE: 0.01,
+        O.TEMP_INIT: 24.0,
+        O.TEMP_MIN: 15.0,
+        O.TEMP_MAX: 24.0,
+        O.LAT: 48.1,
+        O.LON: 11.6,
+        O.GAINS_INTERNAL: 0,
+        O.VENTILATION: 100.0,
+        O.ACTIVE_HEATING: False,
+        O.ACTIVE_GAINS_SOLAR: False,
+        O.ACTIVE_GAINS_INTERNAL: False,
+        O.WEATHER: weather_key,
+    }
+
+    # First run: no internal latent gains.
+    ts_base = R1C1().generate({**base_obj, O.ID: "b_lat_0"}, {weather_key: weather}, Types.HVAC)["timeseries"]
+    # Second run: 300 W of internal latent gains.
+    ts_gain = R1C1().generate(
+        {**base_obj, O.ID: "b_lat_300", O.GAINS_INTERNAL_LATENT: 300.0},
+        {weather_key: weather},
+        Types.HVAC,
+    )["timeseries"]
+
+    lat_col = f"{Types.COOLING}{SEP}latent_{C.LOAD}[W]"
+    # Steady-state latent should differ by exactly 300 W (± rounding).
+    delta = ts_gain[lat_col].iloc[-1] - ts_base[lat_col].iloc[-1]
+    assert delta == pytest.approx(300, abs=2)
+
+
+def test_r1c1_cooling_load_equals_sensible_plus_latent_per_row():
+    """The `cooling:load[W]` column must equal `cooling:sensible_load[W]` +
+    `cooling:latent_load[W]` on every row. Regression against a rounding
+    bug where independently-rounded sensible + latent could differ from
+    the rounded total by ±1 W."""
+    periods = 168  # a week of hourly steps → high chance of straddling .5
+    weather_key = "weather_invariant"
+    weather = _wet_weather(28.0, 0.55, periods)
+    obj = {
+        O.ID: "b_inv",
+        O.CAPACITANCE: 5e6,
+        O.RESISTANCE: 0.01,
+        O.TEMP_INIT: 24.0,
+        O.TEMP_MIN: 15.0,
+        O.TEMP_MAX: 24.0,
+        O.LAT: 48.1,
+        O.LON: 11.6,
+        O.GAINS_INTERNAL: 0,
+        O.VENTILATION: 100.0,
+        O.ACTIVE_HEATING: False,
+        O.ACTIVE_GAINS_SOLAR: False,
+        O.ACTIVE_GAINS_INTERNAL: False,
+        O.WEATHER: weather_key,
+    }
+    ts = R1C1().generate(obj, {weather_key: weather}, Types.HVAC)["timeseries"]
+
+    total = ts[f"{Types.COOLING}{SEP}{C.LOAD}[W]"]
+    sens = ts[f"{Types.COOLING}{SEP}sensible_{C.LOAD}[W]"]
+    lat = ts[f"{Types.COOLING}{SEP}latent_{C.LOAD}[W]"]
+    assert (total == sens + lat).all(), "cooling:load[W] must equal sensible + latent per-row"
+
+
+def test_r1c1_negative_gains_internal_latent_acts_as_moisture_sink():
+    """A negative `gains_internal_latent[W]` is a valid input — it models a
+    separate moisture-removing appliance (e.g. a dedicated dehumidifier).
+    Its magnitude offsets the positive ventilation moisture load, and if
+    the offset drives net moisture below zero the AC's latent contribution
+    is clipped to zero (the AC can't add moisture)."""
+    periods = 96
+    weather_key = "weather_neg_gains"
+    weather = _wet_weather(28.0, 0.55, periods)
+    base_obj = {
+        O.ID: "b_neg_gains",
+        O.CAPACITANCE: 5e6,
+        O.RESISTANCE: 0.01,
+        O.TEMP_INIT: 24.0,
+        O.TEMP_MIN: 15.0,
+        O.TEMP_MAX: 24.0,
+        O.LAT: 48.1,
+        O.LON: 11.6,
+        O.GAINS_INTERNAL: 0,
+        O.VENTILATION: 100.0,
+        O.ACTIVE_HEATING: False,
+        O.ACTIVE_GAINS_SOLAR: False,
+        O.ACTIVE_GAINS_INTERNAL: False,
+        O.WEATHER: weather_key,
+    }
+
+    ts_no_sink = R1C1().generate({**base_obj, O.ID: "b_no_sink"}, {weather_key: weather}, Types.HVAC)["timeseries"]
+    ts_with_sink = R1C1().generate(
+        {**base_obj, O.ID: "b_sink", O.GAINS_INTERNAL_LATENT: -200.0},
+        {weather_key: weather},
+        Types.HVAC,
+    )["timeseries"]
+
+    lat_col = f"{Types.COOLING}{SEP}latent_{C.LOAD}[W]"
+    # A -200 W moisture sink must reduce the AC's steady-state latent load
+    # by 200 W (as long as the resulting value stays non-negative).
+    delta = ts_no_sink[lat_col].iloc[-1] - ts_with_sink[lat_col].iloc[-1]
+    assert delta == pytest.approx(200, abs=2), "moisture sink must offset ventilation-driven latent"
+    # Latent still non-negative — the max(0, ...) floor holds.
+    assert ts_with_sink[lat_col].min() >= 0
+
+
+def test_r1c1_missing_humidity_warns_and_zeros_latent(caplog):
+    """Weather without humidity/pressure → latent = 0 everywhere, one
+    warning per missing column. Regression against silent zero-output."""
+    periods = 24
+    # Deliberately no humidity or pressure column.
+    index = pd.date_range("2025-06-01", periods=periods, freq="h", tz="UTC")
+    weather = pd.DataFrame({C.DATETIME: index, C.TEMP_AIR: np.full(periods, 30.0, dtype=np.float64)}, index=index)
+    weather_key = "weather_no_humidity"
+
+    obj = {
+        O.ID: "b_no_h",
+        O.CAPACITANCE: 5e6,
+        O.RESISTANCE: 0.01,
+        O.TEMP_INIT: 24.0,
+        O.TEMP_MIN: 15.0,
+        O.TEMP_MAX: 24.0,
+        O.LAT: 48.1,
+        O.LON: 11.6,
+        O.GAINS_INTERNAL: 0,
+        O.VENTILATION: 100.0,
+        O.ACTIVE_HEATING: False,
+        O.ACTIVE_GAINS_SOLAR: False,
+        O.ACTIVE_GAINS_INTERNAL: False,
+        O.WEATHER: weather_key,
+    }
+
+    with caplog.at_level(logging.WARNING, logger="entise.methods.hvac._latent_cooling"):
+        result = R1C1().generate(obj, {weather_key: weather}, Types.HVAC)
+
+    ts = result["timeseries"]
+    lat_col = f"{Types.COOLING}{SEP}latent_{C.LOAD}[W]"
+    sens_col = f"{Types.COOLING}{SEP}sensible_{C.LOAD}[W]"
+    total_col = f"{Types.COOLING}{SEP}{C.LOAD}[W]"
+
+    assert ts[lat_col].max() == 0
+    # Total should equal sensible (no latent contribution).
+    assert (ts[total_col] == ts[sens_col]).all()
+    # Warning emitted once, mentioning both missing columns.
+    warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
+    assert warnings, "expected a warning about missing humidity/pressure columns"
+
+
 # --- Thermostat dead band / hysteresis (issue #102) --------------------------
 # The controller switches heating/cooling on/off at exact T_min/T_max. Real
 # thermostats cycle around a small band. Add a `deadband[K]` parameter that,
@@ -931,9 +1291,9 @@ def test_r1c1_deadband_stays_off_when_entering_band_from_above():
     # Before that, at least one step must show T inside the band (proving
     # we did enter the band from above without firing).
     entered_band = (temp[:first_fire] >= T_min) & (temp[:first_fire] <= T_min + deadband + 1e-3)
-    assert entered_band.any(), (
-        "T never crossed into the band before firing — cannot verify off-branch " "hysteresis with this scenario."
-    )
+    assert (
+        entered_band.any()
+    ), "T never crossed into the band before firing — cannot verify off-branch hysteresis with this scenario."
     # Every pre-fire step has heat == 0 by construction of `first_fire`.
     assert (heat[:first_fire] == 0).all()
 

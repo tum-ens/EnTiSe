@@ -700,3 +700,81 @@ def test_r5c1_wide_deadband_does_not_double_fire(basic_5r1c_object):
         not both.any()
     ), f"Heating and cooling fired simultaneously on {int(both.sum())} steps — wide-band mutex broken."
     assert (p_heat > 0).any() or (p_cool > 0).any()
+
+
+# --- Latent cooling (issue #103) ---------------------------------------------
+# Weather without humidity → the existing tests above guarantee bit-exact
+# output. These target the humidity-present path.
+
+
+def _wet_weather_5r1c(temp_c: float, rh: float, periods: int, p_pa: float = 101325.0) -> pd.DataFrame:
+    """R5C1 needs solar columns too; a wet-summer fixture with humidity."""
+    index = pd.date_range("2025-06-01", periods=periods, freq="h", tz="UTC")
+    return pd.DataFrame(
+        {
+            C.DATETIME: index,
+            C.TEMP_AIR: np.full(periods, temp_c),
+            C.HUMIDITY_REL: np.full(periods, rh),
+            C.SURFACE_AIR_PRESSURE: np.full(periods, p_pa),
+            C.SOLAR_GHI: np.zeros(periods),
+            C.SOLAR_DHI: np.zeros(periods),
+            C.SOLAR_DNI: np.zeros(periods),
+        },
+        index=index,
+    )
+
+
+def test_r5c1_output_has_sensible_and_latent_columns(basic_5r1c_object):
+    """After #103 R5C1 emits three cooling columns: total, sensible, latent."""
+    weather = _wet_weather_5r1c(30.0, 0.70, 24)
+    result = R5C1().generate(basic_5r1c_object, {O.WEATHER: weather}, Types.HVAC)
+    ts = result["timeseries"]
+
+    assert f"{Types.COOLING}{SEP}{C.LOAD}[W]" in ts.columns
+    assert f"{Types.COOLING}{SEP}sensible_{C.LOAD}[W]" in ts.columns
+    assert f"{Types.COOLING}{SEP}latent_{C.LOAD}[W]" in ts.columns
+
+
+def test_r5c1_wet_summer_produces_positive_latent_load(basic_5r1c_object):
+    """R5C1 latent-cooling integration: hot humid outdoor + cool indoor →
+    latent > 0 in steady state, total == sensible + latent."""
+    weather = _wet_weather_5r1c(30.0, 0.70, 96)
+    obj = {**basic_5r1c_object, O.TEMP_INIT: 24.0, O.ACTIVE_HEATING: False}
+    result = R5C1().generate(obj, {O.WEATHER: weather}, Types.HVAC)
+    ts = result["timeseries"]
+
+    sens_col = f"{Types.COOLING}{SEP}sensible_{C.LOAD}[W]"
+    lat_col = f"{Types.COOLING}{SEP}latent_{C.LOAD}[W]"
+    total_col = f"{Types.COOLING}{SEP}{C.LOAD}[W]"
+
+    assert ts[sens_col].iloc[-1] > 0
+    assert ts[lat_col].iloc[-1] > 0
+    assert ts[total_col].iloc[-1] == pytest.approx(ts[sens_col].iloc[-1] + ts[lat_col].iloc[-1], abs=1)
+
+
+def test_r5c1_active_cooling_false_zeros_latent(basic_5r1c_object):
+    """`active_cooling=False` → zero cooling of any kind, even on humid days."""
+    weather = _wet_weather_5r1c(35.0, 0.80, 48)
+    obj = {**basic_5r1c_object, O.ACTIVE_COOLING: False, O.ACTIVE_HEATING: False, O.TEMP_INIT: 24.0}
+    result = R5C1().generate(obj, {O.WEATHER: weather}, Types.HVAC)
+    ts = result["timeseries"]
+
+    assert ts[f"{Types.COOLING}{SEP}latent_{C.LOAD}[W]"].max() == 0
+    assert ts[f"{Types.COOLING}{SEP}sensible_{C.LOAD}[W]"].max() == 0
+
+
+def test_r5c1_power_cooling_caps_total_load(basic_5r1c_object):
+    """`power_cooling[W]` is now the TOTAL nameplate cap; sensible has
+    priority. Total must not exceed the cap on any step."""
+    weather = _wet_weather_5r1c(35.0, 0.80, 96)
+    obj = {
+        **basic_5r1c_object,
+        O.TEMP_INIT: 24.0,
+        O.ACTIVE_HEATING: False,
+        O.POWER_COOLING: 800.0,
+    }
+    result = R5C1().generate(obj, {O.WEATHER: weather}, Types.HVAC)
+    ts = result["timeseries"]
+
+    total_col = f"{Types.COOLING}{SEP}{C.LOAD}[W]"
+    assert ts[total_col].max() <= 800.0 + 1
