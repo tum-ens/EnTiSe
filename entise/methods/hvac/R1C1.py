@@ -456,6 +456,12 @@ class R1C1(Method):
         return {"summary": summary, "timeseries": df}
 
 
+# Below the small-G_tot threshold the analytical form (1 − exp(−x))/G_tot
+# becomes numerically 0/0. Envelope conductances for real buildings are
+# ≥ ~1 W/K, so this branch is defensive only.
+_G_TOT_EPS = np.float32(1e-9)
+
+
 def calculate_timeseries_1r1c(obj: dict, data: dict, timestep: float) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Calculate HVAC time series using a 1R1C model.
 
@@ -467,12 +473,12 @@ def calculate_timeseries_1r1c(obj: dict, data: dict, timestep: float) -> tuple[n
 
     with the **analytical exponential update** for each step under piecewise-constant
     forcings. This solution is exact (up to float32 round-off) for constant
-    T_out/H_ve/gains over one step and is unconditionally stable for any Δt/τ,
-    unlike the explicit-Euler scheme it replaces.
+    T_out/H_ve/gains over one step and is unconditionally stable for any Δt/τ.
 
-    The controller inverts the analytical update to pick the minimum heating
-    or cooling power that lands the next-step temperature exactly on the
-    active setpoint, then clips to the device power limit.
+    Per-step impulse response (decay, gain) and passive steady state (T_ss_pas)
+    depend only on the forcings — not on the previous temperature — so they are
+    precomputed once as numpy arrays. Only the temperature recursion and the
+    controller inversion remain inside the Python loop.
 
     Args:
         obj (dict): Building parameters (R, C, setpoints, power limits, flags).
@@ -483,8 +489,7 @@ def calculate_timeseries_1r1c(obj: dict, data: dict, timestep: float) -> tuple[n
         tuple[np.ndarray, np.ndarray, np.ndarray]:
             (indoor_temperature, heating_power, cooling_power).
     """
-    # Get objects
-    thermal_resistance = np.float32(obj[O.RESISTANCE])
+    # Scalar parameters
     thermal_capacitance = np.float32(obj[O.CAPACITANCE])
     temp_init = np.float32(obj[O.TEMP_INIT])
     temp_min = np.float32(obj[O.TEMP_MIN])
@@ -493,123 +498,62 @@ def calculate_timeseries_1r1c(obj: dict, data: dict, timestep: float) -> tuple[n
     active_cool = bool(obj[O.ACTIVE_COOLING])
     power_heat_max = np.float32(obj[O.POWER_HEATING])
     power_cool_max = np.float32(obj[O.POWER_COOLING])
+    inv_resistance = np.float32(1.0) / np.float32(obj[O.RESISTANCE])
+    dt = np.float32(timestep)
 
-    # Get data
+    # Time-series inputs
     weather = data[O.WEATHER]
     temp_air = weather[C.TEMP_AIR].to_numpy(dtype=np.float32, copy=False)
     solar_gains = data[O.GAINS_SOLAR].to_numpy(dtype=np.float32, copy=False).ravel()
     internal_gains = data[O.GAINS_INTERNAL].to_numpy(dtype=np.float32, copy=False).ravel()
     ventilation = data[O.VENTILATION].to_numpy(dtype=np.float32, copy=False).ravel()
 
+    # Vectorized precompute of the impulse response and passive steady state.
+    # `g_tot_safe` guards against divide-by-zero in the pathological
+    # small-G_tot branch; np.where then selects the correct value.
+    g_tot = inv_resistance + ventilation
+    safe = g_tot > _G_TOT_EPS
+    g_tot_safe = np.where(safe, g_tot, np.float32(1.0))
+    one_minus_decay = (-np.expm1(-(dt * g_tot_safe / thermal_capacitance))).astype(np.float32)
+    dt_over_cap = dt / thermal_capacitance
+    decay = np.where(safe, np.float32(1.0) - one_minus_decay, np.float32(1.0)).astype(np.float32)
+    gain = np.where(safe, one_minus_decay / g_tot_safe, dt_over_cap).astype(np.float32)
+    t_ss_pas = np.where(safe, temp_air + (solar_gains + internal_gains) / g_tot_safe, temp_air).astype(np.float32)
+
     n_steps = temp_air.shape[0]
     temp_in = np.empty(n_steps, dtype=np.float32)
     p_heat = np.zeros(n_steps, dtype=np.float32)
     p_cool = np.zeros(n_steps, dtype=np.float32)
-
     temp_in[0] = temp_init
 
-    # Precompute loop invariants
-    inv_resistance = np.float32(1.0) / thermal_resistance
-    dt = np.float32(timestep)
-    dt_over_cap = dt / thermal_capacitance
-
+    # Scalar recursion — only the T_prev-dependent work stays in Python.
+    #
+    # For each step:
+    #   T_pas_next = T_ss_pas + (T_prev - T_ss_pas) * decay        [no HVAC]
+    #   T_next     = T_pas_next + gain * (P_h - P_c)                [with HVAC]
+    #
+    # The controllers invert the linear update to land T_next on the active
+    # setpoint (T_min for heating, T_max for cooling), then clip to P_max.
     temp_prev = temp_in[0]
-
     for t in range(1, n_steps):
-        g_tot, decay, gain = calc_step_dynamics(ventilation[t], inv_resistance, dt, thermal_capacitance, dt_over_cap)
-        t_ss_pas = calc_passive_steady_state(temp_air[t], solar_gains[t], internal_gains[t], g_tot, dt_over_cap)
-        t_pas_next = calc_passive_next_temp(temp_prev, t_ss_pas, decay)
+        d = decay[t]
+        g = gain[t]
+        t_ss = t_ss_pas[t]
+        t_pas = t_ss + (temp_prev - t_ss) * d
 
-        p_heat[t] = calc_heating_power(t_pas_next, temp_min, gain, power_heat_max, active_heat)
-        p_cool[t] = calc_cooling_power(t_pas_next, temp_max, gain, power_cool_max, active_cool)
+        p_h = np.float32(0.0)
+        if active_heat and t_pas < temp_min:
+            need = (temp_min - t_pas) / g
+            p_h = need if need < power_heat_max else power_heat_max
 
-        temp_prev = t_pas_next + gain * (p_heat[t] - p_cool[t])
+        p_c = np.float32(0.0)
+        if active_cool and t_pas > temp_max:
+            need = (t_pas - temp_max) / g
+            p_c = need if need < power_cool_max else power_cool_max
+
+        p_heat[t] = p_h
+        p_cool[t] = p_c
+        temp_prev = t_pas + g * (p_h - p_c)
         temp_in[t] = temp_prev
 
     return temp_in, p_heat, p_cool
-
-
-# Below the small-G_tot threshold the analytical form (1 − exp(−x))/G_tot
-# becomes numerically 0/0. Envelope conductances for real buildings are
-# ≥ ~1 W/K, so this branch is defensive only.
-_G_TOT_EPS = np.float32(1e-9)
-
-
-def calc_step_dynamics(
-    ventilation: float,
-    inv_resistance: float,
-    dt: float,
-    capacitance: float,
-    dt_over_cap: float,
-) -> tuple[float, float, float]:
-    """Return (G_tot, decay, gain) for one time step.
-
-    - G_tot [W/K]: 1/R + H_ve
-    - decay [-]: exp(-Δt · G_tot / C)  — 1R1C impulse response
-    - gain [K/W]: (1 − decay) / G_tot  — sensitivity of T_next to (P_h − P_c)
-
-    In the small-G_tot limit the ODE degenerates into a pure integrator;
-    gain → Δt/C, decay → 1. Handled explicitly to avoid 0/0.
-    """
-    g_tot = inv_resistance + ventilation
-    if g_tot > _G_TOT_EPS:
-        x = dt * g_tot / capacitance
-        one_minus_decay = -np.expm1(-x)  # numerically stable for small x
-        decay = np.float32(1.0) - one_minus_decay
-        gain = one_minus_decay / g_tot
-    else:
-        decay = np.float32(1.0)
-        gain = dt_over_cap
-    return g_tot, decay, gain
-
-
-def calc_passive_steady_state(
-    temp_air: float,
-    solar_gains: float,
-    internal_gains: float,
-    g_tot: float,
-    dt_over_cap: float,
-) -> float:
-    """Passive steady-state temperature T_ss (no active heating/cooling)."""
-    if g_tot > _G_TOT_EPS:
-        return temp_air + (solar_gains + internal_gains) / g_tot
-    # Pure integrator: no finite steady state; return T_air so the caller's
-    # analytical update collapses to a Euler step driven by gains alone.
-    return temp_air
-
-
-def calc_passive_next_temp(temp_prev: float, t_ss_pas: float, decay: float) -> float:
-    """Next-step temperature under passive forcing only."""
-    return t_ss_pas + (temp_prev - t_ss_pas) * decay
-
-
-def calc_heating_power(
-    t_pas_next: float,
-    temp_min: float,
-    gain: float,
-    power_heat_max: float,
-    active: bool,
-) -> float:
-    """Analytical inversion: minimum P_h that lifts T_next to T_min."""
-    if not active:
-        return 0
-    if t_pas_next >= temp_min:
-        return 0
-    required = (temp_min - t_pas_next) / gain
-    return required if required < power_heat_max else power_heat_max
-
-
-def calc_cooling_power(
-    t_pas_next: float,
-    temp_max: float,
-    gain: float,
-    power_cool_max: float,
-    active: bool,
-) -> float:
-    """Analytical inversion: minimum P_c that pulls T_next down to T_max."""
-    if not active:
-        return 0
-    if t_pas_next <= temp_max:
-        return 0
-    required = (t_pas_next - temp_max) / gain
-    return required if required < power_cool_max else power_cool_max
