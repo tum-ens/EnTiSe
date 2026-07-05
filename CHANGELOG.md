@@ -12,6 +12,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Added
 - Added a 1R0C model for quick validations (`#93`, `!65`)
 
+### Changed
+- Vectorized the impulse-response precomputation in the 1R1C solver so `G_tot`, `decay`, `gain`, and `T_ss_pas` are computed as numpy arrays once per run instead of per step; the Python loop now contains only the temperature recursion and the controller inversion. Output is byte-exact vs. the previous implementation; ~1.5× faster on the example set.
+
 ### Fixed
 - Fixed the docs build by adding method rsts directly and fixing the notebooks titles (`#96`, `!70`)
 - Replaced the explicit-Euler integrator in the 1R1C HVAC model with the analytical exponential update, fixing the numerical instability that produced fictitious summer heating/cooling demand for low-R envelopes at hourly resolution (Δt/τ > 2). Well-behaved cases (Δt/τ ≪ 1) are numerically indistinguishable from the previous solver. (`#97`, `!71`)
