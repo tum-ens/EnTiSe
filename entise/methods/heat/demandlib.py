@@ -9,11 +9,20 @@ from entise.constants import Columns as C
 from entise.constants import Objects as O
 from entise.core.base import Method
 from entise.methods.utils.holidays import get_holidays
+from entise.methods.utils.weather_cache import WeatherCache
 
 logger = logging.getLogger(__name__)
 
-# Module-level caches (per process)
-_WEATHER_CACHE: dict[tuple, pd.DataFrame] = {}
+# Identity-keyed cache — see WeatherCache docstring for rationale.
+_WEATHER_CACHE = WeatherCache()
+
+
+def _preprocess_weather(weather: pd.DataFrame) -> pd.DataFrame:
+    w = weather.copy()
+    w = Method._strip_weather_height(w)
+    w.index = pd.to_datetime(w[C.DATETIME], utc=True)
+    return w
+
 
 # Default values for optional keys
 DEFAULT_DEMAND = 1.0
@@ -133,17 +142,12 @@ class Demandlib(Method):
         obj_out = {k: v for k, v in obj_out.items() if v is not None}
         data_out = {k: v for k, v in data_out.items() if v is not None}
 
-        # Safe datetime handling
-        weather_cache_key = weather_key
-        weather_cached = _WEATHER_CACHE.get(weather_cache_key)
-        if weather_cached is None:
-            if O.WEATHER in data_out:
-                weather = data_out[O.WEATHER].copy()
-                weather = self._strip_weather_height(weather)
-                weather.index = pd.to_datetime(weather[C.DATETIME], utc=True)
-                data_out[O.WEATHER] = weather
-        else:
-            data_out[O.WEATHER] = weather_cached
+        # Cache preprocessed weather by DataFrame identity — different
+        # DataFrames get separate entries even under the same weather-key.
+        # (The pre-existing cache read but never wrote — a silent miss on
+        # every call. Fixed alongside the switch to identity-keyed caching.)
+        if O.WEATHER in data_out:
+            data_out[O.WEATHER] = _WEATHER_CACHE.get_or_build(data_out[O.WEATHER], _preprocess_weather)
 
         return obj_out, data_out
 

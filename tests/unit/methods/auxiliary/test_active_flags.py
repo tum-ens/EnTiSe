@@ -11,6 +11,12 @@ in three places:
    short-circuit).
 3. End-to-end through R5C1 and R7C2 to prove the selector-level fix
    propagates to every HVAC method that uses these auxiliaries.
+
+The `clear_module_caches` workaround fixture that used to live here was
+removed once #99 was fixed: the shared `WeatherCache` is now keyed by
+DataFrame identity rather than by weather-key string, so tests using
+distinct weather DataFrames no longer collide even when they share a
+key name upstream.
 """
 
 from __future__ import annotations
@@ -35,37 +41,6 @@ def force_numpy_path():
     set_accelerator("none")
     yield
     set_accelerator("auto")
-
-
-@pytest.fixture(autouse=True)
-def clear_module_caches():
-    """Clear the per-model module-level weather caches so tests using
-    different weathers under overlapping keys don't cross-contaminate.
-    See issue #99 for the underlying cache bug that makes this necessary.
-
-    Uses `sys.modules` rather than a plain `import x as m` because the
-    HVAC package's `__init__.py` re-exports classes under the module
-    names, shadowing them at the package level."""
-    import sys
-
-    import entise.methods.hvac.R1C1  # noqa: F401
-    import entise.methods.hvac.R5C1  # noqa: F401
-    import entise.methods.hvac.R7C2  # noqa: F401
-
-    def _clear():
-        for name in (
-            "entise.methods.hvac.R1C1",
-            "entise.methods.hvac.R5C1",
-            "entise.methods.hvac.R7C2",
-        ):
-            mod = sys.modules.get(name)
-            cache = getattr(mod, "_WEATHER_CACHE", None) if mod is not None else None
-            if cache is not None:
-                cache.clear()
-
-    _clear()
-    yield
-    _clear()
 
 
 # --- Weather + minimal obj helpers ------------------------------------------
