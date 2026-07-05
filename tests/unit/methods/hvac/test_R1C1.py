@@ -430,6 +430,215 @@ def test_r1c1_tracks_sine_ambient_at_low_R_without_oscillation():
     assert max_step < 2 * T_amp
 
 
+# --- power_heating / power_cooling as pd.Series (issue #100) -----------------
+# Users need to define heating- and cooling-off periods by passing a time
+# series for P_max instead of a scalar. Scalar behavior must be preserved
+# bit-for-bit. Series inputs must be aligned to the weather index; a
+# mismatched index must raise. See issue #100.
+
+
+def test_r1c1_power_heating_scalar_unchanged():
+    """Regression: passing power_heating as a scalar float produces the
+    same output as before the timeseries change. Guards against accidental
+    behavior drift when the resolve_ts_or_scalar path is added."""
+    periods = 96
+    T_out = -10.0
+    T_min = 20.0
+    R_val = 0.01
+    C_val = 5e6
+    P_max = 2000.0
+
+    weather_key = "weather_scalar_regression"
+    weather = _flat_weather(T_out, periods)
+    obj = {
+        O.ID: "b_scalar",
+        O.CAPACITANCE: C_val,
+        O.RESISTANCE: R_val,
+        O.TEMP_INIT: T_min,
+        O.TEMP_MIN: T_min,
+        O.TEMP_MAX: 30.0,
+        O.POWER_HEATING: P_max,
+        O.LAT: 48.1,
+        O.LON: 11.6,
+        O.GAINS_INTERNAL: 0,
+        O.VENTILATION: 0.0,
+        O.ACTIVE_COOLING: False,
+        O.ACTIVE_GAINS_SOLAR: False,
+        O.ACTIVE_GAINS_INTERNAL: False,
+        O.WEATHER: weather_key,
+    }
+    result = R1C1().generate(obj, {weather_key: weather}, Types.HVAC)
+    ts = result["timeseries"]
+
+    # Steady-state indoor temp = T_out + R·P_max (the undersized-heater
+    # scenario). Any drift here would mean the scalar path was silently
+    # rewritten.
+    assert ts[C.TEMP_IN].iloc[-1] == pytest.approx(T_out + R_val * P_max, abs=0.05)
+    assert ts[f"{Types.HEATING}{SEP}{C.LOAD}[W]"].iloc[-1] == pytest.approx(P_max, rel=0.01)
+
+
+def test_r1c1_power_heating_accepts_series_off_period_yields_zero_demand():
+    """The core new feature: pass power_heating as a pd.Series with 0 during
+    an 'off' period, finite during an 'on' period. Demand must be exactly
+    zero during off, and the heater must fire during on."""
+    periods = 96
+    T_out = -10.0
+    T_min = 20.0
+    index = pd.date_range("2025-01-01", periods=periods, freq="h", tz="UTC")
+
+    # Off for the first 48 h, then unlimited for the second 48 h.
+    p_heat_series = pd.Series([0.0] * 48 + [float("inf")] * 48, index=index)
+
+    weather_key = "weather_series_off_period"
+    weather = _flat_weather(T_out, periods)
+    weather.index = index  # align to the series
+    weather[C.DATETIME] = index
+    obj = {
+        O.ID: "b_series_off",
+        O.CAPACITANCE: 5e6,
+        O.RESISTANCE: 0.01,
+        O.TEMP_INIT: T_min,
+        O.TEMP_MIN: T_min,
+        O.TEMP_MAX: 30.0,
+        O.POWER_HEATING: p_heat_series,
+        O.LAT: 48.1,
+        O.LON: 11.6,
+        O.GAINS_INTERNAL: 0,
+        O.VENTILATION: 0.0,
+        O.ACTIVE_COOLING: False,
+        O.ACTIVE_GAINS_SOLAR: False,
+        O.ACTIVE_GAINS_INTERNAL: False,
+        O.WEATHER: weather_key,
+    }
+    result = R1C1().generate(obj, {weather_key: weather}, Types.HVAC)
+    ts = result["timeseries"]
+    p_heat = ts[f"{Types.HEATING}{SEP}{C.LOAD}[W]"].to_numpy()
+
+    # First 48 h: heater is forbidden.
+    assert p_heat[:48].max() == 0
+    # Second 48 h: heater must fire (T_out is well below T_min).
+    assert p_heat[48:].max() > 0
+    # Once heating is re-enabled, T_in returns to T_min at steady state.
+    assert ts[C.TEMP_IN].iloc[-1] == pytest.approx(T_min, abs=0.1)
+
+
+def test_r1c1_power_cooling_accepts_series_off_period_yields_zero_demand():
+    """Mirror of the heating-series test: cooling off first, then on."""
+    periods = 96
+    T_out = 35.0
+    T_max = 24.0
+    index = pd.date_range("2025-06-01", periods=periods, freq="h", tz="UTC")
+
+    p_cool_series = pd.Series([0.0] * 48 + [float("inf")] * 48, index=index)
+
+    weather_key = "weather_cool_series_off_period"
+    weather = _flat_weather(T_out, periods)
+    weather.index = index
+    weather[C.DATETIME] = index
+    obj = {
+        O.ID: "b_cool_series_off",
+        O.CAPACITANCE: 5e6,
+        O.RESISTANCE: 0.01,
+        O.TEMP_INIT: T_max,
+        O.TEMP_MIN: 15.0,
+        O.TEMP_MAX: T_max,
+        O.POWER_COOLING: p_cool_series,
+        O.LAT: 48.1,
+        O.LON: 11.6,
+        O.GAINS_INTERNAL: 0,
+        O.VENTILATION: 0.0,
+        O.ACTIVE_HEATING: False,
+        O.ACTIVE_GAINS_SOLAR: False,
+        O.ACTIVE_GAINS_INTERNAL: False,
+        O.WEATHER: weather_key,
+    }
+    result = R1C1().generate(obj, {weather_key: weather}, Types.HVAC)
+    ts = result["timeseries"]
+    p_cool = ts[f"{Types.COOLING}{SEP}{C.LOAD}[W]"].to_numpy()
+
+    assert p_cool[:48].max() == 0
+    assert p_cool[48:].max() > 0
+    assert ts[C.TEMP_IN].iloc[-1] == pytest.approx(T_max, abs=0.1)
+
+
+def test_r1c1_power_heating_series_index_mismatch_raises():
+    """A power_heating series whose index does not match the weather index
+    must fail loudly with a specific message rather than silently
+    misaligning. Match the exact error string so a future refactor that
+    changes which line raises does not accidentally pass this test with
+    an unrelated KeyError."""
+    periods = 24
+    weather_key = "weather_mismatch"
+    weather = _flat_weather(-5.0, periods)
+
+    # Wrong length — half the weather index.
+    bad_index = pd.date_range("2025-01-01", periods=periods // 2, freq="h", tz="UTC")
+    bad_series = pd.Series(np.zeros(periods // 2), index=bad_index)
+
+    obj = {
+        O.ID: "b_mismatch",
+        O.CAPACITANCE: 5e6,
+        O.RESISTANCE: 0.01,
+        O.TEMP_INIT: 20.0,
+        O.TEMP_MIN: 20.0,
+        O.TEMP_MAX: 24.0,
+        O.POWER_HEATING: bad_series,
+        O.LAT: 48.1,
+        O.LON: 11.6,
+        O.GAINS_INTERNAL: 0,
+        O.VENTILATION: 0.0,
+        O.ACTIVE_COOLING: False,
+        O.ACTIVE_GAINS_SOLAR: False,
+        O.ACTIVE_GAINS_INTERNAL: False,
+        O.WEATHER: weather_key,
+    }
+    with pytest.raises(ValueError, match="does not match the target index"):
+        R1C1().generate(obj, {weather_key: weather}, Types.HVAC)
+
+
+def test_r1c1_power_heating_series_clips_to_finite_cap():
+    """When the series carries finite caps (not just 0/inf), the heater
+    must run at exactly the cap when the required load exceeds it."""
+    periods = 96
+    T_out = -10.0
+    T_min = 20.0
+    R_val = 0.01
+    C_val = 5e6
+    P_cap = 2000.0  # required = (20-(-10))/0.01 = 3000, so we clip to 2000
+    index = pd.date_range("2025-01-01", periods=periods, freq="h", tz="UTC")
+
+    p_heat_series = pd.Series(np.full(periods, P_cap), index=index)
+
+    weather_key = "weather_series_finite_cap"
+    weather = _flat_weather(T_out, periods)
+    weather.index = index
+    weather[C.DATETIME] = index
+    obj = {
+        O.ID: "b_series_cap",
+        O.CAPACITANCE: C_val,
+        O.RESISTANCE: R_val,
+        O.TEMP_INIT: T_min,
+        O.TEMP_MIN: T_min,
+        O.TEMP_MAX: 30.0,
+        O.POWER_HEATING: p_heat_series,
+        O.LAT: 48.1,
+        O.LON: 11.6,
+        O.GAINS_INTERNAL: 0,
+        O.VENTILATION: 0.0,
+        O.ACTIVE_COOLING: False,
+        O.ACTIVE_GAINS_SOLAR: False,
+        O.ACTIVE_GAINS_INTERNAL: False,
+        O.WEATHER: weather_key,
+    }
+    result = R1C1().generate(obj, {weather_key: weather}, Types.HVAC)
+    ts = result["timeseries"]
+
+    # Steady-state T_in = T_out + R·P_cap = 10 °C (below T_min).
+    assert ts[C.TEMP_IN].iloc[-1] == pytest.approx(T_out + R_val * P_cap, abs=0.05)
+    assert ts[f"{Types.HEATING}{SEP}{C.LOAD}[W]"].iloc[-1] == pytest.approx(P_cap, rel=0.01)
+    assert ts[f"{Types.HEATING}{SEP}{C.LOAD}[W]"].max() <= P_cap + 1
+
+
 # --- Accelerator path agreement ---------------------------------------------
 # Direct comparison of the numpy and numba solvers on the same inputs, to
 # catch drift between the two implementations. Runs once (not parametrized).

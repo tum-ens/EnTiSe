@@ -8,6 +8,7 @@ from entise.constants import Columns as C
 from entise.constants import Constants as Const
 from entise.constants import Objects as O
 from entise.core.base import Method
+from entise.core.utils import resolve_ts_or_scalar
 from entise.methods.auxiliary.internal.selector import InternalGains
 from entise.methods.auxiliary.solar.selector import SolarGains
 from entise.methods.auxiliary.ventilation.selector import Ventilation
@@ -110,8 +111,8 @@ class R1C1(Method):
         capacitance: float = None,
         resistance: float = None,
         weather: pd.DataFrame = None,
-        power_heating: float = None,
-        power_cooling: float = None,
+        power_heating: float | pd.Series = None,
+        power_cooling: float | pd.Series = None,
         active_heating: bool = None,
         active_cooling: bool = None,
         ventilation: float = None,
@@ -137,8 +138,8 @@ class R1C1(Method):
             capacitance (float, optional): Thermal capacitance in J/K.
             resistance (float, optional): Thermal resistance in K/W.
             weather (pd.DataFrame, optional): Weather data with outdoor temperature.
-            power_heating (float, optional): Maximum heating power in W.
-            power_cooling (float, optional): Maximum cooling power in W.
+            power_heating (float or pd.Series, optional): Maximum heating power in W.
+            power_cooling (float or pd.Series, optional): Maximum cooling power in W.
             active_heating (bool, optional): Whether heating is active.
             active_cooling (bool, optional): Whether cooling is active.
             ventilation (float, optional): Ventilation rate in W/K.
@@ -417,8 +418,8 @@ class R1C1(Method):
             T_init=float(obj.get(O.TEMP_INIT, DEFAULT_TEMP_INIT)),
             T_min=float(obj.get(O.TEMP_MIN, DEFAULT_TEMP_MIN)),
             T_max=float(obj.get(O.TEMP_MAX, DEFAULT_TEMP_MAX)),
-            P_h_max=float(obj.get(O.POWER_HEATING, DEFAULT_POWER_HEATING)),
-            P_c_max=float(obj.get(O.POWER_COOLING, DEFAULT_POWER_COOLING)),
+            P_h_max=resolve_ts_or_scalar(obj, data, O.POWER_HEATING, index, default=DEFAULT_POWER_HEATING),
+            P_c_max=resolve_ts_or_scalar(obj, data, O.POWER_COOLING, index, default=DEFAULT_POWER_COOLING),
             on_h=bool(obj.get(O.ACTIVE_HEATING, DEFAULT_ACTIVE_HEATING)),
             on_c=bool(obj.get(O.ACTIVE_COOLING, DEFAULT_ACTIVE_COOLING)),
         )
@@ -525,8 +526,6 @@ def _calculate_timeseries_numpy(obj: dict, data: dict, timestep: float) -> tuple
     temp_max = np.float32(obj[O.TEMP_MAX])
     active_heat = bool(obj[O.ACTIVE_HEATING])
     active_cool = bool(obj[O.ACTIVE_COOLING])
-    power_heat_max = np.float32(obj[O.POWER_HEATING])
-    power_cool_max = np.float32(obj[O.POWER_COOLING])
     inv_resistance = np.float32(1.0) / np.float32(obj[O.RESISTANCE])
     dt = np.float32(timestep)
 
@@ -536,6 +535,15 @@ def _calculate_timeseries_numpy(obj: dict, data: dict, timestep: float) -> tuple
     solar_gains = data[O.GAINS_SOLAR].to_numpy(dtype=np.float32, copy=False).ravel()
     internal_gains = data[O.GAINS_INTERNAL].to_numpy(dtype=np.float32, copy=False).ravel()
     ventilation = data[O.VENTILATION].to_numpy(dtype=np.float32, copy=False).ravel()
+
+    # Power
+    power_heat_max_arr = resolve_ts_or_scalar(
+        obj, data, O.POWER_HEATING, weather.index, default=DEFAULT_POWER_HEATING
+    ).to_numpy(dtype=np.float32, copy=False)
+    power_cool_max_arr = resolve_ts_or_scalar(
+        obj, data, O.POWER_COOLING, weather.index, default=DEFAULT_POWER_COOLING
+    ).to_numpy(dtype=np.float32, copy=False)
+    n_steps = temp_air.shape[0]
 
     # Vectorized precompute of the impulse response and passive steady state.
     # `g_tot_safe` guards against divide-by-zero in the pathological
@@ -549,7 +557,6 @@ def _calculate_timeseries_numpy(obj: dict, data: dict, timestep: float) -> tuple
     gain = np.where(safe, one_minus_decay / g_tot_safe, dt_over_cap).astype(np.float32)
     t_ss_pas = np.where(safe, temp_air + (solar_gains + internal_gains) / g_tot_safe, temp_air).astype(np.float32)
 
-    n_steps = temp_air.shape[0]
     temp_in = np.empty(n_steps, dtype=np.float32)
     p_heat = np.zeros(n_steps, dtype=np.float32)
     p_cool = np.zeros(n_steps, dtype=np.float32)
@@ -571,14 +578,16 @@ def _calculate_timeseries_numpy(obj: dict, data: dict, timestep: float) -> tuple
         t_pas = t_ss + (temp_prev - t_ss) * d
 
         p_h = np.float32(0.0)
+        p_h_cap = power_heat_max_arr[t]
         if active_heat and t_pas < temp_min:
             need = (temp_min - t_pas) / g
-            p_h = need if need < power_heat_max else power_heat_max
+            p_h = need if need < p_h_cap else p_h_cap
 
         p_c = np.float32(0.0)
+        p_c_cap = power_cool_max_arr[t]
         if active_cool and t_pas > temp_max:
             need = (t_pas - temp_max) / g
-            p_c = need if need < power_cool_max else power_cool_max
+            p_c = need if need < p_c_cap else p_c_cap
 
         p_heat[t] = p_h
         p_cool[t] = p_c

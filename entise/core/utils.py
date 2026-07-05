@@ -29,6 +29,7 @@ def resolve_ts_or_scalar(obj: dict, data: dict, key: str, index, default=None) -
     """
     Resolve:
       - scalar → constant Series
+      - pd.Series → validated against target index
       - "table|column"
       - table + separate '{key}_COL'
     Always aligned to index.
@@ -43,6 +44,12 @@ def resolve_ts_or_scalar(obj: dict, data: dict, key: str, index, default=None) -
     # Scalar handling (Python + NumPy types + bool)
     if np.isscalar(val):
         return pd.Series(val, index=index)
+
+    # Raw pd.Series — must be aligned to the target index.
+    if isinstance(val, pd.Series):
+        if not val.index.equals(index):
+            raise ValueError(f"Series for '{key}' does not match the target index.")
+        return val
 
     # Table/column reference
     if isinstance(val, str):
