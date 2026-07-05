@@ -341,11 +341,13 @@ class R1C0(Method):
 
     @staticmethod
     def _format_output(temp_in, p_heat, p_cool, data, timestep) -> dict:
+        # NB: use ndarray.max() (C-level, single pass over the buffer), not
+        # builtins.max() which iterates 8760 elements as Python objects.
         summary = {
             f"{Types.HEATING}{SEP}{C.DEMAND}[Wh]": int(round(p_heat.sum() * timestep / 3600)),
-            f"{Types.HEATING}{SEP}{O.LOAD_MAX}[W]": int(max(p_heat)),
+            f"{Types.HEATING}{SEP}{O.LOAD_MAX}[W]": int(p_heat.max()),
             f"{Types.COOLING}{SEP}{C.DEMAND}[Wh]": int(round(p_cool.sum() * timestep / 3600)),
-            f"{Types.COOLING}{SEP}{O.LOAD_MAX}[W]": int(max(p_cool)),
+            f"{Types.COOLING}{SEP}{O.LOAD_MAX}[W]": int(p_cool.max()),
         }
 
         df = pd.DataFrame(
