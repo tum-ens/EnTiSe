@@ -12,6 +12,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Added
 - Added a 1R0C model for quick validations (`#93`, `!65`)
 - Added an optional numba-accelerated solver path for the 1R1C HVAC model. Install with `pip install entise[numba]` and the accelerated path is used automatically. Behavior is controlled by the `ENTISE_ACCELERATOR` environment variable (`auto` | `numba` | `none`) or the `entise.set_accelerator()` API. Delivers a ~100–300× speedup on 8760-hour runs; output matches the numpy path to within a few ULPs.
+- `power_heating[W]` and `power_cooling[W]` in the 1R1C HVAC model now accept a `pd.Series` aligned to the weather index in addition to a scalar float. Passing a series lets users define heating- and cooling-off periods (set to `0`) or seasonally varying power caps without splitting the simulation externally. Scalar behavior is unchanged. A series whose index does not match the weather index raises `ValueError`. (`#100`)
 
 ### Changed
 - Vectorized the impulse-response precomputation in the 1R1C solver so `G_tot`, `decay`, `gain`, and `T_ss_pas` are computed as numpy arrays once per run instead of per step; the Python loop now contains only the temperature recursion and the controller inversion. Output is byte-exact vs. the previous implementation; ~1.5× faster on the example set.

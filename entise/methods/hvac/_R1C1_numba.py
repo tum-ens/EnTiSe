@@ -44,6 +44,8 @@ def _solve(
     G_sol: np.ndarray,
     G_int: np.ndarray,
     H_ve: np.ndarray,
+    P_h_max: np.ndarray,
+    P_c_max: np.ndarray,
     inv_R: np.float32,
     dt: np.float32,
     C_th: np.float32,
@@ -52,8 +54,6 @@ def _solve(
     temp_max: np.float32,
     active_heat: bool,
     active_cool: bool,
-    P_h_max: np.float32,
-    P_c_max: np.float32,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Analytical exponential update, per-step recompute, JIT-compiled.
 
@@ -83,14 +83,16 @@ def _solve(
         t_pas = t_ss + (temp_prev - t_ss) * decay
 
         p_h = np.float32(0.0)
+        p_h_cap = P_h_max[t]
         if active_heat and t_pas < temp_min:
             need = (temp_min - t_pas) / gain
-            p_h = need if need < P_h_max else P_h_max
+            p_h = need if need < p_h_cap else p_h_cap
 
         p_c = np.float32(0.0)
+        p_c_cap = P_c_max[t]
         if active_cool and t_pas > temp_max:
             need = (t_pas - temp_max) / gain
-            p_c = need if need < P_c_max else P_c_max
+            p_c = need if need < p_c_cap else p_c_cap
 
         p_heat[t] = p_h
         p_cool[t] = p_c
@@ -105,17 +107,29 @@ def calculate_timeseries_1r1c(obj: dict, data: dict, timestep: float) -> tuple[n
     Unpacks the obj/data dicts into flat arrays and scalars, then delegates
     to the ``@njit`` kernel above.
     """
+    from entise.core.utils import resolve_ts_or_scalar
+    from entise.methods.hvac.defaults import DEFAULT_POWER_COOLING, DEFAULT_POWER_HEATING
+
     weather = data[O.WEATHER]
     T_out = weather[C.TEMP_AIR].to_numpy(dtype=np.float32, copy=False)
     G_sol = data[O.GAINS_SOLAR].to_numpy(dtype=np.float32, copy=False).ravel()
     G_int = data[O.GAINS_INTERNAL].to_numpy(dtype=np.float32, copy=False).ravel()
     H_ve = data[O.VENTILATION].to_numpy(dtype=np.float32, copy=False).ravel()
 
+    P_h_max = resolve_ts_or_scalar(obj, data, O.POWER_HEATING, weather.index, default=DEFAULT_POWER_HEATING).to_numpy(
+        dtype=np.float32, copy=False
+    )
+    P_c_max = resolve_ts_or_scalar(obj, data, O.POWER_COOLING, weather.index, default=DEFAULT_POWER_COOLING).to_numpy(
+        dtype=np.float32, copy=False
+    )
+
     return _solve(
         T_out,
         G_sol,
         G_int,
         H_ve,
+        P_h_max,
+        P_c_max,
         np.float32(1.0) / np.float32(obj[O.RESISTANCE]),
         np.float32(timestep),
         np.float32(obj[O.CAPACITANCE]),
@@ -124,6 +138,4 @@ def calculate_timeseries_1r1c(obj: dict, data: dict, timestep: float) -> tuple[n
         np.float32(obj[O.TEMP_MAX]),
         bool(obj[O.ACTIVE_HEATING]),
         bool(obj[O.ACTIVE_COOLING]),
-        np.float32(obj[O.POWER_HEATING]),
-        np.float32(obj[O.POWER_COOLING]),
     )

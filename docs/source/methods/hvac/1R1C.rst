@@ -32,9 +32,9 @@ Key facts
 
 - Supported types:
 
-  
+
   - ``hvac``
-  
+
 
 
 Requirements
@@ -107,19 +107,19 @@ Summary metrics
 
    * - Key
      - Description
-   
+
    * - ``heating:demand[Wh]``
      - total heating demand
-   
+
    * - ``heating:load_max[W]``
      - maximum heating load
-   
+
    * - ``cooling:demand[Wh]``
      - total cooling demand
-   
+
    * - ``cooling:load_max[W]``
      - maximum cooling load
-   
+
 
 
 Timeseries columns
@@ -132,16 +132,16 @@ Timeseries columns
 
    * - Column
      - Description
-   
+
    * - ``indoor_temperature[C]``
      - indoor air temperature
-   
+
    * - ``heating:load[W]``
      - heating load
-   
+
    * - ``cooling:load[W]``
      - cooling load
-   
+
 
 
 Public methods
@@ -248,4 +248,3 @@ Public methods
            logger.debug(f"[HVAC R1C1] {ts_type}: max heating {p_heat.max()}, cooling {p_cool.max()}")
 
            return self._format_output(temp_in, p_heat, p_cool, data, timestep)
-
