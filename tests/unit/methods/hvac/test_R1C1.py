@@ -5,7 +5,19 @@ import pytest
 from entise.constants import SEP, Types
 from entise.constants import Columns as C
 from entise.constants import Objects as O
-from entise.methods.hvac.R1C1 import R1C1
+from entise.methods.hvac.R1C1 import R1C1, _calculate_timeseries_numpy
+from entise.perf import set_accelerator
+
+
+# Every test in this file runs under both accelerator paths. `numba` is skipped
+# when numba is not installed. Autouse so no existing test has to opt in.
+@pytest.fixture(autouse=True, params=["none", "numba"])
+def accelerator(request):
+    if request.param == "numba":
+        pytest.importorskip("numba")
+    set_accelerator(request.param)
+    yield request.param
+    set_accelerator("auto")
 
 
 @pytest.fixture
@@ -416,3 +428,62 @@ def test_r1c1_tracks_sine_ambient_at_low_R_without_oscillation():
     # No step-to-step swing exceeding the ambient swing → no oscillation.
     max_step = np.abs(np.diff(temp_in)).max()
     assert max_step < 2 * T_amp
+
+
+# --- Accelerator path agreement ---------------------------------------------
+# Direct comparison of the numpy and numba solvers on the same inputs, to
+# catch drift between the two implementations. Runs once (not parametrized).
+
+
+def test_numpy_and_numba_paths_agree():
+    """The numba solver must reproduce the numpy solver's output within a
+    few ULPs. Any daylight between them is a numba-path bug."""
+    numba = pytest.importorskip("numba")  # noqa: F841
+    from entise.methods.auxiliary.internal.selector import InternalGains
+    from entise.methods.auxiliary.solar.selector import SolarGains
+    from entise.methods.auxiliary.ventilation.selector import Ventilation
+    from entise.methods.hvac._R1C1_numba import calculate_timeseries_1r1c as _numba
+    from entise.methods.hvac.defaults import (
+        DEFAULT_ACTIVE_COOLING,
+        DEFAULT_ACTIVE_HEATING,
+        DEFAULT_POWER_COOLING,
+        DEFAULT_POWER_HEATING,
+    )
+
+    periods = 168
+    index = pd.date_range("2025-01-01", periods=periods, freq="h", tz="UTC")
+    T_out = 5 + 10 * np.sin(2 * np.pi * np.arange(periods) / 24.0)
+    weather = pd.DataFrame({C.DATETIME: index, C.TEMP_AIR: T_out}, index=index)
+
+    obj = {
+        O.ID: "b",
+        O.CAPACITANCE: 5e6,
+        O.RESISTANCE: 0.005,
+        O.TEMP_INIT: 20.0,
+        O.TEMP_MIN: 20.0,
+        O.TEMP_MAX: 25.0,
+        O.POWER_HEATING: DEFAULT_POWER_HEATING,
+        O.POWER_COOLING: DEFAULT_POWER_COOLING,
+        O.ACTIVE_HEATING: DEFAULT_ACTIVE_HEATING,
+        O.ACTIVE_COOLING: DEFAULT_ACTIVE_COOLING,
+        O.GAINS_INTERNAL: 100.0,
+        O.VENTILATION: 50.0,
+        O.LAT: 48.1,
+        O.LON: 11.6,
+        O.WEATHER: "w_agree",
+    }
+    data = {"w_agree": weather}
+    data[O.WEATHER] = weather
+    data[O.GAINS_INTERNAL] = InternalGains().generate(obj, data)
+    data[O.GAINS_SOLAR] = SolarGains().generate(obj, data)
+    data[O.VENTILATION] = Ventilation().generate(obj, data)
+
+    dt = 3600.0
+    t_np, ph_np, pc_np = _calculate_timeseries_numpy(obj, data, dt)
+    t_nb, ph_nb, pc_nb = _numba(obj, data, dt)
+
+    # Tolerances chosen tight enough to catch a bug but loose enough to
+    # tolerate float32 evaluation-order differences between the two paths.
+    assert np.max(np.abs(t_np - t_nb)) < 1e-3, "temperature drift between paths"
+    assert np.max(np.abs(ph_np - ph_nb)) < 0.5, "heating power drift between paths"
+    assert np.max(np.abs(pc_np - pc_nb)) < 0.5, "cooling power drift between paths"
