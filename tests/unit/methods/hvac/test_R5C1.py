@@ -495,3 +495,208 @@ def test_r5c1_area_m_and_area_tot(basic_5r1c_object, minimal_weather):
 
     assert "summary" in result
     assert "timeseries" in result
+
+
+# --- Thermostat dead band / hysteresis (issue #102) --------------------------
+# Same semantics as R1C1: default 0 preserves current output; deadband > 0
+# makes the controller land steady-state T_in on the upper/lower band edge
+# instead of on T_min/T_max.
+
+
+def _cold_weather(periods: int = 96, temp_c: float = -5.0) -> pd.DataFrame:
+    idx = pd.date_range("2025-01-01", periods=periods, freq="h", tz="UTC")
+    return pd.DataFrame(
+        {
+            C.DATETIME: idx,
+            C.TEMP_AIR: np.full(periods, temp_c),
+            C.SOLAR_GHI: np.zeros(periods),
+            C.SOLAR_DHI: np.zeros(periods),
+            C.SOLAR_DNI: np.zeros(periods),
+        },
+        index=idx,
+    )
+
+
+def _hot_weather(periods: int = 96, temp_c: float = 35.0) -> pd.DataFrame:
+    idx = pd.date_range("2025-06-01", periods=periods, freq="h", tz="UTC")
+    return pd.DataFrame(
+        {
+            C.DATETIME: idx,
+            C.TEMP_AIR: np.full(periods, temp_c),
+            C.SOLAR_GHI: np.zeros(periods),
+            C.SOLAR_DHI: np.zeros(periods),
+            C.SOLAR_DNI: np.zeros(periods),
+        },
+        index=idx,
+    )
+
+
+def test_r5c1_deadband_default_zero_matches_omitted(basic_5r1c_object):
+    """Explicit deadband=0 must produce the same output as omitting it —
+    bit-for-bit. Strict equality guards against future refactors that leak
+    even sub-ULP drift into the no-op path."""
+    weather = _cold_weather()
+    obj_no = {**basic_5r1c_object, O.ID: "r5_no_db"}
+    obj_zero = {**basic_5r1c_object, O.ID: "r5_db_zero", O.DEADBAND: 0.0}
+
+    ts_no = R5C1().generate(obj_no, {O.WEATHER: weather.copy()}, Types.HVAC)["timeseries"]
+    ts_zero = R5C1().generate(obj_zero, {O.WEATHER: weather.copy()}, Types.HVAC)["timeseries"]
+
+    for col in ts_no.columns:
+        assert np.array_equal(
+            ts_no[col].to_numpy(), ts_zero[col].to_numpy()
+        ), f"deadband=0 diverged from omitted on column {col}"
+
+
+def test_r5c1_heating_with_deadband_targets_upper_band(basic_5r1c_object):
+    """Cold ambient with active heating and deadband=2 K: T_in must settle
+    at T_min + 2 (upper band edge)."""
+    deadband = 2.0
+    T_min = 20.0
+    weather = _cold_weather(periods=240, temp_c=-10.0)  # long run to reach steady state
+
+    obj = {
+        **basic_5r1c_object,
+        O.ID: "r5_heat_db",
+        O.TEMP_MIN: T_min,
+        O.TEMP_MAX: 30.0,
+        O.DEADBAND: deadband,
+        O.ACTIVE_COOLING: False,
+        O.ACTIVE_GAINS_SOLAR: False,
+        O.ACTIVE_GAINS_INTERNAL: False,
+    }
+    ts = R5C1().generate(obj, {O.WEATHER: weather}, Types.HVAC)["timeseries"]
+
+    # Steady state at upper band edge, not T_min.
+    assert ts[C.TEMP_IN].iloc[-1] == pytest.approx(T_min + deadband, abs=0.15)
+    assert ts[f"{Types.HEATING}{SEP}{C.LOAD}[W]"].iloc[-1] > 0
+
+
+def test_r5c1_cooling_with_deadband_targets_lower_band(basic_5r1c_object):
+    """Mirror: hot ambient, active cooling, deadband=2 K → T settles at T_max−2."""
+    deadband = 2.0
+    T_max = 24.0
+    weather = _hot_weather(periods=240, temp_c=35.0)
+
+    obj = {
+        **basic_5r1c_object,
+        O.ID: "r5_cool_db",
+        O.TEMP_MIN: 15.0,
+        O.TEMP_MAX: T_max,
+        O.DEADBAND: deadband,
+        O.ACTIVE_HEATING: False,
+        O.ACTIVE_GAINS_SOLAR: False,
+        O.ACTIVE_GAINS_INTERNAL: False,
+    }
+    ts = R5C1().generate(obj, {O.WEATHER: weather}, Types.HVAC)["timeseries"]
+
+    assert ts[C.TEMP_IN].iloc[-1] == pytest.approx(T_max - deadband, abs=0.15)
+    assert ts[f"{Types.COOLING}{SEP}{C.LOAD}[W]"].iloc[-1] > 0
+
+
+def test_r5c1_deadband_latches_across_in_band_transient(basic_5r1c_object):
+    """State-machine correctness test. The distinguishing behavior of
+    hysteresis vs. aim-for-setpoint is what happens when Ta_free lands
+    *inside* the band AFTER a firing step. Without deadband the heater
+    switches off (Ta_free ≥ T_min); with deadband the heater must stay
+    firing (heating_on latched, Ta_free < T_min + deadband).
+
+    Scenario: an initial cold spike forces the heater on; then ambient
+    settles just above T_min. In the tail, the no-deadband heater is off
+    while the deadband heater keeps firing thanks to the latch."""
+    periods = 72
+    T_min = 20.0
+    deadband = 3.0
+    idx = pd.date_range("2025-01-01", periods=periods, freq="h", tz="UTC")
+    # 6 h cold to force heater on, then mild ambient just above T_min.
+    temp_air = np.concatenate([np.full(6, -20.0), np.full(periods - 6, T_min + 0.5)])
+    weather = pd.DataFrame(
+        {
+            C.DATETIME: idx,
+            C.TEMP_AIR: temp_air,
+            C.SOLAR_GHI: np.zeros(periods),
+            C.SOLAR_DHI: np.zeros(periods),
+            C.SOLAR_DNI: np.zeros(periods),
+        },
+        index=idx,
+    )
+
+    def _obj(db):
+        return {
+            **basic_5r1c_object,
+            O.ID: f"r5_latch_{db}",
+            O.C_M: 5e5,  # low thermal mass → responds within a step
+            O.TEMP_INIT: T_min,
+            O.TEMP_MIN: T_min,
+            O.TEMP_MAX: 40.0,
+            O.DEADBAND: db,
+            O.ACTIVE_COOLING: False,
+            O.ACTIVE_GAINS_SOLAR: False,
+            O.ACTIVE_GAINS_INTERNAL: False,
+        }
+
+    p_no = (
+        R5C1()
+        .generate(_obj(0.0), {O.WEATHER: weather.copy()}, Types.HVAC)["timeseries"][f"{Types.HEATING}{SEP}{C.LOAD}[W]"]
+        .to_numpy()
+    )
+    p_db = (
+        R5C1()
+        .generate(_obj(deadband), {O.WEATHER: weather.copy()}, Types.HVAC)["timeseries"][
+            f"{Types.HEATING}{SEP}{C.LOAD}[W]"
+        ]
+        .to_numpy()
+    )
+
+    # After the cold spike, in the mild tail the deadband case must fire
+    # strictly more than the no-deadband case (the latch keeps working).
+    tail = slice(-24, None)
+    assert (
+        p_db[tail].sum() > p_no[tail].sum() * 1.5
+    ), f"Deadband heater tail sum {p_db[tail].sum()} not meaningfully greater than baseline {p_no[tail].sum()}."
+    # And a broken state machine that ignored the latch would match the
+    # baseline exactly in the tail: assert at least one tail step where
+    # the two paths diverge.
+    assert not np.array_equal(
+        p_no[tail], p_db[tail]
+    ), "Deadband produced identical output to baseline in the mild tail — state machine not exercised."
+
+
+def test_r5c1_wide_deadband_does_not_double_fire(basic_5r1c_object):
+    """Wide-band mutex regression. Same claim as the R1C1 counterpart:
+    a deadband wider than the setpoint band must not allow heating and
+    cooling to fire simultaneously in the same step."""
+    periods = 48
+    T_min = 20.0
+    T_max = 24.0
+    deadband = 10.0
+    idx = pd.date_range("2025-01-01", periods=periods, freq="h", tz="UTC")
+    temp_air = np.where(np.arange(periods) % 2 == 0, -20.0, 30.0)
+    weather = pd.DataFrame(
+        {
+            C.DATETIME: idx,
+            C.TEMP_AIR: temp_air,
+            C.SOLAR_GHI: np.zeros(periods),
+            C.SOLAR_DHI: np.zeros(periods),
+            C.SOLAR_DNI: np.zeros(periods),
+        },
+        index=idx,
+    )
+    obj = {
+        **basic_5r1c_object,
+        O.ID: "r5_wide_db",
+        O.TEMP_MIN: T_min,
+        O.TEMP_MAX: T_max,
+        O.DEADBAND: deadband,
+        O.ACTIVE_GAINS_SOLAR: False,
+        O.ACTIVE_GAINS_INTERNAL: False,
+    }
+    ts = R5C1().generate(obj, {O.WEATHER: weather}, Types.HVAC)["timeseries"]
+    p_heat = ts[f"{Types.HEATING}{SEP}{C.LOAD}[W]"].to_numpy()
+    p_cool = ts[f"{Types.COOLING}{SEP}{C.LOAD}[W]"].to_numpy()
+
+    both = (p_heat > 0) & (p_cool > 0)
+    assert (
+        not both.any()
+    ), f"Heating and cooling fired simultaneously on {int(both.sum())} steps — wide-band mutex broken."
+    assert (p_heat > 0).any() or (p_cool > 0).any()

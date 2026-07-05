@@ -15,6 +15,7 @@ from entise.methods.auxiliary.ventilation.selector import Ventilation
 from entise.methods.hvac.defaults import (
     DEFAULT_ACTIVE_COOLING,
     DEFAULT_ACTIVE_HEATING,
+    DEFAULT_DEADBAND,
     DEFAULT_POWER_COOLING,
     DEFAULT_POWER_HEATING,
     DEFAULT_TEMP_INIT,
@@ -78,6 +79,7 @@ class R1C1(Method):
         O.TEMP_INIT,
         O.TEMP_MIN,
         O.TEMP_MAX,
+        O.DEADBAND,
         O.AREA,
         O.HEIGHT,
         O.GAINS_INTERNAL,
@@ -252,6 +254,7 @@ class R1C1(Method):
             O.TEMP_INIT: Method.get_with_method_backup(obj, O.TEMP_INIT, method_type, DEFAULT_TEMP_INIT),
             O.TEMP_MAX: Method.get_with_method_backup(obj, O.TEMP_MAX, method_type, DEFAULT_TEMP_MAX),
             O.TEMP_MIN: Method.get_with_method_backup(obj, O.TEMP_MIN, method_type, DEFAULT_TEMP_MIN),
+            O.DEADBAND: Method.get_with_method_backup(obj, O.DEADBAND, method_type, DEFAULT_DEADBAND),
             # Ventilation
             O.VENTILATION: Method.get_with_method_backup(obj, O.VENTILATION, method_type, DEFAULT_VENTILATION),
             O.VENTILATION_COL: Method.get_with_method_backup(obj, O.VENTILATION_COL, method_type),
@@ -357,89 +360,6 @@ class R1C1(Method):
     #
     #     return obj_out, data_out
 
-    def _prepare_inputs(self, obj: dict, data: dict) -> dict:
-        """Prepare a solver-ready bundle for R1C1.
-
-        Returns a dict with keys:
-          - index: pd.DatetimeIndex
-          - dt_s: float (seconds)
-          - weather: pd.DataFrame
-          - g_int_series: pd.Series [W]
-          - g_sol_series: pd.Series [W]
-          - Hve_series: pd.Series [W/K] (prefers O.H_VE if provided)
-          - controls: dict (setpoints, caps, activation flags)
-          - params: dict with R1C1 parameters (C, R)
-        """
-        # Weather and timestep — see note in generate() for why we avoid
-        # materializing the full DATETIME column via astype.
-        weather = data[O.WEATHER]
-        index = weather.index
-        dt_col = weather[C.DATETIME]
-        dt_s = float((dt_col.iloc[1] - dt_col.iloc[0]).total_seconds())
-
-        # Gains (R1C1 currently computes auxiliaries unconditionally, keep behavior)
-        g_sol_df = data.get(O.GAINS_SOLAR) or SolarGains().generate(obj, {**data, O.WEATHER: weather})
-        g_int_df = data.get(O.GAINS_INTERNAL) or InternalGains().generate(obj, {**data, O.WEATHER: weather})
-
-        g_int_series = g_int_df.sum(axis=1) if isinstance(g_int_df, pd.DataFrame) else pd.Series(0.0, index=index)
-        g_sol_series = g_sol_df.sum(axis=1) if isinstance(g_sol_df, pd.DataFrame) else pd.Series(0.0, index=index)
-
-        # Ventilation normalization: prefer direct H_ve if present; otherwise use auxiliary/data/default
-        hve_series: pd.Series
-        if O.H_VE in obj and obj[O.H_VE] is not None:
-            val = obj[O.H_VE]
-            if isinstance(val, pd.Series):
-                if not val.index.equals(index):
-                    raise ValueError("H_ve series index does not match weather index.")
-                hve_series = val.astype(float)
-            else:
-                try:
-                    fval = float(val)
-                    hve_series = pd.Series(np.full(len(index), fval, dtype=float), index=index, name=O.VENTILATION)
-                except Exception as err:
-                    raise ValueError(f"H_ve must be a float or a pandas Series, got {type(val)}") from err
-        else:
-            ven_df = data.get(O.VENTILATION)
-            if isinstance(ven_df, pd.DataFrame) and O.VENTILATION in ven_df:
-                hve_series = ven_df[O.VENTILATION].astype(float)
-            elif O.VENTILATION in obj:
-                try:
-                    fval = float(obj[O.VENTILATION])
-                    hve_series = pd.Series(np.full(len(index), fval, dtype=float), index=index, name=O.VENTILATION)
-                except Exception:
-                    ven_df = Ventilation().generate(obj, {**data, O.WEATHER: weather})
-                    hve_series = ven_df[O.VENTILATION].astype(float)
-            else:
-                ven_df = Ventilation().generate(obj, {**data, O.WEATHER: weather})
-                hve_series = ven_df[O.VENTILATION].astype(float)
-
-        # Controls and parameters
-        controls = dict(
-            T_init=float(obj.get(O.TEMP_INIT, DEFAULT_TEMP_INIT)),
-            T_min=float(obj.get(O.TEMP_MIN, DEFAULT_TEMP_MIN)),
-            T_max=float(obj.get(O.TEMP_MAX, DEFAULT_TEMP_MAX)),
-            P_h_max=resolve_ts_or_scalar(obj, data, O.POWER_HEATING, index, default=DEFAULT_POWER_HEATING),
-            P_c_max=resolve_ts_or_scalar(obj, data, O.POWER_COOLING, index, default=DEFAULT_POWER_COOLING),
-            on_h=bool(obj.get(O.ACTIVE_HEATING, DEFAULT_ACTIVE_HEATING)),
-            on_c=bool(obj.get(O.ACTIVE_COOLING, DEFAULT_ACTIVE_COOLING)),
-        )
-
-        params = dict(
-            C=float(obj[O.CAPACITANCE]),
-            R=float(obj[O.RESISTANCE]),
-        )
-
-        return dict(
-            index=index,
-            dt_s=dt_s,
-            weather=weather,
-            g_int_series=g_int_series,
-            g_sol_series=g_sol_series,
-            Hve_series=hve_series,
-            controls=controls,
-            params=params,
-        )
-
     @staticmethod
     def _format_output(temp_in, p_heat, p_cool, data, timestep) -> dict:
         # NB: use ndarray.max() (C-level, single pass over the buffer), not
@@ -528,6 +448,11 @@ def _calculate_timeseries_numpy(obj: dict, data: dict, timestep: float) -> tuple
     active_cool = bool(obj[O.ACTIVE_COOLING])
     inv_resistance = np.float32(1.0) / np.float32(obj[O.RESISTANCE])
     dt = np.float32(timestep)
+    # Symmetric thermostat dead band. deadband = 0 collapses to the
+    # aim-for-setpoint behavior (bit-exact regression).
+    deadband = np.float32(obj.get(O.DEADBAND, DEFAULT_DEADBAND))
+    temp_min_hi = temp_min + deadband  # upper band edge for heating
+    temp_max_lo = temp_max - deadband  # lower band edge for cooling
 
     # Time-series inputs
     weather = data[O.WEATHER]
@@ -568,26 +493,57 @@ def _calculate_timeseries_numpy(obj: dict, data: dict, timestep: float) -> tuple
     #   T_pas_next = T_ss_pas + (T_prev - T_ss_pas) * decay        [no HVAC]
     #   T_next     = T_pas_next + gain * (P_h - P_c)                [with HVAC]
     #
-    # The controllers invert the linear update to land T_next on the active
-    # setpoint (T_min for heating, T_max for cooling), then clip to P_max.
+    # Hysteresis state machine (see issue #102). `heating_on` / `cooling_on`
+    # track whether the actuator was firing in the previous step. Heating
+    # fires when either (a) it was off and T dropped below T_min, or (b) it
+    # was on and T is still under the upper band edge (T_min + deadband).
+    # While firing, the controller aims to land T_next on the upper band
+    # edge (which collapses to T_min when deadband = 0). Cooling mirrors.
     temp_prev = temp_in[0]
+    heating_on = False
+    cooling_on = False
     for t in range(1, n_steps):
         d = decay[t]
         g = gain[t]
         t_ss = t_ss_pas[t]
         t_pas = t_ss + (temp_prev - t_ss) * d
 
+        # A wide band (deadband >= (T_max - T_min)/2) can leave both latches
+        # armed inside overlapping ranges. Clear the opposite latch whenever
+        # the primary extreme trigger fires — physically we cannot heat while
+        # already above T_max, nor cool while below T_min. With deadband = 0
+        # these guards fire only in the degenerate case T_min == T_max and are
+        # otherwise no-ops (bit-exact regression preserved).
+        if t_pas > temp_max:
+            heating_on = False
+        if t_pas < temp_min:
+            cooling_on = False
+
         p_h = np.float32(0.0)
-        p_h_cap = power_heat_max_arr[t]
-        if active_heat and t_pas < temp_min:
-            need = (temp_min - t_pas) / g
-            p_h = need if need < p_h_cap else p_h_cap
+        if active_heat:
+            fire_h = t_pas < temp_min or (heating_on and t_pas < temp_min_hi)
+            if fire_h:
+                p_h_cap = power_heat_max_arr[t]
+                need = (temp_min_hi - t_pas) / g
+                p_h = need if need < p_h_cap else p_h_cap
+                heating_on = True
+            else:
+                heating_on = False
+        else:
+            heating_on = False
 
         p_c = np.float32(0.0)
-        p_c_cap = power_cool_max_arr[t]
-        if active_cool and t_pas > temp_max:
-            need = (t_pas - temp_max) / g
-            p_c = need if need < p_c_cap else p_c_cap
+        if active_cool:
+            fire_c = t_pas > temp_max or (cooling_on and t_pas > temp_max_lo)
+            if fire_c:
+                p_c_cap = power_cool_max_arr[t]
+                need = (t_pas - temp_max_lo) / g
+                p_c = need if need < p_c_cap else p_c_cap
+                cooling_on = True
+            else:
+                cooling_on = False
+        else:
+            cooling_on = False
 
         p_heat[t] = p_h
         p_cool[t] = p_c

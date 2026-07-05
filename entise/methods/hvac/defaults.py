@@ -6,6 +6,7 @@ DEFAULT_ACTIVE_INTERNAL_GAINS: bool = True
 DEFAULT_ACTIVE_VENTILATION: bool = True
 DEFAULT_POWER_HEATING: float = float("inf")  # W
 DEFAULT_POWER_COOLING: float = float("inf")  # W
+DEFAULT_DEADBAND: float = 0.0  # K; symmetric thermostat dead band
 DEFAULT_TEMP_INIT: float = 22  # °C
 DEFAULT_TEMP_MAX: float = 24  # °C
 DEFAULT_TEMP_MIN: float = 20  # °C
