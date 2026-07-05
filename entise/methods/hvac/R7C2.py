@@ -12,7 +12,7 @@ from entise.core.base import Method
 from entise.core.utils import resolve_ts_or_scalar
 from entise.methods.auxiliary.internal.selector import InternalGains
 from entise.methods.auxiliary.solar.selector import SolarGains
-from entise.methods.auxiliary.ventilation.strategies import VentilationTimeSeries
+from entise.methods.auxiliary.ventilation.strategies import VentilationInactive, VentilationTimeSeries
 from entise.methods.hvac.defaults import (
     DEFAULT_ACTIVE_COOLING,
     DEFAULT_ACTIVE_HEATING,
@@ -193,8 +193,15 @@ class R7C2(Method):
         gains = self._compute_gains(obj, data)
         data_out["series"]["gains"] = gains
 
-        # Ventilation → split into mechanical & infiltration
-        ven_df = VentilationTimeSeries().generate(obj, data).squeeze()  # Calls VDI 6007 conform norm directly
+        # Ventilation → split into mechanical & infiltration.
+        # Honor the ACTIVE_VENTILATION flag: when explicitly False, use the
+        # zero-series path instead of computing ventilation. Applied here
+        # (rather than in the Ventilation selector) because R7C2 bypasses
+        # the selector to hit the VDI-6007-specific TimeSeries strategy.
+        if not bool(obj.get(O.ACTIVE_VENTILATION, True)):
+            ven_df = VentilationInactive().generate(obj, data).squeeze()
+        else:
+            ven_df = VentilationTimeSeries().generate(obj, data).squeeze()
         vent_split = resolve_ts_or_scalar(obj, data, O.VENTILATION_SPLIT, index, default=DEFAULT_VENTILATION_SPLIT)
         Hve_vent_series = ven_df * vent_split
         Hve_inf_series = ven_df * (1.0 - vent_split)
