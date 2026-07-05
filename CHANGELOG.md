@@ -9,6 +9,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ---
 
 ## [Unreleased]
+
+## [1.3.0] Latent cooling load and other HVAC improvements - 2026-07-05
 ### Added
 - Added latent cooling load to the RC HVAC models (1R1C, 5R1C, 7R2C). The cooling output now carries three timeseries columns — `cooling:load[W]` (total = sensible + latent), `cooling:sensible_load[W]`, and `cooling:latent_load[W]` — while `cooling:demand[Wh]` and `cooling:load_max[W]` in the summary are the corresponding totals. Latent load is computed as a vectorised post-pass over the sensible-solver result, using outdoor relative humidity + surface pressure from the weather (both default in OpenMeteo pulls) plus an optional latent-internal-gains series. Since 1R1C carries no humidity state the post-pass runs entirely outside the numba-accelerated kernel. `power_cooling[W]` is now interpreted as the **total nameplate cap** (sensible + latent) with sensible-priority clipping to match how DX coils operate. Two new optional keys: `target_humidity_rel[1]` (default `0.5`, ASHRAE Standard 55 comfort-band midpoint) and `gains_internal_latent[W]` (default `0.0`, mirror of `gains_internal[W]`). Weather without humidity → latent forced to zero + one warning per missing column. **Behavior change**: users whose weather carries humidity + pressure will see their reported cooling demand increase to reflect the previously-missing latent portion — this is the intended physics fix. Well-behaved existing tests (weather without humidity) pass unchanged. (`#103`)
 
