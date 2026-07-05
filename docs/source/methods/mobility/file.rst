@@ -41,25 +41,25 @@ Key facts
 - Supported types:
 
 
-  - ``occupancy``
-
-  - ``dhw``
-
-  - ``heating``
-
-  - ``mobility``
+  - ``electricity``
 
   - ``wind``
 
-  - ``electricity``
+  - ``occupancy``
 
   - ``cooling``
 
   - ``hvac``
 
-  - ``pv``
+  - ``dhw``
 
   - ``hp``
+
+  - ``mobility``
+
+  - ``heating``
+
+  - ``pv``
 
 
 
