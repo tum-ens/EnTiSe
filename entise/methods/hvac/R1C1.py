@@ -12,12 +12,15 @@ from entise.core.utils import resolve_ts_or_scalar
 from entise.methods.auxiliary.internal.selector import InternalGains
 from entise.methods.auxiliary.solar.selector import SolarGains
 from entise.methods.auxiliary.ventilation.selector import Ventilation
+from entise.methods.hvac._latent_cooling import compute_latent_cooling
 from entise.methods.hvac.defaults import (
     DEFAULT_ACTIVE_COOLING,
     DEFAULT_ACTIVE_HEATING,
     DEFAULT_DEADBAND,
+    DEFAULT_GAINS_INTERNAL_LATENT,
     DEFAULT_POWER_COOLING,
     DEFAULT_POWER_HEATING,
+    DEFAULT_TARGET_HUMIDITY_REL,
     DEFAULT_TEMP_INIT,
     DEFAULT_TEMP_MAX,
     DEFAULT_TEMP_MIN,
@@ -80,6 +83,8 @@ class R1C1(Method):
         O.TEMP_MIN,
         O.TEMP_MAX,
         O.DEADBAND,
+        O.TARGET_HUMIDITY_REL,
+        O.GAINS_INTERNAL_LATENT,
         O.AREA,
         O.HEIGHT,
         O.GAINS_INTERNAL,
@@ -94,13 +99,15 @@ class R1C1(Method):
     output_summary = {
         f"{Types.HEATING}{SEP}{C.DEMAND}[Wh]": "total heating demand",
         f"{Types.HEATING}{SEP}{O.LOAD_MAX}[W]": "maximum heating load",
-        f"{Types.COOLING}{SEP}{C.DEMAND}[Wh]": "total cooling demand",
-        f"{Types.COOLING}{SEP}{O.LOAD_MAX}[W]": "maximum cooling load",
+        f"{Types.COOLING}{SEP}{C.DEMAND}[Wh]": "total cooling demand (sensible + latent)",
+        f"{Types.COOLING}{SEP}{O.LOAD_MAX}[W]": "maximum cooling load (sensible + latent)",
     }
     output_timeseries = {
         f"{C.TEMP_IN}": "indoor air temperature",
         f"{Types.HEATING}{SEP}{C.LOAD}[W]": "heating load",
-        f"{Types.COOLING}{SEP}{C.LOAD}[W]": "cooling load",
+        f"{Types.COOLING}{SEP}{C.LOAD}[W]": "total cooling load (sensible + latent)",
+        f"{Types.COOLING}{SEP}sensible_{C.LOAD}[W]": "sensible cooling load",
+        f"{Types.COOLING}{SEP}latent_{C.LOAD}[W]": "latent cooling load",
     }
 
     def generate(
@@ -148,7 +155,11 @@ class R1C1(Method):
             temp_init (float, optional): Initial indoor temperature in °C.
             temp_min (float, optional): Minimum indoor temperature in °C.
             temp_max (float, optional): Maximum indoor temperature in °C.
-            gains_internal (pd.DataFrame, optional): Internal heat gains in W.
+            gains_internal (pd.DataFrame, optional): Internal SENSIBLE heat gains in W.
+                Do NOT include the latent portion here — pass that via
+                `gains_internal_latent[W]` on the object. ASHRAE metabolic
+                tables split a seated occupant as ~75 W sensible + ~55 W
+                latent; the sensible number is what belongs in this input.
             gains_solar (pd.DataFrame, optional): Solar heat gains in W.
             area (float, optional): Heated area in m².
             height (float, optional): Heated height in m³.
@@ -200,9 +211,41 @@ class R1C1(Method):
         # Compute temperature and energy demand
         temp_in, p_heat, p_cool = calculate_timeseries_1r1c(obj, data, timestep)
 
-        logger.debug(f"[HVAC R1C1] {ts_type}: max heating {p_heat.max()}, cooling {p_cool.max()}")
+        # Latent-cooling post-pass (issue #103). Decoupled from the T_in
+        # dynamics — 1R1C carries no humidity state — so this runs vectorised
+        # after the sensible solver, leaving the numba path untouched.
+        # `p_cool` returned by the solver is already sensible-clipped to
+        # `power_cooling` (the total cap); the post-pass may clip it further
+        # if latent load pushes the total over that cap.
+        weather_df = data[O.WEATHER]
+        p_cool_max_arr = resolve_ts_or_scalar(
+            obj, data, O.POWER_COOLING, weather_df.index, default=DEFAULT_POWER_COOLING
+        ).to_numpy(dtype=np.float32, copy=False)
+        h_ve_arr = data[O.VENTILATION].to_numpy(dtype=np.float32, copy=False).ravel()
+        gains_lat_arr = resolve_ts_or_scalar(
+            obj, data, O.GAINS_INTERNAL_LATENT, weather_df.index, default=DEFAULT_GAINS_INTERNAL_LATENT
+        ).to_numpy(dtype=np.float32, copy=False)
+        active_cool = bool(obj.get(O.ACTIVE_COOLING, DEFAULT_ACTIVE_COOLING))
+        if active_cool:
+            p_cool_sensible, p_cool_latent = compute_latent_cooling(
+                weather=weather_df,
+                p_cool_sensible=p_cool,
+                p_cool_max=p_cool_max_arr,
+                h_ve=h_ve_arr,
+                gains_internal_latent=gains_lat_arr,
+                temp_max_c=float(obj.get(O.TEMP_MAX, DEFAULT_TEMP_MAX)),
+                target_humidity_rel=float(obj.get(O.TARGET_HUMIDITY_REL, DEFAULT_TARGET_HUMIDITY_REL)),
+            )
+        else:
+            p_cool_sensible = p_cool
+            p_cool_latent = np.zeros_like(p_cool)
 
-        return self._format_output(temp_in, p_heat, p_cool, data, timestep)
+        logger.debug(
+            f"[HVAC R1C1] {ts_type}: max heating {p_heat.max()}, "
+            f"cooling sensible {p_cool_sensible.max()}, latent {p_cool_latent.max()}"
+        )
+
+        return self._format_output(temp_in, p_heat, p_cool_sensible, p_cool_latent, data, timestep)
 
     @staticmethod
     def _get_input_data(obj: dict, data: dict, method_type: str = Types.HVAC) -> tuple[dict, dict]:
@@ -255,6 +298,13 @@ class R1C1(Method):
             O.TEMP_MAX: Method.get_with_method_backup(obj, O.TEMP_MAX, method_type, DEFAULT_TEMP_MAX),
             O.TEMP_MIN: Method.get_with_method_backup(obj, O.TEMP_MIN, method_type, DEFAULT_TEMP_MIN),
             O.DEADBAND: Method.get_with_method_backup(obj, O.DEADBAND, method_type, DEFAULT_DEADBAND),
+            # Latent cooling (issue #103)
+            O.TARGET_HUMIDITY_REL: Method.get_with_method_backup(
+                obj, O.TARGET_HUMIDITY_REL, method_type, DEFAULT_TARGET_HUMIDITY_REL
+            ),
+            O.GAINS_INTERNAL_LATENT: Method.get_with_method_backup(
+                obj, O.GAINS_INTERNAL_LATENT, method_type, DEFAULT_GAINS_INTERNAL_LATENT
+            ),
             # Ventilation
             O.VENTILATION: Method.get_with_method_backup(obj, O.VENTILATION, method_type, DEFAULT_VENTILATION),
             O.VENTILATION_COL: Method.get_with_method_backup(obj, O.VENTILATION_COL, method_type),
@@ -361,21 +411,39 @@ class R1C1(Method):
     #     return obj_out, data_out
 
     @staticmethod
-    def _format_output(temp_in, p_heat, p_cool, data, timestep) -> dict:
+    def _format_output(temp_in, p_heat, p_cool_sensible, p_cool_latent, data, timestep) -> dict:
         # NB: use ndarray.max() (C-level, single pass over the buffer), not
         # builtins.max() which iterates 8760 elements as Python objects.
+        # `cooling:load[W]` and its summary counterparts carry the TOTAL
+        # cooling load (sensible + latent). When latent is zero (no humidity
+        # data, active_cooling=False, or ω_out ≤ ω_target with no internal
+        # latent gain), total == sensible and pre-latent numbers are
+        # preserved bit-for-bit.
+        # Round sensible and latent first, then derive total as their sum so
+        # the per-row invariant `total == sensible + latent` holds for
+        # downstream consumers that assert equality — matches how R5C1/R7C2
+        # emit the same columns.
+        p_cool_sensible_int = p_cool_sensible.round().astype(int)
+        p_cool_latent_int = p_cool_latent.round().astype(int)
+        p_cool_total_int = p_cool_sensible_int + p_cool_latent_int
+        # Demand still uses the un-rounded sum to preserve energy accuracy;
+        # load_max uses the rounded-and-summed total so the summary number
+        # is consistent with the DataFrame max.
+        p_cool_total_float = p_cool_sensible + p_cool_latent
         summary = {
             f"{Types.HEATING}{SEP}{C.DEMAND}[Wh]": int(round(p_heat.sum() * timestep / 3600)),
             f"{Types.HEATING}{SEP}{O.LOAD_MAX}[W]": int(p_heat.max()),
-            f"{Types.COOLING}{SEP}{C.DEMAND}[Wh]": int(round(p_cool.sum() * timestep / 3600)),
-            f"{Types.COOLING}{SEP}{O.LOAD_MAX}[W]": int(p_cool.max()),
+            f"{Types.COOLING}{SEP}{C.DEMAND}[Wh]": int(round(p_cool_total_float.sum() * timestep / 3600)),
+            f"{Types.COOLING}{SEP}{O.LOAD_MAX}[W]": int(p_cool_total_int.max()),
         }
 
         df = pd.DataFrame(
             {
                 f"{C.TEMP_IN}": temp_in.round(3),
                 f"{Types.HEATING}{SEP}{C.LOAD}[W]": p_heat.round().astype(int),
-                f"{Types.COOLING}{SEP}{C.LOAD}[W]": p_cool.round().astype(int),
+                f"{Types.COOLING}{SEP}{C.LOAD}[W]": p_cool_total_int,
+                f"{Types.COOLING}{SEP}sensible_{C.LOAD}[W]": p_cool_sensible_int,
+                f"{Types.COOLING}{SEP}latent_{C.LOAD}[W]": p_cool_latent_int,
             },
             index=data[O.WEATHER].index,
         )

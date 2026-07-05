@@ -8,11 +8,13 @@ from entise.constants import SEP, Types
 from entise.constants import Columns as C
 from entise.constants import Constants as Const
 from entise.constants import Objects as O
+from entise.constants.constants import CP_AIR, RHO_AIR
 from entise.core.base import Method
 from entise.core.utils import resolve_ts_or_scalar
 from entise.methods.auxiliary.internal.selector import InternalGains
 from entise.methods.auxiliary.solar.selector import SolarGains
 from entise.methods.auxiliary.ventilation.strategies import VentilationInactive, VentilationTimeSeries
+from entise.methods.hvac._latent_cooling import compute_latent_cooling
 from entise.methods.hvac.defaults import (
     DEFAULT_ACTIVE_COOLING,
     DEFAULT_ACTIVE_HEATING,
@@ -22,12 +24,14 @@ from entise.methods.hvac.defaults import (
     DEFAULT_DEADBAND,
     DEFAULT_FRAC_CONV_INTERNAL,
     DEFAULT_FRAC_RAD_AW,
+    DEFAULT_GAINS_INTERNAL_LATENT,
     DEFAULT_POWER_COOLING,
     DEFAULT_POWER_HEATING,
     DEFAULT_SIGMA_7R2C_AW,
     DEFAULT_SIGMA_7R2C_IW,
     DEFAULT_T_EQ_ALPHA_SW,
     DEFAULT_T_EQ_H_O,
+    DEFAULT_TARGET_HUMIDITY_REL,
     DEFAULT_TEMP_INIT,
     DEFAULT_TEMP_MAX,
     DEFAULT_TEMP_MIN,
@@ -115,6 +119,8 @@ class R7C2(Method):
         O.TEMP_MIN,
         O.TEMP_MAX,
         O.DEADBAND,
+        O.TARGET_HUMIDITY_REL,
+        O.GAINS_INTERNAL_LATENT,
         O.TEMP_SUPPLY,
         # Geometry
         O.AREA,
@@ -145,14 +151,16 @@ class R7C2(Method):
     output_summary = {
         f"{Types.HEATING}{SEP}{C.DEMAND}[Wh]": "total heating demand",
         f"{Types.HEATING}{SEP}{O.LOAD_MAX}[W]": "maximum heating load",
-        f"{Types.COOLING}{SEP}{C.DEMAND}[Wh]": "total cooling demand",
-        f"{Types.COOLING}{SEP}{O.LOAD_MAX}[W]": "maximum cooling load",
+        f"{Types.COOLING}{SEP}{C.DEMAND}[Wh]": "total cooling demand (sensible + latent)",
+        f"{Types.COOLING}{SEP}{O.LOAD_MAX}[W]": "maximum cooling load (sensible + latent)",
     }
 
     output_timeseries = {
         C.TEMP_IN: "indoor air temperature",
         f"{Types.HEATING}{SEP}{C.LOAD}[W]": "heating load",
-        f"{Types.COOLING}{SEP}{C.LOAD}[W]": "cooling load",
+        f"{Types.COOLING}{SEP}{C.LOAD}[W]": "total cooling load (sensible + latent)",
+        f"{Types.COOLING}{SEP}sensible_{C.LOAD}[W]": "sensible cooling load",
+        f"{Types.COOLING}{SEP}latent_{C.LOAD}[W]": "latent cooling load",
     }
 
     def generate(
@@ -165,8 +173,49 @@ class R7C2(Method):
         temp_in, p_heat, p_cool = calculate_timeseries_7r2c(**data)
 
         meta = data["meta"]
+        p_cool_sensible, p_cool_latent = self._apply_latent_cooling(obj, data, p_cool)
         return self._format_output(
-            temp_in.round(3), p_heat.round().astype(int), p_cool.round().astype(int), meta["index"], meta["dt_s"]
+            temp_in.round(3),
+            p_heat.round().astype(int),
+            p_cool_sensible.round().astype(int),
+            p_cool_latent.round().astype(int),
+            meta["index"],
+            meta["dt_s"],
+        )
+
+    @staticmethod
+    def _apply_latent_cooling(obj: dict, data: dict, p_cool: pd.Series) -> tuple[pd.Series, pd.Series]:
+        """Run the shared latent-cooling post-pass (issue #103). Mirror of the
+        implementation in R5C1 — see that method for details."""
+        meta = data["meta"]
+        controls = data["controls"]
+        weather = meta[O.WEATHER]
+        index = meta["index"]
+
+        active_cool_series = controls[O.ACTIVE_COOLING]
+        if not bool(np.asarray(active_cool_series).astype(bool).any()):
+            return p_cool, pd.Series(np.zeros(len(index), dtype=float), index=index)
+
+        p_cool_max = controls[O.POWER_COOLING].to_numpy(dtype=float, copy=False)
+        h_ve_df = data["series"]["ventilation"]
+        h_ve = np.asarray(h_ve_df.sum(axis=1), dtype=float)
+        gains_lat = resolve_ts_or_scalar(
+            obj, data, O.GAINS_INTERNAL_LATENT, index, default=DEFAULT_GAINS_INTERNAL_LATENT
+        ).to_numpy(dtype=float, copy=False)
+        t_max_arr = controls[O.TEMP_MAX].to_numpy(dtype=float, copy=False)
+
+        p_sens_out, p_lat_out = compute_latent_cooling(
+            weather=weather,
+            p_cool_sensible=np.asarray(p_cool, dtype=float),
+            p_cool_max=p_cool_max,
+            h_ve=h_ve,
+            gains_internal_latent=gains_lat,
+            temp_max_c=t_max_arr,
+            target_humidity_rel=float(obj.get(O.TARGET_HUMIDITY_REL, DEFAULT_TARGET_HUMIDITY_REL)),
+        )
+        return (
+            pd.Series(p_sens_out, index=index),
+            pd.Series(p_lat_out, index=index),
         )
 
     def _get_input_data(self, obj: dict, data: dict, method_type: str = Types.HVAC) -> tuple[dict, dict]:
@@ -242,9 +291,7 @@ class R7C2(Method):
 
         # Parameters
         volume = float(obj.get(O.AREA, Const.DEFAULT_AREA.value)) * float(obj.get(O.HEIGHT, Const.DEFAULT_HEIGHT.value))
-        rho_air = 1.2  # kg/m3
-        cp_air = 1000.0  # J/kgK
-        capacity_air = volume * rho_air * cp_air
+        capacity_air = volume * RHO_AIR * CP_AIR
         params = {
             O.TEMP_INIT: float(obj.get(O.TEMP_INIT, DEFAULT_TEMP_INIT)),
             O.R_1_AW: float(obj[O.R_1_AW]),
@@ -282,22 +329,32 @@ class R7C2(Method):
 
     @staticmethod
     def _format_output(
-        temp_in: pd.Series, p_heat: pd.Series, p_cool: pd.Series, index: pd.DatetimeIndex, dt_s: float
+        temp_in: pd.Series,
+        p_heat: pd.Series,
+        p_cool_sensible: pd.Series,
+        p_cool_latent: pd.Series,
+        index: pd.DatetimeIndex,
+        dt_s: float,
     ) -> dict:
+        # `cooling:load[W]` carries the TOTAL (sensible + latent) cooling load
+        # per issue #103.
+        p_cool_total = p_cool_sensible + p_cool_latent
         E_h_Wh = float(np.trapezoid(p_heat.values, dx=dt_s) / 3600.0)
-        E_c_Wh = float(np.trapezoid(p_cool.values, dx=dt_s) / 3600.0)
+        E_c_Wh = float(np.trapezoid(p_cool_total.values, dx=dt_s) / 3600.0)
         summary = {
             f"{Types.HEATING}{SEP}{C.DEMAND}[Wh]": E_h_Wh,
             f"{Types.HEATING}{SEP}{O.LOAD_MAX}[W]": float(max(p_heat.max(), 0.0)),
             f"{Types.COOLING}{SEP}{C.DEMAND}[Wh]": E_c_Wh,
-            f"{Types.COOLING}{SEP}{O.LOAD_MAX}[W]": float(max(p_cool.max(), 0.0)),
+            f"{Types.COOLING}{SEP}{O.LOAD_MAX}[W]": float(max(p_cool_total.max(), 0.0)),
         }
 
         df = pd.DataFrame(
             {
                 C.TEMP_IN: temp_in,
                 f"{Types.HEATING}{SEP}{C.LOAD}[W]": p_heat,
-                f"{Types.COOLING}{SEP}{C.LOAD}[W]": p_cool,
+                f"{Types.COOLING}{SEP}{C.LOAD}[W]": p_cool_total,
+                f"{Types.COOLING}{SEP}sensible_{C.LOAD}[W]": p_cool_sensible,
+                f"{Types.COOLING}{SEP}latent_{C.LOAD}[W]": p_cool_latent,
             },
             index=index,
         )
@@ -333,6 +390,13 @@ class R7C2(Method):
             O.TEMP_MIN: self.get_with_method_backup(obj, O.TEMP_MIN, method_type, DEFAULT_TEMP_MIN),
             O.TEMP_MAX: self.get_with_method_backup(obj, O.TEMP_MAX, method_type, DEFAULT_TEMP_MAX),
             O.DEADBAND: self.get_with_method_backup(obj, O.DEADBAND, method_type, DEFAULT_DEADBAND),
+            # Latent cooling (issue #103)
+            O.TARGET_HUMIDITY_REL: self.get_with_method_backup(
+                obj, O.TARGET_HUMIDITY_REL, method_type, DEFAULT_TARGET_HUMIDITY_REL
+            ),
+            O.GAINS_INTERNAL_LATENT: self.get_with_method_backup(
+                obj, O.GAINS_INTERNAL_LATENT, method_type, DEFAULT_GAINS_INTERNAL_LATENT
+            ),
             O.TEMP_SUPPLY: self.get_with_method_backup(obj, O.TEMP_SUPPLY, method_type),
             # RC parameters (7R2C)
             O.R_1_AW: self.get_with_method_backup(obj, O.R_1_AW, method_type),
