@@ -19,6 +19,7 @@ from entise.methods.hvac.defaults import (
     DEFAULT_ACTIVE_INTERNAL_GAINS,
     DEFAULT_ACTIVE_SOLAR_GAINS,
     DEFAULT_ACTIVE_VENTILATION,
+    DEFAULT_DEADBAND,
     DEFAULT_FRAC_CONV_INTERNAL,
     DEFAULT_FRAC_RAD_AW,
     DEFAULT_POWER_COOLING,
@@ -113,6 +114,7 @@ class R7C2(Method):
         O.TEMP_INIT,
         O.TEMP_MIN,
         O.TEMP_MAX,
+        O.DEADBAND,
         O.TEMP_SUPPLY,
         # Geometry
         O.AREA,
@@ -254,6 +256,10 @@ class R7C2(Method):
             O.R_ALPHA_STAR_IW: float(obj[O.R_ALPHA_STAR_IW]),
             O.R_REST_AW: float(obj[O.R_REST_AW]),
             O.CAPACITANCE_AIR: float(capacity_air),
+            # Symmetric thermostat dead band. deadband = 0 collapses the
+            # hysteresis state machine to aim-for-setpoint (bit-exact
+            # regression against the pre-hysteresis solver).
+            O.DEADBAND: float(obj.get(O.DEADBAND, DEFAULT_DEADBAND)),
         }
         data_out["params"] = params
 
@@ -326,6 +332,7 @@ class R7C2(Method):
             O.TEMP_INIT: self.get_with_method_backup(obj, O.TEMP_INIT, method_type, DEFAULT_TEMP_INIT),
             O.TEMP_MIN: self.get_with_method_backup(obj, O.TEMP_MIN, method_type, DEFAULT_TEMP_MIN),
             O.TEMP_MAX: self.get_with_method_backup(obj, O.TEMP_MAX, method_type, DEFAULT_TEMP_MAX),
+            O.DEADBAND: self.get_with_method_backup(obj, O.DEADBAND, method_type, DEFAULT_DEADBAND),
             O.TEMP_SUPPLY: self.get_with_method_backup(obj, O.TEMP_SUPPLY, method_type),
             # RC parameters (7R2C)
             O.R_1_AW: self.get_with_method_backup(obj, O.R_1_AW, method_type),
@@ -496,6 +503,7 @@ def calculate_timeseries_7r2c(
     R_alpha_star_iw = params[O.R_ALPHA_STAR_IW]
     R_rest_aw = params[O.R_REST_AW]
     C_air = params[O.CAPACITANCE_AIR]
+    deadband = float(params.get(O.DEADBAND, DEFAULT_DEADBAND))
 
     # Splits
     sigma_aw = splits[O.SIGMA_7R2C_AW]
@@ -525,6 +533,10 @@ def calculate_timeseries_7r2c(
     T_in_arr[0] = Ta
     Qh_arr[0] = 0.0
     Qc_arr[0] = 0.0
+
+    # Hysteresis state — see issue #102.
+    heating_on = False
+    cooling_on = False
 
     # Split gains → (conv, aw, iw)
     phi_conv_arr, phi_aw_arr, phi_iw_arr = split_gains_7r2c(g_int_arr, g_sol_arr, f_conv_int, f_rad_aw, f_rad_iw)
@@ -616,10 +628,22 @@ def calculate_timeseries_7r2c(
         Tm_aw_free = float(sol_free[0])
         Tm_iw_free = float(sol_free[6])
 
-        # 2) Check against setpoints and clamp if necessary
+        # 2) Hysteresis-aware trigger — see R1C1 solver for the state-machine
+        # definition. When deadband == 0 the "on" branch never fires more
+        # than the "off" branch would; regression is bit-exact.
         Q = 0.0
+        T_min_hi = T_min + deadband
+        T_max_lo = T_max - deadband
+        # Wide-band mutex: never heat above T_max, never cool below T_min.
+        # No-op with deadband = 0.
+        if Ta_free > T_max:
+            heating_on = False
+        if Ta_free < T_min:
+            cooling_on = False
+        fire_h = on_heat and (Ta_free < T_min or (heating_on and Ta_free < T_min_hi))
+        fire_c = on_cool and (Ta_free > T_max or (cooling_on and Ta_free > T_max_lo))
         # Heating
-        if Ta_free < T_min and on_heat:
+        if fire_h:
             sol_tset = solve_step_tset_7r2c_optim(
                 inv_R_1_aw,
                 inv_R_1_iw,
@@ -638,7 +662,7 @@ def calculate_timeseries_7r2c(
                 T_out,
                 T_eq,
                 T_sup,
-                T_min,
+                T_min_hi,
                 Ta,
                 Tm_aw,
                 Tm_iw,
@@ -685,8 +709,10 @@ def calculate_timeseries_7r2c(
                 Tm_aw, Ta, Tm_iw = float(sol_phi[0]), float(sol_phi[3]), float(sol_phi[6])
             else:
                 Tm_aw, Ta, Tm_iw = float(sol_tset[0]), float(sol_tset[3]), float(sol_tset[6])
+            heating_on = True
+            cooling_on = False
         # Cooling
-        elif Ta_free > T_max and on_cool:
+        elif fire_c:
             sol_tset = solve_step_tset_7r2c_optim(
                 inv_R_1_aw,
                 inv_R_1_iw,
@@ -705,7 +731,7 @@ def calculate_timeseries_7r2c(
                 T_out,
                 T_eq,
                 T_sup,
-                T_max,
+                T_max_lo,
                 Ta,
                 Tm_aw,
                 Tm_iw,
@@ -752,9 +778,13 @@ def calculate_timeseries_7r2c(
                 Tm_aw, Ta, Tm_iw = float(sol_phi[0]), float(sol_phi[3]), float(sol_phi[6])
             else:
                 Tm_aw, Ta, Tm_iw = float(sol_tset[0]), float(sol_tset[3]), float(sol_tset[6])
+            heating_on = False
+            cooling_on = True
         # No action needed, use free-float results
         else:
             Tm_aw, Ta, Tm_iw = Tm_aw_free, Ta_free, Tm_iw_free
+            heating_on = False
+            cooling_on = False
 
         T_in_arr[t] = Ta
         Qh_arr[t] = max(Q, 0.0)

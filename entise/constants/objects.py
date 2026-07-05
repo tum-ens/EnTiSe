@@ -26,6 +26,7 @@ class Objects:
     COLUMN = "column"
     CORRECTION_FACTOR = "correction_factor"  # Correction factor for calculations
     DATETIMES = "datetimes"
+    DEADBAND = "deadband[K]"  # Thermostat dead band width (K)
     DEMAND = "demand"
     DEMAND_KWH = "demand[kWh]"
     DETECTION_THRESHOLD = "detection_threshold"  # Minimal value from which occupancy is assigned

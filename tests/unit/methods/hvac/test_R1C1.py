@@ -696,3 +696,292 @@ def test_numpy_and_numba_paths_agree():
     assert np.max(np.abs(t_np - t_nb)) < 1e-3, "temperature drift between paths"
     assert np.max(np.abs(ph_np - ph_nb)) < 0.5, "heating power drift between paths"
     assert np.max(np.abs(pc_np - pc_nb)) < 0.5, "cooling power drift between paths"
+
+
+# --- Thermostat dead band / hysteresis (issue #102) --------------------------
+# The controller switches heating/cooling on/off at exact T_min/T_max. Real
+# thermostats cycle around a small band. Add a `deadband[K]` parameter that,
+# when > 0, makes the controller: (a) only turn on at the setpoint edge as
+# before, (b) once firing, aim for the opposite band edge (T_min+deadband for
+# heating, T_max-deadband for cooling), (c) once T lands in the band from
+# outside, stay off until the setpoint edge is crossed again.
+#
+# Default 0 must preserve current behavior bit-for-bit.
+
+
+def test_r1c1_deadband_default_zero_matches_omitted():
+    """Explicit deadband=0 produces the same output as omitting the parameter.
+    This is the backward-compatibility guarantee for the whole feature."""
+    periods = 96
+    T_out = -10.0
+    T_min = 20.0
+
+    weather = _flat_weather(T_out, periods)
+    obj_no_db = {
+        O.ID: "b_no_db",
+        O.CAPACITANCE: 5e6,
+        O.RESISTANCE: 0.01,
+        O.TEMP_INIT: T_min,
+        O.TEMP_MIN: T_min,
+        O.TEMP_MAX: 30.0,
+        O.LAT: 48.1,
+        O.LON: 11.6,
+        O.GAINS_INTERNAL: 0,
+        O.VENTILATION: 0.0,
+        O.ACTIVE_COOLING: False,
+        O.ACTIVE_GAINS_SOLAR: False,
+        O.ACTIVE_GAINS_INTERNAL: False,
+        O.WEATHER: "weather_no_db",
+    }
+    obj_db_zero = {**obj_no_db, O.ID: "b_db_zero", O.DEADBAND: 0.0, O.WEATHER: "weather_db_zero"}
+
+    ts_no_db = R1C1().generate(obj_no_db, {"weather_no_db": weather}, Types.HVAC)["timeseries"]
+    ts_db_zero = R1C1().generate(obj_db_zero, {"weather_db_zero": weather}, Types.HVAC)["timeseries"]
+
+    # Bit-exact equality of every column.
+    for col in ts_no_db.columns:
+        assert (
+            ts_no_db[col].to_numpy() == ts_db_zero[col].to_numpy()
+        ).all(), f"deadband=0 diverged from omitted deadband on column {col}"
+
+
+def test_r1c1_heating_with_deadband_targets_upper_band():
+    """Continuous cold ambient with deadband=2 K: T_in must settle at T_min+2,
+    not at T_min. Verifies the controller aims for the upper band edge while
+    heating is on."""
+    periods = 96
+    T_out = -10.0
+    T_min = 20.0
+    deadband = 2.0
+
+    weather = _flat_weather(T_out, periods)
+    obj = {
+        O.ID: "b_heat_db",
+        O.CAPACITANCE: 5e6,
+        O.RESISTANCE: 0.01,
+        O.TEMP_INIT: T_min,
+        O.TEMP_MIN: T_min,
+        O.TEMP_MAX: 30.0,
+        O.DEADBAND: deadband,
+        O.LAT: 48.1,
+        O.LON: 11.6,
+        O.GAINS_INTERNAL: 0,
+        O.VENTILATION: 0.0,
+        O.ACTIVE_COOLING: False,
+        O.ACTIVE_GAINS_SOLAR: False,
+        O.ACTIVE_GAINS_INTERNAL: False,
+        O.WEATHER: "weather_heat_db",
+    }
+    ts = R1C1().generate(obj, {"weather_heat_db": weather}, Types.HVAC)["timeseries"]
+
+    # Steady state sits on the upper band edge, not on T_min.
+    assert ts[C.TEMP_IN].iloc[-1] == pytest.approx(T_min + deadband, abs=0.05)
+    # Sanity: heater is firing (steady loss > 0).
+    assert ts[f"{Types.HEATING}{SEP}{C.LOAD}[W]"].iloc[-1] > 0
+
+
+def test_r1c1_cooling_with_deadband_targets_lower_band():
+    """Mirror of the heating case: continuous hot ambient with deadband=2 K.
+    T_in must settle at T_max−2 while cooling is on."""
+    periods = 96
+    T_out = 35.0
+    T_max = 24.0
+    deadband = 2.0
+
+    weather = _flat_weather(T_out, periods)
+    obj = {
+        O.ID: "b_cool_db",
+        O.CAPACITANCE: 5e6,
+        O.RESISTANCE: 0.01,
+        O.TEMP_INIT: T_max,
+        O.TEMP_MIN: 15.0,
+        O.TEMP_MAX: T_max,
+        O.DEADBAND: deadband,
+        O.LAT: 48.1,
+        O.LON: 11.6,
+        O.GAINS_INTERNAL: 0,
+        O.VENTILATION: 0.0,
+        O.ACTIVE_HEATING: False,
+        O.ACTIVE_GAINS_SOLAR: False,
+        O.ACTIVE_GAINS_INTERNAL: False,
+        O.WEATHER: "weather_cool_db",
+    }
+    ts = R1C1().generate(obj, {"weather_cool_db": weather}, Types.HVAC)["timeseries"]
+
+    assert ts[C.TEMP_IN].iloc[-1] == pytest.approx(T_max - deadband, abs=0.05)
+    assert ts[f"{Types.COOLING}{SEP}{C.LOAD}[W]"].iloc[-1] > 0
+
+
+def test_r1c1_deadband_reduces_switching_count_on_transient():
+    """A transient scenario known to cause per-step on/off switching without
+    hysteresis must switch strictly fewer times with a non-zero dead band.
+
+    The forcing: cool ambient just below T_min plus a square-wave internal
+    gain that alternates zero (heating needed) and enough gain to push the
+    passive T_next above T_min (heating not needed). We deliberately use
+    Δt/τ ≫ 1 (τ ≈ 100 s, Δt = 3600 s) so each step reaches steady state
+    within itself — that guarantees per-step on/off toggling without
+    hysteresis. With deadband, once heating fires it aims for the upper
+    band edge and stays on across the gain step (still in-band), so the
+    switching count drops sharply."""
+    periods = 48
+    T_out = 19.0  # just below T_min → loss overcomes when gain is off
+    T_min = 20.0
+    index = pd.date_range("2025-01-01", periods=periods, freq="h", tz="UTC")
+    # Alternating gain: 0 W (heating needed) vs. 1500 W (comfortably overshoots).
+    gain = pd.DataFrame({"b_toggle": np.where(np.arange(periods) % 2 == 0, 0.0, 1500.0)}, index=index)
+
+    weather = _flat_weather(T_out, periods)
+    weather.index = index
+    weather[C.DATETIME] = index
+
+    def _build_obj(deadband, key_suffix):
+        return {
+            O.ID: "b_toggle",
+            # Fast decay (τ ≈ 100 s) so each hourly step reaches steady state
+            # and the controller sees crisp on/off transitions.
+            O.CAPACITANCE: 1e5,
+            O.RESISTANCE: 0.001,
+            O.TEMP_INIT: T_min,
+            O.TEMP_MIN: T_min,
+            O.TEMP_MAX: 30.0,
+            O.DEADBAND: deadband,
+            O.LAT: 48.1,
+            O.LON: 11.6,
+            O.GAINS_INTERNAL: f"gains_{key_suffix}",
+            O.GAINS_INTERNAL_COL: "b_toggle",
+            O.VENTILATION: 0.0,
+            O.ACTIVE_COOLING: False,
+            O.ACTIVE_GAINS_SOLAR: False,
+            O.WEATHER: f"weather_{key_suffix}",
+        }
+
+    def _switch_count(load):
+        # Count 0↔non-zero transitions.
+        active = load > 0
+        return int(np.sum(active[1:] != active[:-1]))
+
+    ts_no_db = R1C1().generate(
+        _build_obj(0.0, "swno"),
+        {"weather_swno": weather, "gains_swno": gain},
+        Types.HVAC,
+    )["timeseries"]
+    ts_db = R1C1().generate(
+        _build_obj(2.0, "swdb"),
+        {"weather_swdb": weather, "gains_swdb": gain},
+        Types.HVAC,
+    )["timeseries"]
+
+    p_no_db = ts_no_db[f"{Types.HEATING}{SEP}{C.LOAD}[W]"].to_numpy()
+    p_db = ts_db[f"{Types.HEATING}{SEP}{C.LOAD}[W]"].to_numpy()
+
+    # Sanity: the no-deadband case must actually switch (otherwise the test
+    # doesn't prove anything).
+    assert _switch_count(p_no_db) > 5
+    # With the band, strictly fewer switches.
+    assert _switch_count(p_db) < _switch_count(p_no_db)
+
+
+def test_r1c1_deadband_stays_off_when_entering_band_from_above():
+    """Start with T_in above T_min+deadband, gently drift down into the band.
+    The state machine must stay in the "off" branch as long as the passive
+    T_next remains above T_min — i.e., there must be at least one step where
+    the recorded (after-HVAC) temperature lies inside the band but the
+    heater did NOT fire. Once the passive T_next drops below T_min the
+    heater fires; from then on the "on" branch runs different physics, so
+    we assert only up to the first fire."""
+    periods = 48
+    T_min = 20.0
+    deadband = 2.0
+    # τ ≈ R·C = 3600 s so Δt/τ = 1: the room drifts about 63 % of the way
+    # toward T_out per step. That lets T land inside the band on the first
+    # step (still above T_min) and cross T_min on the second — exercising
+    # the "off, entering band from above" branch before the state machine
+    # flips to "on".
+    T_out = T_min - 1.0
+
+    weather = _flat_weather(T_out, periods)
+    obj = {
+        O.ID: "b_from_above",
+        O.CAPACITANCE: 1e5,
+        O.RESISTANCE: 0.036,
+        O.TEMP_INIT: T_min + deadband + 0.5,  # start above the band
+        O.TEMP_MIN: T_min,
+        O.TEMP_MAX: 30.0,
+        O.DEADBAND: deadband,
+        O.LAT: 48.1,
+        O.LON: 11.6,
+        O.GAINS_INTERNAL: 0,
+        O.VENTILATION: 0.0,
+        O.ACTIVE_COOLING: False,
+        O.ACTIVE_GAINS_SOLAR: False,
+        O.ACTIVE_GAINS_INTERNAL: False,
+        O.WEATHER: "weather_from_above",
+    }
+    ts = R1C1().generate(obj, {"weather_from_above": weather}, Types.HVAC)["timeseries"]
+
+    temp = ts[C.TEMP_IN].to_numpy()
+    heat = ts[f"{Types.HEATING}{SEP}{C.LOAD}[W]"].to_numpy()
+
+    # Locate the first step where the heater fired.
+    fired = heat > 0
+    assert fired.any(), "Test scenario never fires the heater — bad params."
+    first_fire = int(np.argmax(fired))
+
+    # Before that, at least one step must show T inside the band (proving
+    # we did enter the band from above without firing).
+    entered_band = (temp[:first_fire] >= T_min) & (temp[:first_fire] <= T_min + deadband + 1e-3)
+    assert entered_band.any(), (
+        "T never crossed into the band before firing — cannot verify off-branch " "hysteresis with this scenario."
+    )
+    # Every pre-fire step has heat == 0 by construction of `first_fire`.
+    assert (heat[:first_fire] == 0).all()
+
+
+def test_r1c1_wide_deadband_does_not_double_fire():
+    """Regression for the wide-band mutex bug. When `deadband > (T_max-T_min)/2`
+    the intervals `[T_min, T_min+deadband]` and `[T_max-deadband, T_max]`
+    overlap. Without the extreme-guard both `heating_on` and `cooling_on`
+    can stay latched at the same step, so heating and cooling would fire
+    simultaneously on the same time step — physically nonsensical.
+
+    Setup: fast decay (τ ≪ Δt) so T_pas nearly reaches T_out each step,
+    and alternating T_out that crosses both setpoints hourly. Confirms
+    that at no step do heating and cooling fire together."""
+    periods = 48
+    T_min = 20.0
+    T_max = 24.0
+    deadband = 10.0  # deliberately wider than T_max − T_min = 4
+    index = pd.date_range("2025-01-01", periods=periods, freq="h", tz="UTC")
+    # Alternating cold / hot ambient.
+    temp_air = np.where(np.arange(periods) % 2 == 0, -20.0, 26.0)
+    weather = pd.DataFrame({C.DATETIME: index, C.TEMP_AIR: temp_air}, index=index)
+
+    obj = {
+        O.ID: "b_wide_db",
+        # Fast decay: τ ≈ 100 s → Δt/τ = 36; T settles near T_out per step.
+        O.CAPACITANCE: 1e5,
+        O.RESISTANCE: 0.001,
+        O.TEMP_INIT: (T_min + T_max) / 2,
+        O.TEMP_MIN: T_min,
+        O.TEMP_MAX: T_max,
+        O.DEADBAND: deadband,
+        O.LAT: 48.1,
+        O.LON: 11.6,
+        O.GAINS_INTERNAL: 0,
+        O.VENTILATION: 0.0,
+        O.ACTIVE_GAINS_SOLAR: False,
+        O.ACTIVE_GAINS_INTERNAL: False,
+        O.WEATHER: "weather_wide_db",
+    }
+    ts = R1C1().generate(obj, {"weather_wide_db": weather}, Types.HVAC)["timeseries"]
+    p_heat = ts[f"{Types.HEATING}{SEP}{C.LOAD}[W]"].to_numpy()
+    p_cool = ts[f"{Types.COOLING}{SEP}{C.LOAD}[W]"].to_numpy()
+
+    # The primary claim: no step ever fires both.
+    both = (p_heat > 0) & (p_cool > 0)
+    assert (
+        not both.any()
+    ), f"Heating and cooling fired simultaneously on {int(both.sum())} steps — wide-band mutex broken."
+    # Sanity: at least *some* actuator fires during the run.
+    assert (p_heat > 0).any() or (p_cool > 0).any()

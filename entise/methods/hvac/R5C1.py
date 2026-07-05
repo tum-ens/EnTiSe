@@ -19,6 +19,7 @@ from entise.methods.hvac.defaults import (
     DEFAULT_ACTIVE_INTERNAL_GAINS,
     DEFAULT_ACTIVE_SOLAR_GAINS,
     DEFAULT_ACTIVE_VENTILATION,
+    DEFAULT_DEADBAND,
     DEFAULT_FRAC_CONV_INTERNAL,
     DEFAULT_FRAC_RAD_MASS,
     DEFAULT_FRAC_RAD_SURFACE,
@@ -98,6 +99,7 @@ class R5C1(Method):
         O.TEMP_INIT,
         O.TEMP_MIN,
         O.TEMP_MAX,
+        O.DEADBAND,
         O.TEMP_SUPPLY,
         O.AREA,
         O.HEIGHT,
@@ -237,6 +239,10 @@ class R5C1(Method):
             O.H_TR_W: float(obj[O.H_TR_W]),
             O.H_TR_EM: float(obj[O.H_TR_EM]),
             O.CAPACITANCE_AIR: float(capacity_air),
+            # Symmetric thermostat dead band. deadband = 0 collapses the
+            # hysteresis state machine to aim-for-setpoint (bit-exact
+            # regression against the pre-hysteresis solver).
+            O.DEADBAND: float(obj.get(O.DEADBAND, DEFAULT_DEADBAND)),
         }
         data_out["params"] = params
 
@@ -316,6 +322,7 @@ class R5C1(Method):
             O.TEMP_INIT: self.get_with_method_backup(obj, O.TEMP_INIT, method_type, DEFAULT_TEMP_INIT),
             O.TEMP_MAX: self.get_with_method_backup(obj, O.TEMP_MAX, method_type, DEFAULT_TEMP_MAX),
             O.TEMP_MIN: self.get_with_method_backup(obj, O.TEMP_MIN, method_type, DEFAULT_TEMP_MIN),
+            O.DEADBAND: self.get_with_method_backup(obj, O.DEADBAND, method_type, DEFAULT_DEADBAND),
             O.TEMP_SUPPLY: self.get_with_method_backup(obj, O.TEMP_SUPPLY, method_type),
             # 5R1C RC parameters
             O.C_M: self.get_with_method_backup(obj, O.C_M, method_type),
@@ -433,6 +440,7 @@ def calculate_timeseries_5r1c(
     Htr_w = params[O.H_TR_W]
     Htr_em = params[O.H_TR_EM]
     capacity_air = params[O.CAPACITANCE_AIR]
+    deadband = float(params.get(O.DEADBAND, DEFAULT_DEADBAND))
 
     # Splits
     sigma_surface = splits[O.SIGMA_SURFACE]
@@ -454,6 +462,11 @@ def calculate_timeseries_5r1c(
     T_in_arr[0] = Ta
     Qh_arr[0] = 0.0
     Qc_arr[0] = 0.0
+
+    # Hysteresis state — see issue #102 and the R1C1 solver for the
+    # matching state-machine definition.
+    heating_on = False
+    cooling_on = False
 
     # Precompute gain splits
     phi_ia_arr, phi_st_arr, phi_m_arr = _split_gains_5r1c(
@@ -517,9 +530,27 @@ def calculate_timeseries_5r1c(
 
         Q_applied = 0.0
 
-        # 2) Decide whether we need heating or cooling based on free-float air temperature
-        if Ta_free < T_min and on_heat:
-            # Need heating to keep at lower bound (T_set = T_min)
+        # 2) Hysteresis-aware trigger. `heating_on` fires when either
+        #    (a) heating was off and Ta_free dropped below T_min, or
+        #    (b) heating was on and Ta_free is still below the upper band edge.
+        # Cooling mirrors. When deadband == 0 the two branches collapse to
+        # "fire iff Ta_free < T_min" and the "on" branch never fires more
+        # than the "off" branch would — bit-exact regression.
+        T_min_hi = T_min + deadband
+        T_max_lo = T_max - deadband
+        # Wide-band mutex: clear the opposite latch whenever the primary
+        # extreme trigger of the other side fires. Physically we cannot heat
+        # while already above T_max, nor cool while below T_min. With
+        # deadband = 0 these guards are no-ops.
+        if Ta_free > T_max:
+            heating_on = False
+        if Ta_free < T_min:
+            cooling_on = False
+        fire_h = on_heat and (Ta_free < T_min or (heating_on and Ta_free < T_min_hi))
+        fire_c = on_cool and (Ta_free > T_max or (cooling_on and Ta_free > T_max_lo))
+
+        if fire_h:
+            # Aim for the upper band edge (T_min when deadband == 0).
             sol_tset = solve_step_tset_5r1c(
                 Cm=Cm,
                 Htr_is=Htr_is,
@@ -536,7 +567,7 @@ def calculate_timeseries_5r1c(
                 phi_m=phi_m,
                 sigma_surface=sigma_surface,
                 sigma_conv=sigma_conv,
-                T_set=T_min,
+                T_set=T_min_hi,
                 Tm_prev=Tm,
                 Ta_prev=Ta,
                 dt_s=dt_s,
@@ -568,13 +599,15 @@ def calculate_timeseries_5r1c(
                     dt_s=dt_s,
                     Y=Y_phiset_const,
                 )
-                Ta = float(sol_phi[1])  # < T_min
+                Ta = float(sol_phi[1])  # < T_min_hi
                 Tm = float(sol_phi[3])
             else:
-                Ta = float(sol_tset[1])  # == T_min
+                Ta = float(sol_tset[1])  # == T_min_hi
                 Tm = float(sol_tset[3])
-        elif Ta_free > T_max and on_cool:
-            # Need cooling to keep at upper bound (T_set = T_max)
+            heating_on = True
+            cooling_on = False
+        elif fire_c:
+            # Aim for the lower band edge (T_max when deadband == 0).
             sol_tset = solve_step_tset_5r1c(
                 Cm=Cm,
                 Htr_is=Htr_is,
@@ -591,7 +624,7 @@ def calculate_timeseries_5r1c(
                 phi_m=phi_m,
                 sigma_surface=sigma_surface,
                 sigma_conv=sigma_conv,
-                T_set=T_max,
+                T_set=T_max_lo,
                 Tm_prev=Tm,
                 Ta_prev=Ta,
                 dt_s=dt_s,
@@ -623,16 +656,20 @@ def calculate_timeseries_5r1c(
                     dt_s=dt_s,
                     Y=Y_phiset_const,
                 )
-                Ta = float(sol_phi[1])  # > T_max
+                Ta = float(sol_phi[1])  # > T_max_lo
                 Tm = float(sol_phi[3])
             else:
-                Ta = float(sol_tset[1])  # == T_max
+                Ta = float(sol_tset[1])  # == T_max_lo
                 Tm = float(sol_tset[3])
+            heating_on = False
+            cooling_on = True
 
         else:
             # Free-float stays within band or HVAC off
-            Ta = Ta_free  # T_min < Ta_free < T_max
+            Ta = Ta_free  # T_min < Ta_free < T_max (or actuator off/in-band)
             Tm = Tm_free
+            heating_on = False
+            cooling_on = False
 
         T_in_arr[t] = Ta
         Qh_arr[t] = max(Q_applied, 0.0)

@@ -775,3 +775,175 @@ def test_r7c2_vdi_ventilation_effect():
     demand_high = result_high["summary"][f"{Types.HEATING}{SEP}{C.DEMAND}[Wh]"]
 
     assert demand_high > demand_low, "Higher ventilation should increase heating demand in cold weather"
+
+
+# --- Thermostat dead band / hysteresis (issue #102) --------------------------
+
+
+def _r7c2_flat_weather(periods: int, temp_c: float) -> pd.DataFrame:
+    idx = pd.date_range("2025-01-01", periods=periods, freq="h", tz="UTC")
+    return pd.DataFrame(
+        {
+            C.DATETIME: idx,
+            C.TEMP_AIR: np.full(periods, temp_c),
+            C.SOLAR_GHI: np.zeros(periods),
+            C.SOLAR_DHI: np.zeros(periods),
+            C.SOLAR_DNI: np.zeros(periods),
+        },
+        index=idx,
+    )
+
+
+def test_r7c2_deadband_default_zero_matches_omitted(basic_7r2c_object):
+    """Explicit deadband=0 reproduces the omitted-deadband output bit-for-bit."""
+    weather = _r7c2_flat_weather(96, -5.0)
+    obj_no = {**basic_7r2c_object, O.ID: "r7_no_db"}
+    obj_zero = {**basic_7r2c_object, O.ID: "r7_db_zero", O.DEADBAND: 0.0}
+
+    ts_no = R7C2().generate(obj_no, {O.WEATHER: weather.copy()}, Types.HVAC)["timeseries"]
+    ts_zero = R7C2().generate(obj_zero, {O.WEATHER: weather.copy()}, Types.HVAC)["timeseries"]
+
+    for col in ts_no.columns:
+        assert np.array_equal(
+            ts_no[col].to_numpy(), ts_zero[col].to_numpy()
+        ), f"deadband=0 diverged from omitted on column {col}"
+
+
+def test_r7c2_heating_with_deadband_targets_upper_band(basic_7r2c_object):
+    """Cold ambient, deadband=2 K → T settles at T_min + 2."""
+    deadband = 2.0
+    T_min = 20.0
+    weather = _r7c2_flat_weather(240, -10.0)
+
+    obj = {
+        **basic_7r2c_object,
+        O.ID: "r7_heat_db",
+        O.TEMP_MIN: T_min,
+        O.TEMP_MAX: 30.0,
+        O.DEADBAND: deadband,
+        O.ACTIVE_COOLING: False,
+        O.ACTIVE_GAINS_SOLAR: False,
+        O.ACTIVE_GAINS_INTERNAL: False,
+    }
+    ts = R7C2().generate(obj, {O.WEATHER: weather}, Types.HVAC)["timeseries"]
+
+    assert ts[C.TEMP_IN].iloc[-1] == pytest.approx(T_min + deadband, abs=0.15)
+    assert ts[f"{Types.HEATING}{SEP}{C.LOAD}[W]"].iloc[-1] > 0
+
+
+def test_r7c2_cooling_with_deadband_targets_lower_band(basic_7r2c_object):
+    """Hot ambient, deadband=2 K → T settles at T_max − 2."""
+    deadband = 2.0
+    T_max = 24.0
+    weather = _r7c2_flat_weather(240, 35.0)
+
+    obj = {
+        **basic_7r2c_object,
+        O.ID: "r7_cool_db",
+        O.TEMP_MIN: 15.0,
+        O.TEMP_MAX: T_max,
+        O.DEADBAND: deadband,
+        O.ACTIVE_HEATING: False,
+        O.ACTIVE_GAINS_SOLAR: False,
+        O.ACTIVE_GAINS_INTERNAL: False,
+    }
+    ts = R7C2().generate(obj, {O.WEATHER: weather}, Types.HVAC)["timeseries"]
+
+    assert ts[C.TEMP_IN].iloc[-1] == pytest.approx(T_max - deadband, abs=0.15)
+    assert ts[f"{Types.COOLING}{SEP}{C.LOAD}[W]"].iloc[-1] > 0
+
+
+def test_r7c2_deadband_latches_across_in_band_transient(basic_7r2c_object):
+    """State-machine correctness test — see R5C1 counterpart for rationale.
+    Cold spike forces the heater on; then mild ambient just above T_min.
+    In the tail the deadband case fires strictly more than the baseline
+    because the latch keeps triggering while Ta_free is inside the band."""
+    periods = 72
+    T_min = 20.0
+    deadband = 3.0
+    idx = pd.date_range("2025-01-01", periods=periods, freq="h", tz="UTC")
+    temp_air = np.concatenate([np.full(6, -20.0), np.full(periods - 6, T_min + 0.5)])
+    weather = pd.DataFrame(
+        {
+            C.DATETIME: idx,
+            C.TEMP_AIR: temp_air,
+            C.SOLAR_GHI: np.zeros(periods),
+            C.SOLAR_DHI: np.zeros(periods),
+            C.SOLAR_DNI: np.zeros(periods),
+        },
+        index=idx,
+    )
+
+    def _obj(db):
+        return {
+            **basic_7r2c_object,
+            O.ID: f"r7_latch_{db}",
+            O.C_1_AW: 5e5,
+            O.C_1_IW: 5e5,
+            O.TEMP_INIT: T_min,
+            O.TEMP_MIN: T_min,
+            O.TEMP_MAX: 40.0,
+            O.DEADBAND: db,
+            O.ACTIVE_COOLING: False,
+            O.ACTIVE_GAINS_SOLAR: False,
+            O.ACTIVE_GAINS_INTERNAL: False,
+        }
+
+    p_no = (
+        R7C2()
+        .generate(_obj(0.0), {O.WEATHER: weather.copy()}, Types.HVAC)["timeseries"][f"{Types.HEATING}{SEP}{C.LOAD}[W]"]
+        .to_numpy()
+    )
+    p_db = (
+        R7C2()
+        .generate(_obj(deadband), {O.WEATHER: weather.copy()}, Types.HVAC)["timeseries"][
+            f"{Types.HEATING}{SEP}{C.LOAD}[W]"
+        ]
+        .to_numpy()
+    )
+
+    tail = slice(-24, None)
+    assert (
+        p_db[tail].sum() > p_no[tail].sum() * 1.5
+    ), f"Deadband heater tail sum {p_db[tail].sum()} not meaningfully greater than baseline {p_no[tail].sum()}."
+    assert not np.array_equal(
+        p_no[tail], p_db[tail]
+    ), "Deadband produced identical output to baseline in the mild tail — state machine not exercised."
+
+
+def test_r7c2_wide_deadband_does_not_double_fire(basic_7r2c_object):
+    """Wide-band mutex regression — see R1C1 counterpart for rationale."""
+    periods = 48
+    T_min = 20.0
+    T_max = 24.0
+    deadband = 10.0
+    idx = pd.date_range("2025-01-01", periods=periods, freq="h", tz="UTC")
+    temp_air = np.where(np.arange(periods) % 2 == 0, -20.0, 30.0)
+    weather = pd.DataFrame(
+        {
+            C.DATETIME: idx,
+            C.TEMP_AIR: temp_air,
+            C.SOLAR_GHI: np.zeros(periods),
+            C.SOLAR_DHI: np.zeros(periods),
+            C.SOLAR_DNI: np.zeros(periods),
+        },
+        index=idx,
+    )
+    obj = {
+        **basic_7r2c_object,
+        O.ID: "r7_wide_db",
+        O.TEMP_MIN: T_min,
+        O.TEMP_MAX: T_max,
+        O.DEADBAND: deadband,
+        O.ACTIVE_GAINS_SOLAR: False,
+        O.ACTIVE_GAINS_INTERNAL: False,
+    }
+    ts = R7C2().generate(obj, {O.WEATHER: weather}, Types.HVAC)["timeseries"]
+    p_heat = ts[f"{Types.HEATING}{SEP}{C.LOAD}[W]"].to_numpy()
+    p_cool = ts[f"{Types.COOLING}{SEP}{C.LOAD}[W]"].to_numpy()
+
+    both = (p_heat > 0) & (p_cool > 0)
+    assert (
+        not both.any()
+    ), f"Heating and cooling fired simultaneously on {int(both.sum())} steps — wide-band mutex broken."
+    assert (p_heat > 0).any() or (p_cool > 0).any()
