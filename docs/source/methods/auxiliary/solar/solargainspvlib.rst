@@ -165,9 +165,12 @@ Public methods
                    poa = irr["poa_global"].to_numpy(dtype=np.float32, copy=False)
                    _POA_CACHE[poa_key] = poa
 
-               # Compute window gains from POA
-               window_gains = poa * float(window[C.AREA]) * float(window[C.G_VALUE]) * float(window[C.SHADING])
-               total_solar_gains += window_gains.astype(np.float32, copy=False)
+               # Compute window gains from POA. Cast scalars to np.float32 so
+               # `poa * area * g * sh` stays float32 (Python `float` would promote
+               # the intermediate array to float64 and force a copy back).
+               area = np.float32(window[C.AREA])
+               g = np.float32(window[C.G_VALUE])
+               sh = np.float32(window[C.SHADING])
+               total_solar_gains += poa * area * g * sh
 
            return pd.DataFrame({O.GAINS_SOLAR: total_solar_gains}, index=weather.index)
-

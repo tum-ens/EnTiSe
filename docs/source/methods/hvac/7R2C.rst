@@ -44,9 +44,9 @@ Key facts
 
 - Supported types:
 
-  
+
   - ``hvac``
-  
+
 
 
 Requirements
@@ -82,6 +82,9 @@ Optional keys (specify in objects)
 - ``init_temperature[C]``
 - ``min_temperature[C]``
 - ``max_temperature[C]``
+- ``deadband[K]``
+- ``target_humidity_rel[1]``
+- ``gains_internal_latent[W]``
 - ``supply_temperature[C]``
 - ``area[m2]``
 - ``height[m]``
@@ -134,19 +137,19 @@ Summary metrics
 
    * - Key
      - Description
-   
+
    * - ``heating:demand[Wh]``
      - total heating demand
-   
+
    * - ``heating:load_max[W]``
      - maximum heating load
-   
+
    * - ``cooling:demand[Wh]``
-     - total cooling demand
-   
+     - total cooling demand (sensible + latent)
+
    * - ``cooling:load_max[W]``
-     - maximum cooling load
-   
+     - maximum cooling load (sensible + latent)
+
 
 
 Timeseries columns
@@ -159,16 +162,22 @@ Timeseries columns
 
    * - Column
      - Description
-   
+
    * - ``indoor_temperature[C]``
      - indoor air temperature
-   
+
    * - ``heating:load[W]``
      - heating load
-   
+
    * - ``cooling:load[W]``
-     - cooling load
-   
+     - total cooling load (sensible + latent)
+
+   * - ``cooling:sensible_load[W]``
+     - sensible cooling load
+
+   * - ``cooling:latent_load[W]``
+     - latent cooling load
+
 
 
 Public methods
@@ -189,7 +198,12 @@ Public methods
            temp_in, p_heat, p_cool = calculate_timeseries_7r2c(**data)
 
            meta = data["meta"]
+           p_cool_sensible, p_cool_latent = self._apply_latent_cooling(obj, data, p_cool)
            return self._format_output(
-               temp_in.round(3), p_heat.round().astype(int), p_cool.round().astype(int), meta["index"], meta["dt_s"]
+               temp_in.round(3),
+               p_heat.round().astype(int),
+               p_cool_sensible.round().astype(int),
+               p_cool_latent.round().astype(int),
+               meta["index"],
+               meta["dt_s"],
            )
-

@@ -45,27 +45,31 @@ def _preprocess_weather(weather: pd.DataFrame) -> pd.DataFrame:
 class R1C1(Method):
     """1R1C thermal RC model (single resistance, single capacitance).
 
-    Purpose and scope:
-      - Computes indoor air temperature and heating/cooling load required to keep
-      setpoints using a minimal grey‑box model with one thermal resistance (R)
-      to ambient and one thermal capacitance (C) representing the zone’s thermal
-      inertia. Ventilation losses and internal/solar gains can be accounted for
-      via auxiliary strategies or direct inputs.
+    Purpose and scope
+        Computes indoor air temperature and heating/cooling load required
+        to keep setpoints using a minimal grey-box model with one thermal
+        resistance (R) to ambient and one thermal capacitance (C)
+        representing the zone's thermal inertia. Ventilation losses and
+        internal/solar gains can be accounted for via auxiliary strategies
+        or direct inputs.
 
-    Model sketch (discrete time):
-      - T_in[t+1] = T_in[t] + (Δt/C)·( (T_out[t] − T_in[t])/R + G_int[t] + G_sol[t] + H_ve[t]·(T_out[t] − T_in[t])
-      + P_heat[t] − P_cool[t] )
-      - P_heat/P_cool are clipped to maximum device powers and only active when
-      setpoint violations would occur.
+    Model sketch (discrete time)
+        ``T_in[t+1] = T_in[t] + (Δt/C) · ( (T_out[t] − T_in[t])/R
+        + G_int[t] + G_sol[t] + H_ve[t]·(T_out[t] − T_in[t])
+        + P_heat[t] − P_cool[t] )``. ``P_heat`` / ``P_cool`` are clipped to
+        maximum device powers and only active when setpoint violations
+        would occur.
 
-    Typical use:
-    - Quick load estimates, large batch simulations, or control studies where a
-      lightweight model is sufficient and detailed envelope dynamics are not
-      required. For more detailed dynamics, consider 5R1C (ISO 13790) or 7R2C (VDI 6007).
+    Typical use
+        Quick load estimates, large batch simulations, or control studies
+        where a lightweight model is sufficient and detailed envelope
+        dynamics are not required. For more detailed dynamics, consider
+        5R1C (ISO 13790) or 7R2C (VDI 6007).
 
-    References:
-    - Grey‑box RC modeling of buildings (overview): many texts incl. ISO 13790 annexes;
-      see also VDI 6007 for extended multi‑node approaches.
+    References
+        Grey-box RC modeling of buildings (overview): many texts incl.
+        ISO 13790 annexes; see also VDI 6007 for extended multi-node
+        approaches.
     """
 
     types = [Types.HVAC]
@@ -461,14 +465,15 @@ _G_TOT_EPS = np.float32(1e-9)
 def calculate_timeseries_1r1c(obj: dict, data: dict, timestep: float) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Dispatch to numpy or numba path based on the active accelerator.
 
-    The two paths implement the same physics (analytical exponential update)
-    and produce numerically identical results up to a few ULPs. See
-    :func:`_calculate_timeseries_numpy` for the physics and
-    :mod:`entise.methods.hvac._R1C1_numba` for the JIT-compiled variant.
+    The two paths implement the same physics (analytical exponential
+    update) and produce numerically identical results up to a few ULPs.
+    See ``_calculate_timeseries_numpy`` for the physics and the private
+    ``entise.methods.hvac._R1C1_numba`` module for the JIT-compiled
+    variant.
 
-    The accelerator is chosen by :func:`entise.get_accelerator`, controlled
+    The accelerator is chosen by ``entise.get_accelerator``, controlled
     by the ``ENTISE_ACCELERATOR`` environment variable and the
-    :func:`entise.set_accelerator` runtime API.
+    ``entise.set_accelerator`` runtime API.
     """
     from entise.perf import get_accelerator
 

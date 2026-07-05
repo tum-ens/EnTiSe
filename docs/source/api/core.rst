@@ -6,7 +6,7 @@ Core API
 This section provides detailed API documentation for the core modules of EnTiSe.
 
 TimeSeriesGenerator
-------------------
+-------------------
 
 .. automodule:: entise.core.generator
    :members:
@@ -14,7 +14,7 @@ TimeSeriesGenerator
    :show-inheritance:
 
 RowExecutor
-----------
+-----------
 
 .. automodule:: entise.core.runner
    :members:
@@ -22,7 +22,7 @@ RowExecutor
    :show-inheritance:
 
 Base Classes
------------
+------------
 
 .. automodule:: entise.core.base
    :members:
@@ -30,7 +30,7 @@ Base Classes
    :show-inheritance:
 
 Auxiliary Base Classes
---------------------
+----------------------
 
 .. automodule:: entise.core.base_auxiliary
    :members:
@@ -38,7 +38,7 @@ Auxiliary Base Classes
    :show-inheritance:
 
 Registry
--------
+--------
 
 .. automodule:: entise.core.registry
    :members:

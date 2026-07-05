@@ -17,22 +17,24 @@ logger = logging.getLogger(__name__)
 
 
 class GeoMA(Method):
-    """
-    Binary occupancy inference from electricity demand via a Geometric Moving Average (GeoMA).
+    """Binary occupancy inference from electricity demand via a Geometric Moving Average (GeoMA).
 
-    Purpose and scope:
-    - Compares the log‑transformed instantaneous power against its exponentially weighted
-      moving average (EWM). If the current reading exceeds the EWM (geometric mean on the
-      original scale), occupancy=1 else 0. An optional nightly schedule can force unoccupied
-      states during specified hours.
+    Purpose and scope
+        Compares the log-transformed instantaneous power against its
+        exponentially weighted moving average (EWM). If the current
+        reading exceeds the EWM (geometric mean on the original scale),
+        occupancy=1 else 0. An optional nightly schedule can force
+        unoccupied states during specified hours.
 
-    Notes:
-    - Electricity demand supplies the timestamp index; no separate clock needed.
-    - Uses log10 with a small epsilon to avoid log(0) and stabilize low values.
-    - Smoothing parameter ``Objects.LAMBDA`` tunes responsiveness of the EWM.
+    Notes
+        Electricity demand supplies the timestamp index; no separate
+        clock needed. Uses log10 with a small epsilon to avoid log(0)
+        and stabilize low values. Smoothing parameter ``Objects.LAMBDA``
+        tunes responsiveness of the EWM.
 
-    Related methods:
-    - See also PHT (Page–Hinkley Test) for change‑point based detection on the same input.
+    Related methods
+        See also PHT (Page–Hinkley Test) for change-point based
+        detection on the same input.
     """
 
     types = [Types.OCCUPANCY]

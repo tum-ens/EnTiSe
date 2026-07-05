@@ -11,6 +11,12 @@ class extends `AuxiliaryMethod` to utilize its auxiliary functionalities and is
 designed to be used in scenarios where internal gains need to be modeled or
 analyzed.
 
+Note: the value produced here is the **sensible** portion of internal gains
+(the heat flux that raises air temperature). The latent portion —
+moisture release from occupants, cooking, etc. — belongs in the
+separate ``gains_internal_latent[W]`` object key so the RC HVAC
+latent-cooling post-pass (issue #103) can account for it correctly.
+
 
 Key facts
 ---------
@@ -107,4 +113,3 @@ Public methods
            return pd.DataFrame(
                {O.GAINS_INTERNAL: np.full(len(weather), gains_internal, dtype=np.float32)}, index=weather.index
            )
-

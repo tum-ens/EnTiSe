@@ -55,30 +55,33 @@ def _preprocess_weather(weather: pd.DataFrame) -> pd.DataFrame:
 class R5C1(Method):
     """5R1C HVAC model aligned with ISO 13790's simplified dynamic method.
 
-    Purpose and scope:
-    - Captures key heat transfer paths between indoor air, internal surfaces,
-      thermal mass, and exterior using five resistances and one aggregated
-      capacitance (building mass). Better represents radiant/convective splits
-      and envelope interactions than 1R1C, while remaining efficient for
-      large‑scale simulations.
+    Purpose and scope
+        Captures key heat transfer paths between indoor air, internal
+        surfaces, thermal mass, and exterior using five resistances and
+        one aggregated capacitance (building mass). Better represents
+        radiant/convective splits and envelope interactions than 1R1C,
+        while remaining efficient for large-scale simulations.
 
-    Conceptual structure:
-    - Capacitance C_m (building thermal mass) exchanges with internal surfaces
-      via H_tr,ms and with indoor air via H_tr,is; windows and opaque elements
-      couple to exterior via H_tr,w and H_tr,em. Optional sky correction via H_tr,op,sky.
-    - Internal and solar gains are split into radiant/convective parts and routed
-      to air, surfaces, and mass using σ parameters.
-    - Ventilation losses are handled via H_ve (scalar or timeseries).
+    Conceptual structure
+        Capacitance ``C_m`` (building thermal mass) exchanges with
+        internal surfaces via ``H_tr,ms`` and with indoor air via
+        ``H_tr,is``; windows and opaque elements couple to exterior via
+        ``H_tr,w`` and ``H_tr,em``. Optional sky correction via
+        ``H_tr,op,sky``. Internal and solar gains are split into
+        radiant/convective parts and routed to air, surfaces, and mass
+        using σ parameters. Ventilation losses are handled via ``H_ve``
+        (scalar or timeseries).
 
-    Notes:
-    - Implements the ISO 13790 simplified dynamic method assumptions (lumped mass
-      and linear heat transfer). Parameter mapping follows standard notation.
-    - For even richer transient behavior and phase shifts, consider a 7R2C model
-      (see VDI 6007).
+    Notes
+        Implements the ISO 13790 simplified dynamic method assumptions
+        (lumped mass and linear heat transfer). Parameter mapping follows
+        standard notation. For even richer transient behavior and phase
+        shifts, consider a 7R2C model (see VDI 6007).
 
-    Reference:
-    - ISO 13790: Energy performance of buildings — Calculation of energy use for
-      space heating and cooling (simplified dynamic method).
+    Reference
+        ISO 13790: Energy performance of buildings — Calculation of
+        energy use for space heating and cooling (simplified dynamic
+        method).
     """
 
     types = [Types.HVAC]

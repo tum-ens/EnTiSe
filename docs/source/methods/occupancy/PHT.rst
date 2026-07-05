@@ -6,23 +6,22 @@ Overview
 
 Binary occupancy inference from electricity demand using the Page–Hinkley Test (PHT).
 
-Purpose and scope:
+Purpose and scope
+Applies a Page–Hinkley change detector to log-power to identify
+sustained upward/downward drifts. Upward drifts set occupancy=1;
+downward drifts reset to 0. Optional nightly rules can force
+off-hours to unoccupied.
 
-- Applies a Page–Hinkley change detector to log‑power to identify sustained upward/downward drifts. Upward drifts set occupancy=1; downward drifts reset to 0. Optional nightly rules can force off‑hours to unoccupied.
+Notes
+Electricity load provides the timestamps; no separate clock is
+required. Power is log10-transformed with an epsilon to stabilize
+low values. Sensitivity is tuned via lambda (running mean),
+baseline_offset, and detection_threshold.
 
-Notes:
-
-- Electricity load provides the timestamps; no separate clock is required.
-
-- Power is log10‑transformed with an epsilon to stabilize low values.
-
-- Sensitivity is tuned via lambda (running mean), baseline_offset, and detection_threshold.
-
-References:
-
-- Page, E. S. (1954). Continuous Inspection Schemes. Biometrika.
-
-- Hinkley, D. V. (1971). Inference about the change‑point in a sequence of random variables.
+References
+Page, E. S. (1954). Continuous Inspection Schemes. Biometrika.
+Hinkley, D. V. (1971). Inference about the change-point in a
+sequence of random variables.
 
 
 Key facts
@@ -32,9 +31,9 @@ Key facts
 
 - Supported types:
 
-  
+
   - ``occupancy``
-  
+
 
 
 Requirements
@@ -88,10 +87,10 @@ Summary metrics
 
    * - Key
      - Description
-   
+
    * - ``occupancy:average_occupancy``
      - average occupancy
-   
+
 
 
 Timeseries columns
@@ -104,10 +103,10 @@ Timeseries columns
 
    * - Column
      - Description
-   
+
    * - ``occupancy:occupancy[1]``
      - binary occupancy schedule (0/1)
-   
+
 
 
 Public methods
@@ -142,14 +141,15 @@ Public methods
            Args:
                obj (dict, optional):
                    Object parameters. Relevant keys (under the current method type) include:
-                   - O.LAMBDA (float): Exponential smoothing parameter used for the running average.
-                   - O.BASELINE_OFFSET (float): Baseline offset subtracted from deviations to
+
+                   - ``O.LAMBDA`` (float): Exponential smoothing parameter used for the running average.
+                   - ``O.BASELINE_OFFSET`` (float): Baseline offset subtracted from deviations to
                      tune sensitivity (positive values reduce false positives).
-                   - O.DETECTION_THRESHOLD (float | int): Threshold for detecting drifts in the
+                   - ``O.DETECTION_THRESHOLD`` (float | int): Threshold for detecting drifts in the
                      Page–Hinkley statistic; larger values make detection less sensitive.
-                   - O.NIGHT_SCHEDULE (bool): Whether to enforce a nightly schedule.
-                   - O.NIGHT_SCHEDULE_START (int): Start hour of nightly off period [0-23].
-                   - O.NIGHT_SCHEDULE_END (int): End hour of nightly off period [0-23].
+                   - ``O.NIGHT_SCHEDULE`` (bool): Whether to enforce a nightly schedule.
+                   - ``O.NIGHT_SCHEDULE_START`` (int): Start hour of nightly off period [0-23].
+                   - ``O.NIGHT_SCHEDULE_END`` (int): End hour of nightly off period [0-23].
                data (dict, optional):
                    Not used directly. The electricity time series is expected to be available in
                    results under Types.ELECTRICITY.
@@ -201,4 +201,3 @@ Public methods
            occ_schedule = calculate_timeseries(processed_obj, processed_data)
 
            return self._format_output(occ_schedule, processed_data)
-

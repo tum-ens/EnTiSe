@@ -16,6 +16,7 @@ different aspect of the library, from basic usage to more complex scenarios. You
    examples/heat_demandlib/runme
    examples/heat_districtheatingsim/runme
    examples/hp_ruhnau/runme
+   examples/hvac_1r0c/runme
    examples/hvac_1r1c/runme
    examples/hvac_5r1c/runme
    examples/hvac_7r2c/runme

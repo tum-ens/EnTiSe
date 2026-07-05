@@ -88,7 +88,7 @@ dictionary or the data dictionary based on the method's defined `required_keys`,
 `optional_keys`, `required_timeseries`, and `optional_timeseries` attributes.
 
 HVAC Methods
------------
+------------
 
 .. automodule:: entise.methods.hvac
    :members:
