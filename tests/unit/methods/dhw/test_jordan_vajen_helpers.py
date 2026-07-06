@@ -172,7 +172,7 @@ def test_get_water_temperatures():
 
     # Create sample weather data
     start = pd.Timestamp("2023-01-01")
-    end = start + pd.Timedelta(days=7)
+    end = start + pd.Timedelta(7, unit="D")
     index = pd.date_range(start=start, end=end, freq="h")
     weather = pd.DataFrame({C.DATETIME: index})
 

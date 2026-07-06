@@ -206,8 +206,11 @@ def test_resampling_behaviour_preserves_energy_across_dt_s():
     """Verify that resampling SLP from 15 min to various dt_s preserves total energy within tolerance."""
     # Build 24h @ different dt_s values to cover up/down sampling around 15 min
     for freq in ["15min", "30min", "60min", "5min"]:
-        periods = int(pd.Timedelta("24h") / pd.Timedelta(freq))
-        weather = pd.DataFrame({C.DATETIME: pd.date_range("2022-01-01", periods=periods, freq=freq, tz="UTC")})
+        # Build the index directly instead of dividing pd.Timedelta objects — the
+        # string-form ``pd.Timedelta("24h")`` triggers numpy 2.5's "generic unit"
+        # DeprecationWarning that pytest 9 escalates to a failure.
+        idx = pd.date_range("2022-01-01", "2022-01-02", freq=freq, tz="UTC", inclusive="left")
+        weather = pd.DataFrame({C.DATETIME: idx})
         obj = {O.ID: "obj_1", O.DEMAND_KWH: 3_000.0, O.PROFILE: "h0", O.DATETIMES: O.DATETIMES}
         data = {O.DATETIMES: weather}
 

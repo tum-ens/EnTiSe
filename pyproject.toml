@@ -61,6 +61,9 @@ docs = [
     "sphinxcontrib-mermaid",
     "sphinx-rtd-theme",
 ]
+numba = [
+    "numba>=0.59",
+]
 # Commented out for PyPI compatibility - install manually if needed
 # districtheatingsim = [
 #     "districtheatingsim @ git+https://github.com/JonasPfeiffer123/DistrictHeatingSim.git ; python_version >= '3.11' and python_version < '3.12'",

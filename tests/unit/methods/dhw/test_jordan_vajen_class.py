@@ -19,7 +19,7 @@ from entise.methods.dhw.jordan_vajen import JordanVajen
 def create_sample_weather(start_date="2023-01-01", days=7, freq="h"):
     """Create sample weather data for testing."""
     start = pd.Timestamp(start_date, tz="UTC")
-    end = start + pd.Timedelta(days=days)
+    end = start + pd.Timedelta(days, unit="D")
     index = pd.date_range(start=start, end=end, freq=freq)
 
     # Create a DataFrame with temperature data

@@ -121,7 +121,10 @@ def test_multiyear_concat_runs():
 def test_resampling_behaviour_preserves_energy_in_summary():
     """Verify that summary Wh matches recomputed Wh from the emitted timeseries for multiple dt_s."""
     for freq in ["60min", "15min", "5min"]:
-        periods = int(pd.Timedelta("2h") / pd.Timedelta(freq))
+        # date_range + len instead of Timedelta division: see note in
+        # tests/unit/methods/electricity/test_demandlib.py::test_resampling_...
+        _rng = pd.date_range("2022-01-01 00:00:00", "2022-01-01 02:00:00", freq=freq, inclusive="left")
+        periods = len(_rng)
         dts = _make_datetimes("2022-01-01 00:00:00", periods=periods, freq=freq)
 
         obj = {

@@ -29,7 +29,9 @@ def apply_nightly_schedule(df_occ_schedule, start_hour, end_hour) -> pd.DataFram
         if mask.any():
             # Define start and end times
             start_time = mask[mask].index[0]
-            end_time = start_time.normalize() + pd.Timedelta(days=1, hours=9)
+            # 1 day + 9 hours, expressed as seconds to sidestep numpy 2.5's
+            # "generic unit" DeprecationWarning on multi-keyword pd.Timedelta.
+            end_time = start_time.normalize() + pd.Timedelta(1 * 86400 + 9 * 3600, unit="s")
 
             # Apply rule - use loc for efficient assignment
             mask = (df_result.index >= start_time) & (df_result.index <= end_time)

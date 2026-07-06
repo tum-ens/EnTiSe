@@ -421,7 +421,7 @@ class OpenMeteoProvider(WeatherProvider):
             "datetime": pd.date_range(
                 start=pd.to_datetime(hourly.Time(), unit="s", utc=True),
                 end=pd.to_datetime(hourly.TimeEnd(), unit="s", utc=True),
-                freq=pd.Timedelta(seconds=hourly.Interval()),
+                freq=pd.Timedelta(int(hourly.Interval()), unit="s"),
                 inclusive="left",
             )
         }
@@ -439,7 +439,7 @@ class OpenMeteoProvider(WeatherProvider):
             hs = self._calculate_sun_elevation(
                 pd.to_datetime(hourly.Time(), unit="s", utc=True),
                 pd.to_datetime(hourly.TimeEnd(), unit="s", utc=True),
-                pd.Timedelta(seconds=hourly.Interval()),
+                pd.Timedelta(int(hourly.Interval()), unit="s"),
                 response.Latitude(),
                 response.Longitude(),
                 elevation,

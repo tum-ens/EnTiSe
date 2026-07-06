@@ -26,6 +26,7 @@ class Objects:
     COLUMN = "column"
     CORRECTION_FACTOR = "correction_factor"  # Correction factor for calculations
     DATETIMES = "datetimes"
+    DEADBAND = "deadband[K]"  # Thermostat dead band width (K)
     DEMAND = "demand"
     DEMAND_KWH = "demand[kWh]"
     DETECTION_THRESHOLD = "detection_threshold"  # Minimal value from which occupancy is assigned
@@ -40,9 +41,11 @@ class Objects:
     FRAC_CONV_INTERNAL = "fraction_conv_internal"  # Fraction of total gains that is convective to air
     FRAC_RAD_SURFACE = "fraction_rad_surface"  # Fraction of radiant gains that go to surfaces (vs. mass)
     FRAC_RAD_MASS = "fraction_rad_mass"  # Fraction of radiant gains that go to mass
-    GAINS_INTERNAL = "gains_internal[W]"  # Internal gains (W)
+    GAINS_INTERNAL = "gains_internal[W]"  # Internal SENSIBLE heat gains (W); latent goes in GAINS_INTERNAL_LATENT
     GAINS_INTERNAL_COL = f"gains_internal_{COLUMN}"  # column in which the internal gains are (dataframe provided)
-    GAINS_INTERNAL_PER_PERSON = f"{GAINS_INTERNAL}_per_person[W]"  # Internal gains per person (W)
+    # LATENT internal heat gains (W); companion to GAINS_INTERNAL. Default 0.
+    GAINS_INTERNAL_LATENT = "gains_internal_latent[W]"
+    GAINS_INTERNAL_PER_PERSON = f"{GAINS_INTERNAL}_per_person[W]"  # Sensible internal gains per person (W)
     GAINS_SOLAR = "gains_solar[W]"  # Solar gains (W)
     GEN_MAX = "maximum_generation[W]"  # Maximum generation (W)
     GRADIENT_SINK = "gradient_sink"  # Gradient of the sink temperature
@@ -111,6 +114,7 @@ class Objects:
     TEMP_SET = f"set_{TEMP}"  # Set temperature (°C)
     TEMP_SINK = f"sink_{TEMP}"  # Heat pump sink temperature setting (°C)
     TEMP_SUPPLY = f"supply_{TEMP}"  # Supply temperature (°C)
+    TARGET_HUMIDITY_REL = "target_humidity_rel[1]"  # Target indoor RH in [0, 1], evaluated at TEMP_MAX
     TEMPERATURE_SERIES = "temperature_series"
     THERMAL_INERTIA = "thermal_inertia"  # Thermal inertia [0, 1]
     TILT = "tilt[degree]"  # Tilt (degrees; 0 = horizontal)

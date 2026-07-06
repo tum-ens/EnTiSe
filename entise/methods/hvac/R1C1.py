@@ -8,50 +8,68 @@ from entise.constants import Columns as C
 from entise.constants import Constants as Const
 from entise.constants import Objects as O
 from entise.core.base import Method
+from entise.core.utils import resolve_ts_or_scalar
 from entise.methods.auxiliary.internal.selector import InternalGains
 from entise.methods.auxiliary.solar.selector import SolarGains
 from entise.methods.auxiliary.ventilation.selector import Ventilation
+from entise.methods.hvac._latent_cooling import compute_latent_cooling
 from entise.methods.hvac.defaults import (
     DEFAULT_ACTIVE_COOLING,
     DEFAULT_ACTIVE_HEATING,
+    DEFAULT_DEADBAND,
+    DEFAULT_GAINS_INTERNAL_LATENT,
     DEFAULT_POWER_COOLING,
     DEFAULT_POWER_HEATING,
+    DEFAULT_TARGET_HUMIDITY_REL,
     DEFAULT_TEMP_INIT,
     DEFAULT_TEMP_MAX,
     DEFAULT_TEMP_MIN,
     DEFAULT_VENTILATION,
 )
+from entise.methods.utils.weather_cache import WeatherCache
 
 logger = logging.getLogger(__name__)
 
-# Module-level caches (per process)
-_WEATHER_CACHE: dict[tuple, pd.DataFrame] = {}
+# Identity-keyed cache — see WeatherCache docstring for rationale.
+_WEATHER_CACHE = WeatherCache()
+
+
+def _preprocess_weather(weather: pd.DataFrame) -> pd.DataFrame:
+    w = weather.copy()
+    w = Method._strip_weather_height(w)
+    w[C.DATETIME] = pd.to_datetime(w[C.DATETIME])
+    w.set_index(C.DATETIME, inplace=True, drop=False)
+    return w
 
 
 class R1C1(Method):
     """1R1C thermal RC model (single resistance, single capacitance).
 
-    Purpose and scope:
-      - Computes indoor air temperature and heating/cooling load required to keep
-      setpoints using a minimal grey‑box model with one thermal resistance (R)
-      to ambient and one thermal capacitance (C) representing the zone’s thermal
-      inertia. Ventilation losses and internal/solar gains can be accounted for
-      via auxiliary strategies or direct inputs.
+    Purpose and scope
+        Computes indoor air temperature and heating/cooling load required
+        to keep setpoints using a minimal grey-box model with one thermal
+        resistance (R) to ambient and one thermal capacitance (C)
+        representing the zone's thermal inertia. Ventilation losses and
+        internal/solar gains can be accounted for via auxiliary strategies
+        or direct inputs.
 
-    Model sketch (discrete time):
-      - T_in[t+1] = T_in[t] + (Δt/C)·( (T_out[t] − T_in[t])/R + G_int[t] + G_sol[t] + H_ve[t]·(T_out[t] − T_in[t])
-      + P_heat[t] − P_cool[t] )
-      - P_heat/P_cool are clipped to maximum device powers and only active when
-      setpoint violations would occur.
+    Model sketch (discrete time)
+        ``T_in[t+1] = T_in[t] + (Δt/C) · ( (T_out[t] − T_in[t])/R
+        + G_int[t] + G_sol[t] + H_ve[t]·(T_out[t] − T_in[t])
+        + P_heat[t] − P_cool[t] )``. ``P_heat`` / ``P_cool`` are clipped to
+        maximum device powers and only active when setpoint violations
+        would occur.
 
-    Typical use:
-    - Quick load estimates, large batch simulations, or control studies where a
-      lightweight model is sufficient and detailed envelope dynamics are not
-      required. For more detailed dynamics, consider 5R1C (ISO 13790) or 7R2C (VDI 6007).
+    Typical use
+        Quick load estimates, large batch simulations, or control studies
+        where a lightweight model is sufficient and detailed envelope
+        dynamics are not required. For more detailed dynamics, consider
+        5R1C (ISO 13790) or 7R2C (VDI 6007).
 
-    References:
-    - Grey‑box RC modeling of buildings (overview): many texts incl. ISO 13790 annexes;
-      see also VDI 6007 for extended multi‑node approaches.
+    References
+        Grey-box RC modeling of buildings (overview): many texts incl.
+        ISO 13790 annexes; see also VDI 6007 for extended multi-node
+        approaches.
     """
 
     types = [Types.HVAC]
@@ -68,6 +86,9 @@ class R1C1(Method):
         O.TEMP_INIT,
         O.TEMP_MIN,
         O.TEMP_MAX,
+        O.DEADBAND,
+        O.TARGET_HUMIDITY_REL,
+        O.GAINS_INTERNAL_LATENT,
         O.AREA,
         O.HEIGHT,
         O.GAINS_INTERNAL,
@@ -82,13 +103,15 @@ class R1C1(Method):
     output_summary = {
         f"{Types.HEATING}{SEP}{C.DEMAND}[Wh]": "total heating demand",
         f"{Types.HEATING}{SEP}{O.LOAD_MAX}[W]": "maximum heating load",
-        f"{Types.COOLING}{SEP}{C.DEMAND}[Wh]": "total cooling demand",
-        f"{Types.COOLING}{SEP}{O.LOAD_MAX}[W]": "maximum cooling load",
+        f"{Types.COOLING}{SEP}{C.DEMAND}[Wh]": "total cooling demand (sensible + latent)",
+        f"{Types.COOLING}{SEP}{O.LOAD_MAX}[W]": "maximum cooling load (sensible + latent)",
     }
     output_timeseries = {
         f"{C.TEMP_IN}": "indoor air temperature",
         f"{Types.HEATING}{SEP}{C.LOAD}[W]": "heating load",
-        f"{Types.COOLING}{SEP}{C.LOAD}[W]": "cooling load",
+        f"{Types.COOLING}{SEP}{C.LOAD}[W]": "total cooling load (sensible + latent)",
+        f"{Types.COOLING}{SEP}sensible_{C.LOAD}[W]": "sensible cooling load",
+        f"{Types.COOLING}{SEP}latent_{C.LOAD}[W]": "latent cooling load",
     }
 
     def generate(
@@ -101,8 +124,8 @@ class R1C1(Method):
         capacitance: float = None,
         resistance: float = None,
         weather: pd.DataFrame = None,
-        power_heating: float = None,
-        power_cooling: float = None,
+        power_heating: float | pd.Series = None,
+        power_cooling: float | pd.Series = None,
         active_heating: bool = None,
         active_cooling: bool = None,
         ventilation: float = None,
@@ -128,15 +151,19 @@ class R1C1(Method):
             capacitance (float, optional): Thermal capacitance in J/K.
             resistance (float, optional): Thermal resistance in K/W.
             weather (pd.DataFrame, optional): Weather data with outdoor temperature.
-            power_heating (float, optional): Maximum heating power in W.
-            power_cooling (float, optional): Maximum cooling power in W.
+            power_heating (float or pd.Series, optional): Maximum heating power in W.
+            power_cooling (float or pd.Series, optional): Maximum cooling power in W.
             active_heating (bool, optional): Whether heating is active.
             active_cooling (bool, optional): Whether cooling is active.
             ventilation (float, optional): Ventilation rate in W/K.
             temp_init (float, optional): Initial indoor temperature in °C.
             temp_min (float, optional): Minimum indoor temperature in °C.
             temp_max (float, optional): Maximum indoor temperature in °C.
-            gains_internal (pd.DataFrame, optional): Internal heat gains in W.
+            gains_internal (pd.DataFrame, optional): Internal SENSIBLE heat gains in W.
+                Do NOT include the latent portion here — pass that via
+                `gains_internal_latent[W]` on the object. ASHRAE metabolic
+                tables split a seated occupant as ~75 W sensible + ~55 W
+                latent; the sensible number is what belongs in this input.
             gains_solar (pd.DataFrame, optional): Solar heat gains in W.
             area (float, optional): Heated area in m².
             height (float, optional): Heated height in m³.
@@ -172,9 +199,13 @@ class R1C1(Method):
         )
         obj, data = self._get_input_data(obj, data, ts_type)
 
-        # Timestep in seconds (assuming a regular time grid)
-        idx = data[O.WEATHER][C.DATETIME].values.astype("datetime64[ns]")
-        timestep = np.float32((idx[1] - idx[0]) / np.timedelta64(1, "s"))
+        # Timestep in seconds (assuming a regular time grid). Compute from
+        # just the first two timestamps — casting the whole column via
+        # `.values.astype("datetime64[ns]")` costs ~20 ms/object on a
+        # timezone-aware DatetimeIndex because pandas materializes the object
+        # dtype first. Only the delta matters.
+        dt_col = data[O.WEATHER][C.DATETIME]
+        timestep = np.float32((dt_col.iloc[1] - dt_col.iloc[0]).total_seconds())
 
         # Precompute auxiliary data
         data[O.GAINS_INTERNAL] = InternalGains().generate(obj, data)
@@ -184,9 +215,41 @@ class R1C1(Method):
         # Compute temperature and energy demand
         temp_in, p_heat, p_cool = calculate_timeseries_1r1c(obj, data, timestep)
 
-        logger.debug(f"[HVAC R1C1] {ts_type}: max heating {p_heat.max()}, cooling {p_cool.max()}")
+        # Latent-cooling post-pass (issue #103). Decoupled from the T_in
+        # dynamics — 1R1C carries no humidity state — so this runs vectorised
+        # after the sensible solver, leaving the numba path untouched.
+        # `p_cool` returned by the solver is already sensible-clipped to
+        # `power_cooling` (the total cap); the post-pass may clip it further
+        # if latent load pushes the total over that cap.
+        weather_df = data[O.WEATHER]
+        p_cool_max_arr = resolve_ts_or_scalar(
+            obj, data, O.POWER_COOLING, weather_df.index, default=DEFAULT_POWER_COOLING
+        ).to_numpy(dtype=np.float32, copy=False)
+        h_ve_arr = data[O.VENTILATION].to_numpy(dtype=np.float32, copy=False).ravel()
+        gains_lat_arr = resolve_ts_or_scalar(
+            obj, data, O.GAINS_INTERNAL_LATENT, weather_df.index, default=DEFAULT_GAINS_INTERNAL_LATENT
+        ).to_numpy(dtype=np.float32, copy=False)
+        active_cool = bool(obj.get(O.ACTIVE_COOLING, DEFAULT_ACTIVE_COOLING))
+        if active_cool:
+            p_cool_sensible, p_cool_latent = compute_latent_cooling(
+                weather=weather_df,
+                p_cool_sensible=p_cool,
+                p_cool_max=p_cool_max_arr,
+                h_ve=h_ve_arr,
+                gains_internal_latent=gains_lat_arr,
+                temp_max_c=float(obj.get(O.TEMP_MAX, DEFAULT_TEMP_MAX)),
+                target_humidity_rel=float(obj.get(O.TARGET_HUMIDITY_REL, DEFAULT_TARGET_HUMIDITY_REL)),
+            )
+        else:
+            p_cool_sensible = p_cool
+            p_cool_latent = np.zeros_like(p_cool)
 
-        return self._format_output(temp_in, p_heat, p_cool, data, timestep)
+        logger.debug(
+            f"[HVAC R1C1] {ts_type}: max heating {p_heat.max()}, "
+            f"cooling sensible {p_cool_sensible.max()}, latent {p_cool_latent.max()}"
+        )
+
+        return self._format_output(temp_in, p_heat, p_cool_sensible, p_cool_latent, data, timestep)
 
     @staticmethod
     def _get_input_data(obj: dict, data: dict, method_type: str = Types.HVAC) -> tuple[dict, dict]:
@@ -238,6 +301,14 @@ class R1C1(Method):
             O.TEMP_INIT: Method.get_with_method_backup(obj, O.TEMP_INIT, method_type, DEFAULT_TEMP_INIT),
             O.TEMP_MAX: Method.get_with_method_backup(obj, O.TEMP_MAX, method_type, DEFAULT_TEMP_MAX),
             O.TEMP_MIN: Method.get_with_method_backup(obj, O.TEMP_MIN, method_type, DEFAULT_TEMP_MIN),
+            O.DEADBAND: Method.get_with_method_backup(obj, O.DEADBAND, method_type, DEFAULT_DEADBAND),
+            # Latent cooling (issue #103)
+            O.TARGET_HUMIDITY_REL: Method.get_with_method_backup(
+                obj, O.TARGET_HUMIDITY_REL, method_type, DEFAULT_TARGET_HUMIDITY_REL
+            ),
+            O.GAINS_INTERNAL_LATENT: Method.get_with_method_backup(
+                obj, O.GAINS_INTERNAL_LATENT, method_type, DEFAULT_GAINS_INTERNAL_LATENT
+            ),
             # Ventilation
             O.VENTILATION: Method.get_with_method_backup(obj, O.VENTILATION, method_type, DEFAULT_VENTILATION),
             O.VENTILATION_COL: Method.get_with_method_backup(obj, O.VENTILATION_COL, method_type),
@@ -261,19 +332,10 @@ class R1C1(Method):
         obj_out = {k: v for k, v in obj_out.items() if v is not None}
         data_out = {k: v for k, v in data_out.items() if v is not None}
 
-        # Safe datetime handling
-        weather_cache_key = weather_key
-        weather_cached = _WEATHER_CACHE.get(weather_cache_key)
-        if weather_cached is None:
-            if O.WEATHER in data_out:
-                weather = data_out[O.WEATHER].copy()
-                weather = Method._strip_weather_height(weather)
-                weather[C.DATETIME] = pd.to_datetime(weather[C.DATETIME])
-                weather.set_index(C.DATETIME, inplace=True, drop=False)
-                data_out[O.WEATHER] = weather
-                _WEATHER_CACHE[weather_cache_key] = weather
-        else:
-            data_out[O.WEATHER] = weather_cached
+        # Cache preprocessed weather by DataFrame identity — different
+        # DataFrames get separate entries even under the same weather-key.
+        if O.WEATHER in data_out:
+            data_out[O.WEATHER] = _WEATHER_CACHE.get_or_build(data_out[O.WEATHER], _preprocess_weather)
 
         return obj_out, data_out
 
@@ -352,102 +414,40 @@ class R1C1(Method):
     #
     #     return obj_out, data_out
 
-    def _prepare_inputs(self, obj: dict, data: dict) -> dict:
-        """Prepare a solver-ready bundle for R1C1.
-
-        Returns a dict with keys:
-          - index: pd.DatetimeIndex
-          - dt_s: float (seconds)
-          - weather: pd.DataFrame
-          - g_int_series: pd.Series [W]
-          - g_sol_series: pd.Series [W]
-          - Hve_series: pd.Series [W/K] (prefers O.H_VE if provided)
-          - controls: dict (setpoints, caps, activation flags)
-          - params: dict with R1C1 parameters (C, R)
-        """
-        # Weather and timestep
-        weather = data[O.WEATHER]
-        index = weather.index
-        idx = weather[C.DATETIME].values.astype("datetime64[ns]")
-        dt_s = float((idx[1] - idx[0]) / np.timedelta64(1, "s"))
-
-        # Gains (R1C1 currently computes auxiliaries unconditionally, keep behavior)
-        g_sol_df = data.get(O.GAINS_SOLAR) or SolarGains().generate(obj, {**data, O.WEATHER: weather})
-        g_int_df = data.get(O.GAINS_INTERNAL) or InternalGains().generate(obj, {**data, O.WEATHER: weather})
-
-        g_int_series = g_int_df.sum(axis=1) if isinstance(g_int_df, pd.DataFrame) else pd.Series(0.0, index=index)
-        g_sol_series = g_sol_df.sum(axis=1) if isinstance(g_sol_df, pd.DataFrame) else pd.Series(0.0, index=index)
-
-        # Ventilation normalization: prefer direct H_ve if present; otherwise use auxiliary/data/default
-        hve_series: pd.Series
-        if O.H_VE in obj and obj[O.H_VE] is not None:
-            val = obj[O.H_VE]
-            if isinstance(val, pd.Series):
-                if not val.index.equals(index):
-                    raise ValueError("H_ve series index does not match weather index.")
-                hve_series = val.astype(float)
-            else:
-                try:
-                    fval = float(val)
-                    hve_series = pd.Series(np.full(len(index), fval, dtype=float), index=index, name=O.VENTILATION)
-                except Exception as err:
-                    raise ValueError(f"H_ve must be a float or a pandas Series, got {type(val)}") from err
-        else:
-            ven_df = data.get(O.VENTILATION)
-            if isinstance(ven_df, pd.DataFrame) and O.VENTILATION in ven_df:
-                hve_series = ven_df[O.VENTILATION].astype(float)
-            elif O.VENTILATION in obj:
-                try:
-                    fval = float(obj[O.VENTILATION])
-                    hve_series = pd.Series(np.full(len(index), fval, dtype=float), index=index, name=O.VENTILATION)
-                except Exception:
-                    ven_df = Ventilation().generate(obj, {**data, O.WEATHER: weather})
-                    hve_series = ven_df[O.VENTILATION].astype(float)
-            else:
-                ven_df = Ventilation().generate(obj, {**data, O.WEATHER: weather})
-                hve_series = ven_df[O.VENTILATION].astype(float)
-
-        # Controls and parameters
-        controls = dict(
-            T_init=float(obj.get(O.TEMP_INIT, DEFAULT_TEMP_INIT)),
-            T_min=float(obj.get(O.TEMP_MIN, DEFAULT_TEMP_MIN)),
-            T_max=float(obj.get(O.TEMP_MAX, DEFAULT_TEMP_MAX)),
-            P_h_max=float(obj.get(O.POWER_HEATING, DEFAULT_POWER_HEATING)),
-            P_c_max=float(obj.get(O.POWER_COOLING, DEFAULT_POWER_COOLING)),
-            on_h=bool(obj.get(O.ACTIVE_HEATING, DEFAULT_ACTIVE_HEATING)),
-            on_c=bool(obj.get(O.ACTIVE_COOLING, DEFAULT_ACTIVE_COOLING)),
-        )
-
-        params = dict(
-            C=float(obj[O.CAPACITANCE]),
-            R=float(obj[O.RESISTANCE]),
-        )
-
-        return dict(
-            index=index,
-            dt_s=dt_s,
-            weather=weather,
-            g_int_series=g_int_series,
-            g_sol_series=g_sol_series,
-            Hve_series=hve_series,
-            controls=controls,
-            params=params,
-        )
-
     @staticmethod
-    def _format_output(temp_in, p_heat, p_cool, data, timestep) -> dict:
+    def _format_output(temp_in, p_heat, p_cool_sensible, p_cool_latent, data, timestep) -> dict:
+        # NB: use ndarray.max() (C-level, single pass over the buffer), not
+        # builtins.max() which iterates 8760 elements as Python objects.
+        # `cooling:load[W]` and its summary counterparts carry the TOTAL
+        # cooling load (sensible + latent). When latent is zero (no humidity
+        # data, active_cooling=False, or ω_out ≤ ω_target with no internal
+        # latent gain), total == sensible and pre-latent numbers are
+        # preserved bit-for-bit.
+        # Round sensible and latent first, then derive total as their sum so
+        # the per-row invariant `total == sensible + latent` holds for
+        # downstream consumers that assert equality — matches how R5C1/R7C2
+        # emit the same columns.
+        p_cool_sensible_int = p_cool_sensible.round().astype(int)
+        p_cool_latent_int = p_cool_latent.round().astype(int)
+        p_cool_total_int = p_cool_sensible_int + p_cool_latent_int
+        # Demand still uses the un-rounded sum to preserve energy accuracy;
+        # load_max uses the rounded-and-summed total so the summary number
+        # is consistent with the DataFrame max.
+        p_cool_total_float = p_cool_sensible + p_cool_latent
         summary = {
             f"{Types.HEATING}{SEP}{C.DEMAND}[Wh]": int(round(p_heat.sum() * timestep / 3600)),
-            f"{Types.HEATING}{SEP}{O.LOAD_MAX}[W]": int(max(p_heat)),
-            f"{Types.COOLING}{SEP}{C.DEMAND}[Wh]": int(round(p_cool.sum() * timestep / 3600)),
-            f"{Types.COOLING}{SEP}{O.LOAD_MAX}[W]": int(max(p_cool)),
+            f"{Types.HEATING}{SEP}{O.LOAD_MAX}[W]": int(p_heat.max()),
+            f"{Types.COOLING}{SEP}{C.DEMAND}[Wh]": int(round(p_cool_total_float.sum() * timestep / 3600)),
+            f"{Types.COOLING}{SEP}{O.LOAD_MAX}[W]": int(p_cool_total_int.max()),
         }
 
         df = pd.DataFrame(
             {
                 f"{C.TEMP_IN}": temp_in.round(3),
                 f"{Types.HEATING}{SEP}{C.LOAD}[W]": p_heat.round().astype(int),
-                f"{Types.COOLING}{SEP}{C.LOAD}[W]": p_cool.round().astype(int),
+                f"{Types.COOLING}{SEP}{C.LOAD}[W]": p_cool_total_int,
+                f"{Types.COOLING}{SEP}sensible_{C.LOAD}[W]": p_cool_sensible_int,
+                f"{Types.COOLING}{SEP}latent_{C.LOAD}[W]": p_cool_latent_int,
             },
             index=data[O.WEATHER].index,
         )
@@ -456,149 +456,171 @@ class R1C1(Method):
         return {"summary": summary, "timeseries": df}
 
 
-def calculate_timeseries_1r1c(obj: dict, data: dict, timestep: float) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Calculate HVAC time series using a 1R1C model.
+# Below the small-G_tot threshold the analytical form (1 − exp(−x))/G_tot
+# becomes numerically 0/0. Envelope conductances for real buildings are
+# ≥ ~1 W/K, so this branch is defensive only.
+_G_TOT_EPS = np.float32(1e-9)
 
-    This function simulates the thermal behavior of a building using a simple
-    one-resistance, one-capacitance (1R1C) model. It calculates the indoor temperature
-    and the heating and cooling power required to maintain comfort conditions.
+
+def calculate_timeseries_1r1c(obj: dict, data: dict, timestep: float) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Dispatch to numpy or numba path based on the active accelerator.
+
+    The two paths implement the same physics (analytical exponential
+    update) and produce numerically identical results up to a few ULPs.
+    See ``_calculate_timeseries_numpy`` for the physics and the private
+    ``entise.methods.hvac._R1C1_numba`` module for the JIT-compiled
+    variant.
+
+    The accelerator is chosen by ``entise.get_accelerator``, controlled
+    by the ``ENTISE_ACCELERATOR`` environment variable and the
+    ``entise.set_accelerator`` runtime API.
+    """
+    from entise.perf import get_accelerator
+
+    if get_accelerator() == "numba":
+        # Lazy import: numba is optional (`pip install entise[numba]`).
+        from entise.methods.hvac._R1C1_numba import calculate_timeseries_1r1c as _numba
+
+        return _numba(obj, data, timestep)
+    return _calculate_timeseries_numpy(obj, data, timestep)
+
+
+def _calculate_timeseries_numpy(obj: dict, data: dict, timestep: float) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Calculate HVAC time series using a 1R1C model (pure numpy path).
+
+    Integrates the lumped-capacitance ODE
+
+        C · dT/dt = G_tot · (T_ss − T) + P_h − P_c ,
+        G_tot = 1/R + H_ve ,
+        T_ss  = T_out + (G_int + G_sol) / G_tot ,
+
+    with the **analytical exponential update** for each step under piecewise-constant
+    forcings. This solution is exact (up to float32 round-off) for constant
+    T_out/H_ve/gains over one step and is unconditionally stable for any Δt/τ.
+
+    Per-step impulse response (decay, gain) and passive steady state (T_ss_pas)
+    depend only on the forcings — not on the previous temperature — so they are
+    precomputed once as numpy arrays. Only the temperature recursion and the
+    controller inversion remain inside the Python loop.
 
     Args:
-        obj (dict): A dictionary containing building parameters such as thermal
-            resistance, capacitance, initial temperature, temperature limits, and
-            heating/cooling capabilities.
-        data (dict): A dictionary containing time-series data such as weather
-            information, solar gains, internal gains, and ventilation rates.
-        timestep (float): The time step in seconds for the simulation.
+        obj (dict): Building parameters (R, C, setpoints, power limits, flags).
+        data (dict): Time-series inputs (weather, gains, ventilation conductance).
+        timestep (float): Simulation step in seconds.
 
     Returns:
-        tuple: A tuple containing:
-            - temp_in (np.ndarray): Array of indoor temperatures over time.
-            - p_heat (np.ndarray): Array of heating power over time.
-            - p_cool (np.ndarray): Array of cooling power over time.
-
-    Notes:
-        - The function simulates the building's thermal behavior time step by time step
-        - At each time step, it calculates the net heat transfer, the required heating
-          and cooling power, and the resulting indoor temperature
-        - The simulation accounts for thermal inertia, heat gains, and heat losses
-        - The function uses NumPy for efficient numerical computations and is trimmed for speed
+        tuple[np.ndarray, np.ndarray, np.ndarray]:
+            (indoor_temperature, heating_power, cooling_power).
     """
-    # Get objects
-    thermal_resistance = np.float32(obj[O.RESISTANCE])
+    # Scalar parameters
     thermal_capacitance = np.float32(obj[O.CAPACITANCE])
     temp_init = np.float32(obj[O.TEMP_INIT])
     temp_min = np.float32(obj[O.TEMP_MIN])
     temp_max = np.float32(obj[O.TEMP_MAX])
     active_heat = bool(obj[O.ACTIVE_HEATING])
     active_cool = bool(obj[O.ACTIVE_COOLING])
-    power_heat_max = np.float32(obj[O.POWER_HEATING])
-    power_cool_max = np.float32(obj[O.POWER_COOLING])
+    inv_resistance = np.float32(1.0) / np.float32(obj[O.RESISTANCE])
+    dt = np.float32(timestep)
+    # Symmetric thermostat dead band. deadband = 0 collapses to the
+    # aim-for-setpoint behavior (bit-exact regression).
+    deadband = np.float32(obj.get(O.DEADBAND, DEFAULT_DEADBAND))
+    temp_min_hi = temp_min + deadband  # upper band edge for heating
+    temp_max_lo = temp_max - deadband  # lower band edge for cooling
 
-    # Get data
+    # Time-series inputs
     weather = data[O.WEATHER]
     temp_air = weather[C.TEMP_AIR].to_numpy(dtype=np.float32, copy=False)
     solar_gains = data[O.GAINS_SOLAR].to_numpy(dtype=np.float32, copy=False).ravel()
     internal_gains = data[O.GAINS_INTERNAL].to_numpy(dtype=np.float32, copy=False).ravel()
     ventilation = data[O.VENTILATION].to_numpy(dtype=np.float32, copy=False).ravel()
 
+    # Power
+    power_heat_max_arr = resolve_ts_or_scalar(
+        obj, data, O.POWER_HEATING, weather.index, default=DEFAULT_POWER_HEATING
+    ).to_numpy(dtype=np.float32, copy=False)
+    power_cool_max_arr = resolve_ts_or_scalar(
+        obj, data, O.POWER_COOLING, weather.index, default=DEFAULT_POWER_COOLING
+    ).to_numpy(dtype=np.float32, copy=False)
     n_steps = temp_air.shape[0]
+
+    # Vectorized precompute of the impulse response and passive steady state.
+    # `g_tot_safe` guards against divide-by-zero in the pathological
+    # small-G_tot branch; np.where then selects the correct value.
+    g_tot = inv_resistance + ventilation
+    safe = g_tot > _G_TOT_EPS
+    g_tot_safe = np.where(safe, g_tot, np.float32(1.0))
+    one_minus_decay = (-np.expm1(-(dt * g_tot_safe / thermal_capacitance))).astype(np.float32)
+    dt_over_cap = dt / thermal_capacitance
+    decay = np.where(safe, np.float32(1.0) - one_minus_decay, np.float32(1.0)).astype(np.float32)
+    gain = np.where(safe, one_minus_decay / g_tot_safe, dt_over_cap).astype(np.float32)
+    t_ss_pas = np.where(safe, temp_air + (solar_gains + internal_gains) / g_tot_safe, temp_air).astype(np.float32)
+
     temp_in = np.empty(n_steps, dtype=np.float32)
     p_heat = np.zeros(n_steps, dtype=np.float32)
     p_cool = np.zeros(n_steps, dtype=np.float32)
-
     temp_in[0] = temp_init
 
-    # Precompute invariants for the inner loop (these reduce the number of divisions to speed up calculations)
-    inv_resistance = np.float32(1.0) / thermal_resistance
-    inv_timestep = np.float32(1.0) / timestep
-    timestep_over_cap = timestep / thermal_capacitance
-
-    # Loop state
+    # Scalar recursion — only the T_prev-dependent work stays in Python.
+    #
+    # For each step:
+    #   T_pas_next = T_ss_pas + (T_prev - T_ss_pas) * decay        [no HVAC]
+    #   T_next     = T_pas_next + gain * (P_h - P_c)                [with HVAC]
+    #
+    # Hysteresis state machine (see issue #102). `heating_on` / `cooling_on`
+    # track whether the actuator was firing in the previous step. Heating
+    # fires when either (a) it was off and T dropped below T_min, or (b) it
+    # was on and T is still under the upper band edge (T_min + deadband).
+    # While firing, the controller aims to land T_next on the upper band
+    # edge (which collapses to T_min when deadband = 0). Cooling mirrors.
     temp_prev = temp_in[0]
-
+    heating_on = False
+    cooling_on = False
     for t in range(1, n_steps):
-        # Passive heat transfer and gains
-        net_transfer = calc_net_heat_transfer(
-            temp_air[t], temp_prev, solar_gains[t], internal_gains[t], ventilation[t], inv_resistance
-        )
+        d = decay[t]
+        g = gain[t]
+        t_ss = t_ss_pas[t]
+        t_pas = t_ss + (temp_prev - t_ss) * d
 
-        # Heating power
-        p_heat[t] = calc_heating_power(
-            temp_prev, temp_min, thermal_capacitance, inv_timestep, net_transfer, power_heat_max, active_heat
-        )
+        # A wide band (deadband >= (T_max - T_min)/2) can leave both latches
+        # armed inside overlapping ranges. Clear the opposite latch whenever
+        # the primary extreme trigger fires — physically we cannot heat while
+        # already above T_max, nor cool while below T_min. With deadband = 0
+        # these guards fire only in the degenerate case T_min == T_max and are
+        # otherwise no-ops (bit-exact regression preserved).
+        if t_pas > temp_max:
+            heating_on = False
+        if t_pas < temp_min:
+            cooling_on = False
 
-        # Cooling power
-        p_cool[t] = calc_cooling_power(
-            temp_prev, temp_max, thermal_capacitance, inv_timestep, net_transfer, power_cool_max, active_cool
-        )
+        p_h = np.float32(0.0)
+        if active_heat:
+            fire_h = t_pas < temp_min or (heating_on and t_pas < temp_min_hi)
+            if fire_h:
+                p_h_cap = power_heat_max_arr[t]
+                need = (temp_min_hi - t_pas) / g
+                p_h = need if need < p_h_cap else p_h_cap
+                heating_on = True
+            else:
+                heating_on = False
+        else:
+            heating_on = False
 
-        # Indoor temperature
-        temp_prev = calc_temp_in(temp_prev, net_transfer, p_heat[t], p_cool[t], timestep_over_cap)
+        p_c = np.float32(0.0)
+        if active_cool:
+            fire_c = t_pas > temp_max or (cooling_on and t_pas > temp_max_lo)
+            if fire_c:
+                p_c_cap = power_cool_max_arr[t]
+                need = (t_pas - temp_max_lo) / g
+                p_c = need if need < p_c_cap else p_c_cap
+                cooling_on = True
+            else:
+                cooling_on = False
+        else:
+            cooling_on = False
+
+        p_heat[t] = p_h
+        p_cool[t] = p_c
+        temp_prev = t_pas + g * (p_h - p_c)
         temp_in[t] = temp_prev
 
     return temp_in, p_heat, p_cool
-
-
-def calc_net_heat_transfer(
-    temp_air: float,
-    temp_prev: float,
-    solar_gains: float,
-    internal_gains: float,
-    ventilation: float,
-    inv_resistance: float,
-) -> float:
-    """Calculate net heat transfer for a building zone."""
-    delta_temp = temp_air - temp_prev
-    conduction_loss = delta_temp * inv_resistance
-    ventilation_loss = ventilation * delta_temp
-    return conduction_loss + ventilation_loss + solar_gains + internal_gains
-
-
-def calc_heating_power(
-    temp_prev: float,
-    temp_min: float,
-    thermal_capacitance: float,
-    inv_timestep: float,
-    net_transfer: float,
-    power_heat_max: float,
-    active: bool,
-) -> float:
-    """Calculate required heating power for a building zone."""
-    if not active:
-        return 0
-
-    required_heating_power = thermal_capacitance * (temp_min - temp_prev) * inv_timestep - net_transfer
-
-    if required_heating_power > 0:
-        return min(required_heating_power, power_heat_max)
-
-    return 0
-
-
-def calc_cooling_power(
-    temp_prev: float,
-    temp_max: float,
-    thermal_capacitance: float,
-    inv_timestep: float,
-    net_transfer: float,
-    power_cool_max: float,
-    active: bool,
-) -> float:
-    """Calculate required cooling power for a building zone."""
-    if not active:
-        return 0
-
-    required_cooling_power = thermal_capacitance * (temp_prev - temp_max) * inv_timestep + net_transfer
-
-    if required_cooling_power > 0:
-        return min(required_cooling_power, power_cool_max)
-
-    return 0
-
-
-def calc_temp_in(
-    temp_prev: float, net_transfer: float, power_heat: float, power_cool: float, timestep_over_cap: float
-) -> float:
-    """Calculate indoor temperature for the next time step."""
-    return temp_prev + timestep_over_cap * (net_transfer + power_heat - power_cool)

@@ -8,63 +8,80 @@ from entise.constants import SEP, Types
 from entise.constants import Columns as C
 from entise.constants import Constants as Const
 from entise.constants import Objects as O
+from entise.constants.constants import CP_AIR, RHO_AIR
 from entise.core.base import Method
 from entise.core.utils import resolve_ts_or_scalar
 from entise.methods.auxiliary.internal.selector import InternalGains
-from entise.methods.auxiliary.solar.strategies import SolarGainsISO13790
-from entise.methods.auxiliary.ventilation.strategies import VentilationTimeSeries
+from entise.methods.auxiliary.solar.strategies import SolarGainsInactive, SolarGainsISO13790
+from entise.methods.auxiliary.ventilation.strategies import VentilationInactive, VentilationTimeSeries
+from entise.methods.hvac._latent_cooling import compute_latent_cooling
 from entise.methods.hvac.defaults import (
     DEFAULT_ACTIVE_COOLING,
     DEFAULT_ACTIVE_HEATING,
     DEFAULT_ACTIVE_INTERNAL_GAINS,
     DEFAULT_ACTIVE_SOLAR_GAINS,
     DEFAULT_ACTIVE_VENTILATION,
+    DEFAULT_DEADBAND,
     DEFAULT_FRAC_CONV_INTERNAL,
     DEFAULT_FRAC_RAD_MASS,
     DEFAULT_FRAC_RAD_SURFACE,
+    DEFAULT_GAINS_INTERNAL_LATENT,
     DEFAULT_POWER_COOLING,
     DEFAULT_POWER_HEATING,
     DEFAULT_SIGMA_5R1C,
+    DEFAULT_TARGET_HUMIDITY_REL,
     DEFAULT_TEMP_INIT,
     DEFAULT_TEMP_MAX,
     DEFAULT_TEMP_MIN,
     DEFAULT_VENTILATION,
     DEFAULT_VENTILATION_SPLIT,
 )
+from entise.methods.utils.weather_cache import WeatherCache
 
 logger = logging.getLogger(__name__)
 
-# Module-level caches (per process)
-_WEATHER_CACHE: dict[tuple, pd.DataFrame] = {}
+# Identity-keyed cache — see WeatherCache docstring for rationale.
+_WEATHER_CACHE = WeatherCache()
+
+
+def _preprocess_weather(weather: pd.DataFrame) -> pd.DataFrame:
+    w = weather.copy()
+    w = Method._strip_weather_height(w)
+    w[C.DATETIME] = pd.to_datetime(w[C.DATETIME])
+    w.set_index(C.DATETIME, inplace=True, drop=False)
+    return w
 
 
 class R5C1(Method):
     """5R1C HVAC model aligned with ISO 13790's simplified dynamic method.
 
-    Purpose and scope:
-    - Captures key heat transfer paths between indoor air, internal surfaces,
-      thermal mass, and exterior using five resistances and one aggregated
-      capacitance (building mass). Better represents radiant/convective splits
-      and envelope interactions than 1R1C, while remaining efficient for
-      large‑scale simulations.
+    Purpose and scope
+        Captures key heat transfer paths between indoor air, internal
+        surfaces, thermal mass, and exterior using five resistances and
+        one aggregated capacitance (building mass). Better represents
+        radiant/convective splits and envelope interactions than 1R1C,
+        while remaining efficient for large-scale simulations.
 
-    Conceptual structure:
-    - Capacitance C_m (building thermal mass) exchanges with internal surfaces
-      via H_tr,ms and with indoor air via H_tr,is; windows and opaque elements
-      couple to exterior via H_tr,w and H_tr,em. Optional sky correction via H_tr,op,sky.
-    - Internal and solar gains are split into radiant/convective parts and routed
-      to air, surfaces, and mass using σ parameters.
-    - Ventilation losses are handled via H_ve (scalar or timeseries).
+    Conceptual structure
+        Capacitance ``C_m`` (building thermal mass) exchanges with
+        internal surfaces via ``H_tr,ms`` and with indoor air via
+        ``H_tr,is``; windows and opaque elements couple to exterior via
+        ``H_tr,w`` and ``H_tr,em``. Optional sky correction via
+        ``H_tr,op,sky``. Internal and solar gains are split into
+        radiant/convective parts and routed to air, surfaces, and mass
+        using σ parameters. Ventilation losses are handled via ``H_ve``
+        (scalar or timeseries).
 
-    Notes:
-    - Implements the ISO 13790 simplified dynamic method assumptions (lumped mass
-      and linear heat transfer). Parameter mapping follows standard notation.
-    - For even richer transient behavior and phase shifts, consider a 7R2C model
-      (see VDI 6007).
+    Notes
+        Implements the ISO 13790 simplified dynamic method assumptions
+        (lumped mass and linear heat transfer). Parameter mapping follows
+        standard notation. For even richer transient behavior and phase
+        shifts, consider a 7R2C model (see VDI 6007).
 
-    Reference:
-    - ISO 13790: Energy performance of buildings — Calculation of energy use for
-      space heating and cooling (simplified dynamic method).
+    Reference
+        ISO 13790: Energy performance of buildings — Calculation of
+        energy use for space heating and cooling (simplified dynamic
+        method).
     """
 
     types = [Types.HVAC]
@@ -89,6 +106,9 @@ class R5C1(Method):
         O.TEMP_INIT,
         O.TEMP_MIN,
         O.TEMP_MAX,
+        O.DEADBAND,
+        O.TARGET_HUMIDITY_REL,
+        O.GAINS_INTERNAL_LATENT,
         O.TEMP_SUPPLY,
         O.AREA,
         O.HEIGHT,
@@ -115,13 +135,15 @@ class R5C1(Method):
     output_summary = {
         f"{Types.HEATING}{SEP}{C.DEMAND}[Wh]": "total heating demand",
         f"{Types.HEATING}{SEP}{O.LOAD_MAX}[W]": "maximum heating load",
-        f"{Types.COOLING}{SEP}{C.DEMAND}[Wh]": "total cooling demand",
-        f"{Types.COOLING}{SEP}{O.LOAD_MAX}[W]": "maximum cooling load",
+        f"{Types.COOLING}{SEP}{C.DEMAND}[Wh]": "total cooling demand (sensible + latent)",
+        f"{Types.COOLING}{SEP}{O.LOAD_MAX}[W]": "maximum cooling load (sensible + latent)",
     }
     output_timeseries = {
         f"{C.TEMP_IN}": "indoor air temperature",
         f"{Types.HEATING}{SEP}{C.LOAD}[W]": "heating load",
-        f"{Types.COOLING}{SEP}{C.LOAD}[W]": "cooling load",
+        f"{Types.COOLING}{SEP}{C.LOAD}[W]": "total cooling load (sensible + latent)",
+        f"{Types.COOLING}{SEP}sensible_{C.LOAD}[W]": "sensible cooling load",
+        f"{Types.COOLING}{SEP}latent_{C.LOAD}[W]": "latent cooling load",
     }
 
     def generate(
@@ -133,8 +155,62 @@ class R5C1(Method):
 
         temp_in, p_heat, p_cool = calculate_timeseries_5r1c(**data)
         meta = data["meta"]
+        p_cool_sensible, p_cool_latent = self._apply_latent_cooling(obj, data, p_cool)
         return self._format_output(
-            temp_in.round(3), p_heat.round().astype(int), p_cool.round().astype(int), meta["index"], meta["dt_s"]
+            temp_in.round(3),
+            p_heat.round().astype(int),
+            p_cool_sensible.round().astype(int),
+            p_cool_latent.round().astype(int),
+            meta["index"],
+            meta["dt_s"],
+        )
+
+    @staticmethod
+    def _apply_latent_cooling(obj: dict, data: dict, p_cool: pd.Series) -> tuple[pd.Series, pd.Series]:
+        """Run the shared latent-cooling post-pass (issue #103) on top of the
+        sensible-only 5R1C solver output. When `active_cooling` is False or
+        the weather lacks humidity/pressure, latent is zero and sensible is
+        returned unchanged."""
+        meta = data["meta"]
+        controls = data["controls"]
+        weather = meta[O.WEATHER]
+        index = meta["index"]
+
+        active_cool_series = controls[O.ACTIVE_COOLING]
+        # If any timestep has active cooling, run the post-pass; the helper
+        # itself masks per-step where sensible is zero anyway.
+        if not bool(np.asarray(active_cool_series).astype(bool).any()):
+            return p_cool, pd.Series(np.zeros(len(index), dtype=float), index=index)
+
+        # Total-capacity cap, per-step. Same series used to clip sensible in
+        # the solver — reinterpreted here as the total (sensible + latent) cap.
+        p_cool_max = controls[O.POWER_COOLING].to_numpy(dtype=float, copy=False)
+
+        # Ventilation: 5R1C carries H_ve split into mechanical + infiltration
+        # frames; sum both to reconstruct total conductance.
+        h_ve_df = data["series"]["ventilation"]
+        h_ve = np.asarray(h_ve_df.sum(axis=1), dtype=float)
+
+        gains_lat = resolve_ts_or_scalar(
+            obj, data, O.GAINS_INTERNAL_LATENT, index, default=DEFAULT_GAINS_INTERNAL_LATENT
+        ).to_numpy(dtype=float, copy=False)
+
+        # Cooling setpoint is a series in 5R1C; the target humidity uses the
+        # per-step T_max as the reference dry-bulb.
+        t_max_arr = controls[O.TEMP_MAX].to_numpy(dtype=float, copy=False)
+
+        p_sens_out, p_lat_out = compute_latent_cooling(
+            weather=weather,
+            p_cool_sensible=np.asarray(p_cool, dtype=float),
+            p_cool_max=p_cool_max,
+            h_ve=h_ve,
+            gains_internal_latent=gains_lat,
+            temp_max_c=t_max_arr,
+            target_humidity_rel=float(obj.get(O.TARGET_HUMIDITY_REL, DEFAULT_TARGET_HUMIDITY_REL)),
+        )
+        return (
+            pd.Series(p_sens_out, index=index),
+            pd.Series(p_lat_out, index=index),
         )
 
     # ---- Internals ----
@@ -183,8 +259,15 @@ class R5C1(Method):
         gains = self._compute_gains(obj, data)
         data_out["series"]["gains"] = gains
 
-        # Ventilation → split into mechanical & infiltration
-        ven_df = VentilationTimeSeries().generate(obj, data).squeeze()  # Calls ISO 13709 conform norm directly
+        # Ventilation → split into mechanical & infiltration.
+        # Honor the ACTIVE_VENTILATION flag: when explicitly False, use the
+        # zero-series path instead of computing ventilation. Applied here
+        # (rather than in the Ventilation selector) because R5C1 bypasses
+        # the selector to hit the ISO-13709-specific TimeSeries strategy.
+        if not bool(obj.get(O.ACTIVE_VENTILATION, True)):
+            ven_df = VentilationInactive().generate(obj, data).squeeze()
+        else:
+            ven_df = VentilationTimeSeries().generate(obj, data).squeeze()
         vent_split = resolve_ts_or_scalar(obj, data, O.VENTILATION_SPLIT, index, default=DEFAULT_VENTILATION_SPLIT)
         Hve_vent_series = ven_df * vent_split
         Hve_inf_series = ven_df * (1.0 - vent_split)
@@ -210,9 +293,7 @@ class R5C1(Method):
 
         # Parameters
         volume = float(obj.get(O.AREA, Const.DEFAULT_AREA.value)) * float(obj.get(O.HEIGHT, Const.DEFAULT_HEIGHT.value))
-        rho_air = 1.2  # kg/m3
-        cp_air = 1000.0  # J/kgK
-        capacity_air = volume * rho_air * cp_air
+        capacity_air = volume * RHO_AIR * CP_AIR
         params = {
             O.TEMP_INIT: float(obj.get(O.TEMP_INIT, DEFAULT_TEMP_INIT)),
             O.C_M: float(obj[O.C_M]),
@@ -221,6 +302,10 @@ class R5C1(Method):
             O.H_TR_W: float(obj[O.H_TR_W]),
             O.H_TR_EM: float(obj[O.H_TR_EM]),
             O.CAPACITANCE_AIR: float(capacity_air),
+            # Symmetric thermostat dead band. deadband = 0 collapses the
+            # hysteresis state machine to aim-for-setpoint (bit-exact
+            # regression against the pre-hysteresis solver).
+            O.DEADBAND: float(obj.get(O.DEADBAND, DEFAULT_DEADBAND)),
         }
         data_out["params"] = params
 
@@ -246,21 +331,27 @@ class R5C1(Method):
         return data_out
 
     @staticmethod
-    def _format_output(temp_in, p_heat, p_cool, index, dt_s) -> dict:
+    def _format_output(temp_in, p_heat, p_cool_sensible, p_cool_latent, index, dt_s) -> dict:
+        # `cooling:load[W]` carries the TOTAL (sensible + latent) cooling load
+        # per issue #103. When latent is zero everywhere, total == sensible
+        # and the pre-latent regression is bit-preserved.
+        p_cool_total = p_cool_sensible + p_cool_latent
         E_h_Wh = float(np.trapezoid(p_heat.values, dx=dt_s) / 3600.0)
-        E_c_Wh = float(np.trapezoid(p_cool.values, dx=dt_s) / 3600.0)
+        E_c_Wh = float(np.trapezoid(p_cool_total.values, dx=dt_s) / 3600.0)
         summary = {
             f"{Types.HEATING}{SEP}{C.DEMAND}[Wh]": E_h_Wh,
             f"{Types.HEATING}{SEP}{O.LOAD_MAX}[W]": float(max(p_heat.max(), 0.0)),
             f"{Types.COOLING}{SEP}{C.DEMAND}[Wh]": E_c_Wh,
-            f"{Types.COOLING}{SEP}{O.LOAD_MAX}[W]": float(max(p_cool.max(), 0.0)),
+            f"{Types.COOLING}{SEP}{O.LOAD_MAX}[W]": float(max(p_cool_total.max(), 0.0)),
         }
 
         df = pd.DataFrame(
             {
                 C.TEMP_IN: temp_in,
                 f"{Types.HEATING}{SEP}{C.LOAD}[W]": p_heat,
-                f"{Types.COOLING}{SEP}{C.LOAD}[W]": p_cool,
+                f"{Types.COOLING}{SEP}{C.LOAD}[W]": p_cool_total,
+                f"{Types.COOLING}{SEP}sensible_{C.LOAD}[W]": p_cool_sensible,
+                f"{Types.COOLING}{SEP}latent_{C.LOAD}[W]": p_cool_latent,
             },
             index=index,
         )
@@ -300,6 +391,14 @@ class R5C1(Method):
             O.TEMP_INIT: self.get_with_method_backup(obj, O.TEMP_INIT, method_type, DEFAULT_TEMP_INIT),
             O.TEMP_MAX: self.get_with_method_backup(obj, O.TEMP_MAX, method_type, DEFAULT_TEMP_MAX),
             O.TEMP_MIN: self.get_with_method_backup(obj, O.TEMP_MIN, method_type, DEFAULT_TEMP_MIN),
+            O.DEADBAND: self.get_with_method_backup(obj, O.DEADBAND, method_type, DEFAULT_DEADBAND),
+            # Latent cooling (issue #103)
+            O.TARGET_HUMIDITY_REL: self.get_with_method_backup(
+                obj, O.TARGET_HUMIDITY_REL, method_type, DEFAULT_TARGET_HUMIDITY_REL
+            ),
+            O.GAINS_INTERNAL_LATENT: self.get_with_method_backup(
+                obj, O.GAINS_INTERNAL_LATENT, method_type, DEFAULT_GAINS_INTERNAL_LATENT
+            ),
             O.TEMP_SUPPLY: self.get_with_method_backup(obj, O.TEMP_SUPPLY, method_type),
             # 5R1C RC parameters
             O.C_M: self.get_with_method_backup(obj, O.C_M, method_type),
@@ -357,25 +456,24 @@ class R5C1(Method):
         return {k: v for k, v in data_out.items() if v is not None}
 
     def _prepare_weather_cache(self, obj: dict, data: dict, method_type: str = Types.HVAC) -> dict:
-        weather_key = self.get_with_method_backup(obj, O.WEATHER, method_type, O.WEATHER)
-        weather_cached = _WEATHER_CACHE.get(weather_key)
-        if weather_cached is None and O.WEATHER in data:
-            w = data[O.WEATHER].copy()
-            w = self._strip_weather_height(w)
-            w[C.DATETIME] = pd.to_datetime(w[C.DATETIME])
-            w.set_index(C.DATETIME, inplace=True, drop=False)
-            data[O.WEATHER] = w
-            _WEATHER_CACHE[weather_key] = w
-        elif weather_cached is not None:
-            data[O.WEATHER] = weather_cached
+        # Cache preprocessed weather by DataFrame identity — different
+        # DataFrames get separate entries even under the same weather-key.
+        if O.WEATHER in data:
+            data[O.WEATHER] = _WEATHER_CACHE.get_or_build(data[O.WEATHER], _preprocess_weather)
 
         return data
 
     @staticmethod
     def _compute_gains(obj: dict, data: dict) -> pd.DataFrame:
         g_int_df = InternalGains().generate(obj, data)
-        g_sol_df = SolarGainsISO13790().generate(obj, data)  # Calls ISO 13709 conform norm directly
-
+        # Honor the ACTIVE_GAINS_SOLAR flag: when explicitly False, use the
+        # zero-series path instead of running the ISO 13790 solar computation.
+        # Applied here (rather than in the SolarGains selector) because R5C1
+        # bypasses the selector to hit the ISO-13790-specific strategy.
+        if not bool(obj.get(O.ACTIVE_GAINS_SOLAR, True)):
+            g_sol_df = SolarGainsInactive().generate(obj, data)
+        else:
+            g_sol_df = SolarGainsISO13790().generate(obj, data)
         return pd.concat([g_int_df, g_sol_df], axis=1, keys=["g_int", "g_sol"])
 
 
@@ -418,6 +516,7 @@ def calculate_timeseries_5r1c(
     Htr_w = params[O.H_TR_W]
     Htr_em = params[O.H_TR_EM]
     capacity_air = params[O.CAPACITANCE_AIR]
+    deadband = float(params.get(O.DEADBAND, DEFAULT_DEADBAND))
 
     # Splits
     sigma_surface = splits[O.SIGMA_SURFACE]
@@ -439,6 +538,11 @@ def calculate_timeseries_5r1c(
     T_in_arr[0] = Ta
     Qh_arr[0] = 0.0
     Qc_arr[0] = 0.0
+
+    # Hysteresis state — see issue #102 and the R1C1 solver for the
+    # matching state-machine definition.
+    heating_on = False
+    cooling_on = False
 
     # Precompute gain splits
     phi_ia_arr, phi_st_arr, phi_m_arr = _split_gains_5r1c(
@@ -502,9 +606,27 @@ def calculate_timeseries_5r1c(
 
         Q_applied = 0.0
 
-        # 2) Decide whether we need heating or cooling based on free-float air temperature
-        if Ta_free < T_min and on_heat:
-            # Need heating to keep at lower bound (T_set = T_min)
+        # 2) Hysteresis-aware trigger. `heating_on` fires when either
+        #    (a) heating was off and Ta_free dropped below T_min, or
+        #    (b) heating was on and Ta_free is still below the upper band edge.
+        # Cooling mirrors. When deadband == 0 the two branches collapse to
+        # "fire iff Ta_free < T_min" and the "on" branch never fires more
+        # than the "off" branch would — bit-exact regression.
+        T_min_hi = T_min + deadband
+        T_max_lo = T_max - deadband
+        # Wide-band mutex: clear the opposite latch whenever the primary
+        # extreme trigger of the other side fires. Physically we cannot heat
+        # while already above T_max, nor cool while below T_min. With
+        # deadband = 0 these guards are no-ops.
+        if Ta_free > T_max:
+            heating_on = False
+        if Ta_free < T_min:
+            cooling_on = False
+        fire_h = on_heat and (Ta_free < T_min or (heating_on and Ta_free < T_min_hi))
+        fire_c = on_cool and (Ta_free > T_max or (cooling_on and Ta_free > T_max_lo))
+
+        if fire_h:
+            # Aim for the upper band edge (T_min when deadband == 0).
             sol_tset = solve_step_tset_5r1c(
                 Cm=Cm,
                 Htr_is=Htr_is,
@@ -521,7 +643,7 @@ def calculate_timeseries_5r1c(
                 phi_m=phi_m,
                 sigma_surface=sigma_surface,
                 sigma_conv=sigma_conv,
-                T_set=T_min,
+                T_set=T_min_hi,
                 Tm_prev=Tm,
                 Ta_prev=Ta,
                 dt_s=dt_s,
@@ -553,13 +675,15 @@ def calculate_timeseries_5r1c(
                     dt_s=dt_s,
                     Y=Y_phiset_const,
                 )
-                Ta = float(sol_phi[1])  # < T_min
+                Ta = float(sol_phi[1])  # < T_min_hi
                 Tm = float(sol_phi[3])
             else:
-                Ta = float(sol_tset[1])  # == T_min
+                Ta = float(sol_tset[1])  # == T_min_hi
                 Tm = float(sol_tset[3])
-        elif Ta_free > T_max and on_cool:
-            # Need cooling to keep at upper bound (T_set = T_max)
+            heating_on = True
+            cooling_on = False
+        elif fire_c:
+            # Aim for the lower band edge (T_max when deadband == 0).
             sol_tset = solve_step_tset_5r1c(
                 Cm=Cm,
                 Htr_is=Htr_is,
@@ -576,7 +700,7 @@ def calculate_timeseries_5r1c(
                 phi_m=phi_m,
                 sigma_surface=sigma_surface,
                 sigma_conv=sigma_conv,
-                T_set=T_max,
+                T_set=T_max_lo,
                 Tm_prev=Tm,
                 Ta_prev=Ta,
                 dt_s=dt_s,
@@ -608,16 +732,20 @@ def calculate_timeseries_5r1c(
                     dt_s=dt_s,
                     Y=Y_phiset_const,
                 )
-                Ta = float(sol_phi[1])  # > T_max
+                Ta = float(sol_phi[1])  # > T_max_lo
                 Tm = float(sol_phi[3])
             else:
-                Ta = float(sol_tset[1])  # == T_max
+                Ta = float(sol_tset[1])  # == T_max_lo
                 Tm = float(sol_tset[3])
+            heating_on = False
+            cooling_on = True
 
         else:
             # Free-float stays within band or HVAC off
-            Ta = Ta_free  # T_min < Ta_free < T_max
+            Ta = Ta_free  # T_min < Ta_free < T_max (or actuator off/in-band)
             Tm = Tm_free
+            heating_on = False
+            cooling_on = False
 
         T_in_arr[t] = Ta
         Qh_arr[t] = max(Q_applied, 0.0)

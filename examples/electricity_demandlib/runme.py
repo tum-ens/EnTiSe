@@ -16,8 +16,8 @@ def analyze_results(df: dict, objects: pd.DataFrame, save_figures: bool = False)
     def plot_weekly_profile():
         # Pick the first full week starting Monday (or fallback: first 7 days)
         start = df.index.min().normalize()
-        start = start + pd.Timedelta(days=(7 - start.weekday()) % 7)
-        end = start + pd.Timedelta(days=7)
+        start = start + pd.Timedelta((7 - start.weekday()) % 7, unit="D")
+        end = start + pd.Timedelta(7, unit="D")
 
         s_week = df.loc[(df.index >= start) & (df.index < end)]
 
