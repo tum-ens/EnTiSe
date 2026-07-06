@@ -157,7 +157,7 @@ class TestOpenMeteoProvider:
         start_date = pd.Timestamp("2022-01-01")
         end_date = pd.Timestamp("2022-01-01 02:00:00")
         result = provider._calculate_sun_elevation(
-            start_date, end_date, pd.Timedelta(hours=1), 49.71754, 11.05877, 100.0
+            start_date, end_date, pd.Timedelta(1, unit="h"), 49.71754, 11.05877, 100.0
         )
 
         assert len(result) == 3

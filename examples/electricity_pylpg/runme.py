@@ -24,13 +24,13 @@ def analyze_results(results: dict, objects: pd.DataFrame, save_figures: bool = F
     def plot_weekly_profile(series: pd.Series, building_id: str):
         # Pick the first full week starting Monday (or fallback: first 7 days)
         start = series.index.min().normalize()
-        start = start + pd.Timedelta(days=(7 - start.weekday()) % 7)
-        end = start + pd.Timedelta(days=7)
+        start = start + pd.Timedelta((7 - start.weekday()) % 7, unit="D")
+        end = start + pd.Timedelta(7, unit="D")
 
         s_week = series.loc[(series.index >= start) & (series.index < end)]
         if s_week.empty:
             start = series.index.min()
-            end = start + pd.Timedelta(days=7)
+            end = start + pd.Timedelta(7, unit="D")
             s_week = series.loc[(series.index >= start) & (series.index < end)]
 
         fig, ax = plt.subplots(figsize=(15, 5))

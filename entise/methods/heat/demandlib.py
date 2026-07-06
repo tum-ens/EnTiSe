@@ -210,7 +210,7 @@ def calculate_timeseries(obj, data):
 
     # Make sure that local time is consistent (no DST changes)
     df_weather[f"{C.DATETIME}_naive"] = pd.date_range(
-        start=df_weather[f"{C.DATETIME}_naive"].iloc[0], periods=len(df_weather), freq=pd.Timedelta(seconds=dt_s)
+        start=df_weather[f"{C.DATETIME}_naive"].iloc[0], periods=len(df_weather), freq=pd.Timedelta(int(dt_s), unit="s")
     )
 
     # Create air temperature time series with local time as index

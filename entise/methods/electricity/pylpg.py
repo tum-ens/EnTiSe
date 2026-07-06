@@ -205,7 +205,7 @@ def calculate_timeseries(processed_obj: Dict[str, Any], processed_data: Dict[str
     idx = pd.to_datetime(df_dts[C.DATETIME].astype(str).str.slice(0, 19), errors="raise")
     dt_s = float((idx.iat[1] - idx.iat[0]).total_seconds())
 
-    idx_user = pd.date_range(start=idx.iat[0], periods=len(idx), freq=pd.Timedelta(seconds=dt_s))
+    idx_user = pd.date_range(start=idx.iat[0], periods=len(idx), freq=pd.Timedelta(int(dt_s), unit="s"))
     idx_user = pd.DatetimeIndex(idx_user, name=C.DATETIME)
 
     if dt_s < 60.0 or (dt_s % 60.0) != 0.0:
@@ -225,7 +225,7 @@ def calculate_timeseries(processed_obj: Dict[str, Any], processed_data: Dict[str
             continue
 
         start = pd.Timestamp(idx_y[0])
-        end = pd.Timestamp(idx_y[-1]) + pd.Timedelta(seconds=dt_s)
+        end = pd.Timestamp(idx_y[-1]) + pd.Timedelta(int(dt_s), unit="s")
 
         logger.info("[pylpg] Running chunk id=%s year=%s start=%s end=%s", obj_id, y, start, end)
 

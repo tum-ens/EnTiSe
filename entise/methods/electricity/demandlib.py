@@ -196,7 +196,10 @@ def calculate_timeseries(processed_obj: Dict[str, Any], processed_data: Dict[str
     dt_s = (df_dts.index[1] - df_dts.index[0]).total_seconds()
 
     # Make sure that local time is consistent (no DST changes)
-    df_dts.index = pd.date_range(start=df_dts.index[0], periods=len(df_dts), freq=pd.Timedelta(seconds=dt_s))
+    # NB: use ``pd.Timedelta(N, unit="s")`` — the keyword form ``pd.Timedelta(seconds=N)`` and the
+    # string form ``pd.Timedelta("Ns")`` both trigger the numpy 2.5 "generic unit" DeprecationWarning
+    # via pandas' internal Cython path, which pytest 9 escalates to a hard test failure.
+    df_dts.index = pd.date_range(start=df_dts.index[0], periods=len(df_dts), freq=pd.Timedelta(int(dt_s), unit="s"))
 
     # Get years for which to compute
     years = df_dts.index.year.unique().astype(int).sort_values()
