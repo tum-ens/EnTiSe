@@ -253,7 +253,7 @@ def calculate_timeseries(obj, data):
     # Wall-clock index
     idx_wall = pd.to_datetime(df_weather[C.DATETIME].astype(str).str.slice(0, 19))
     dt_s = (idx_wall.iloc[1] - idx_wall.iloc[0]).total_seconds()
-    idx_wall = pd.date_range(idx_wall.iloc[0], periods=len(idx_wall), freq=pd.Timedelta(seconds=dt_s))
+    idx_wall = pd.date_range(idx_wall.iloc[0], periods=len(idx_wall), freq=pd.Timedelta(int(dt_s), unit="s"))
 
     temp_hour = (
         df_weather.assign(_idx_wall=idx_wall)

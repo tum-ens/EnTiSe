@@ -19,7 +19,7 @@ def inputs():
     # Create mock weather data
     data = {}
     start = pd.Timestamp("2023-01-01", tz="UTC")
-    end = start + pd.Timedelta(days=30)
+    end = start + pd.Timedelta(30, unit="D")
     index = pd.date_range(start=start, end=end, freq="h")
 
     # Create a DataFrame with temperature data
