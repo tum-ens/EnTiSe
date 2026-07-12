@@ -17,10 +17,7 @@ The PostgreSQL/TimescaleDB backend follows three design principles:
    avoid a single huge transaction with long locks and unbounded WAL growth.
 3. **Index-once** -- the target index is dropped before loading and (re)built a single
    time in :meth:`finalize`, turning O(n^2) per-chunk index maintenance into a single
-   O(n) build. This is the change that actually removes the storage bottleneck.
-
-The PostgreSQL backend requires the optional ``storage`` dependencies
-(``sqlalchemy`` + ``psycopg2``): ``pip install entise[storage]``.
+   O(n) build.
 """
 
 from __future__ import annotations
@@ -33,6 +30,8 @@ from dataclasses import dataclass, fields
 from typing import Any, Dict, Mapping, Sequence
 
 import pandas as pd
+from sqlalchemy import MetaData, Table, text
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 logger = logging.getLogger(__name__)
 
@@ -158,16 +157,6 @@ class PostgresTimescaleStorage(TimeseriesStorage):
     """
 
     def __init__(self, engine: Any, config: StorageConfig):
-        # Lazy import keeps sqlalchemy/psycopg2 optional for the rest of EnTiSe.
-        try:
-            from sqlalchemy import MetaData, Table, text
-            from sqlalchemy.dialects.postgresql import insert as pg_insert
-        except ImportError as exc:  # pragma: no cover
-            raise ImportError(
-                "PostgresTimescaleStorage requires the optional 'storage' dependencies. "
-                "Install them with: pip install entise[storage]"
-            ) from exc
-
         self.engine = engine
         self.config = config
         self.chunk_size = config.stream_chunk_size

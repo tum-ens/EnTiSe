@@ -36,9 +36,11 @@ dependencies = [
     "openmeteo-requests",
     "pandas<3.0.0",
     "pint",
+    "psycopg2-binary",
     "pvlib>=0.12.0",
     "requests-cache",
     "retry-requests",
+    "sqlalchemy>=2.0",
     "tqdm>=4.0.0",
     "windpowerlib",
 ]
@@ -60,11 +62,6 @@ docs = [
     "sphinx",
     "sphinxcontrib-mermaid",
     "sphinx-rtd-theme",
-]
-# Optional database storage backends (entise.io.storage)
-storage = [
-    "sqlalchemy>=2.0",
-    "psycopg2-binary",
 ]
 # Commented out for PyPI compatibility - install manually if needed
 # districtheatingsim = [
