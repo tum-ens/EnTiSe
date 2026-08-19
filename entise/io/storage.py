@@ -15,9 +15,12 @@ The PostgreSQL/TimescaleDB backend follows three design principles:
    bulk load path), streamed client-side so it also works against remote/containerised
    databases. COPY runs per chunk (rather than one giant COPY for the whole run) to
    avoid a single huge transaction with long locks and unbounded WAL growth.
-3. **Index-once** -- the target index is dropped before loading and (re)built a single
-   time in :meth:`finalize`, turning O(n^2) per-chunk index maintenance into a single
-   O(n) build.
+3. **Configurable index maintenance** -- ``index_strategy`` selects how the target index
+   is kept current. ``"keep"`` creates it once, under a table-scoped advisory lock, and
+   lets COPY maintain it incrementally, so any number of processes may stream into one
+   shared table concurrently. ``"once"`` instead drops the index before an exclusive bulk
+   load and rebuilds it a single time in :meth:`finalize`, trading concurrency for a
+   faster one-shot build.
 """
 
 from __future__ import annotations
@@ -26,6 +29,7 @@ import io
 import logging
 import time
 from abc import ABC, abstractmethod
+from contextlib import contextmanager
 from dataclasses import dataclass, fields
 from typing import Any, Dict, Mapping, Sequence
 
@@ -72,7 +76,11 @@ class StorageConfig:
         source: Value written to the metadata ``source`` column.
         data_table: Name of the time series data table.
         metadata_table: Name of the metadata table.
-        index_name: Name of the data-table index managed with the index-once strategy.
+        index_name: Name of the data-table index on ``(ts_metadata_id, time)``.
+        index_strategy: How that index is maintained -- ``"keep"`` (created once and left
+            in place, safe for concurrent writers to a shared table) or ``"once"`` (dropped
+            for an exclusive bulk load and rebuilt in :meth:`finalize`). See the module
+            docstring for the trade-off.
         stream_chunk_size: Number of objects EnTiSe computes and writes per chunk when
             streaming to this sink. Bounds peak memory usage.
         synchronous_commit_off: If True, disable ``synchronous_commit`` during the COPY
@@ -86,6 +94,7 @@ class StorageConfig:
     data_table: str = "entise_ts_data"
     metadata_table: str = "entise_ts_metadata"
     index_name: str = "entise_ts_data_idx"
+    index_strategy: str = "keep"
     stream_chunk_size: int = 500
     synchronous_commit_off: bool = True
 
@@ -171,11 +180,15 @@ class PostgresTimescaleStorage(TimeseriesStorage):
     # ---- lifecycle ---------------------------------------------------------
 
     def setup(self) -> None:
-        self._ensure_tables()
-        self._drop_index()
+        # Table and index creation is serialized across processes so concurrent runs
+        # sharing a table cooperate rather than race on DDL.
+        with self._ddl_lock():
+            self._ensure_tables()
+        if self.config.index_strategy == "once":
+            self._drop_index()
         self._is_setup = True
         self._total_rows = 0
-        logger.info("Storage ready; index dropped, awaiting chunked COPY loads.")
+        logger.info("Storage ready; awaiting chunked COPY loads.")
 
     def write_batch(self, timeseries: Dict[Any, Dict[str, pd.DataFrame]]) -> None:
         if not timeseries:
@@ -193,9 +206,9 @@ class PostgresTimescaleStorage(TimeseriesStorage):
         self._total_rows += len(df)
 
     def finalize(self) -> None:
-        if self._total_rows == 0:
-            logger.info("No rows were written; skipping index rebuild.")
-        else:
+        # Under "keep" the index already exists and COPY has maintained it; only "once"
+        # rebuilds it here, after the index-free bulk load.
+        if self.config.index_strategy == "once" and self._total_rows > 0:
             self._create_index()
         logger.info("Storage finalize complete; %s rows loaded.", f"{self._total_rows:,}")
         self._is_setup = False
@@ -205,6 +218,25 @@ class PostgresTimescaleStorage(TimeseriesStorage):
         self._is_setup = False
 
     # ---- DDL ---------------------------------------------------------------
+
+    @contextmanager
+    def _ddl_lock(self):
+        """Serialize schema-object creation across processes writing to one table.
+
+        Concurrent runs sharing a table must not issue overlapping DDL. The advisory lock
+        is keyed to the target table, so the first arrival creates the objects while the
+        others wait briefly and then observe them as already present; runs targeting
+        different tables never block one another, and a single run pays no contention.
+        """
+        text = self._sa_text
+        key = f"entise:ddl:{self.config.schema}.{self.config.data_table}"
+        conn = self.engine.connect().execution_options(isolation_level="AUTOCOMMIT")
+        try:
+            conn.execute(text("SELECT pg_advisory_lock(hashtext(:key))"), {"key": key})
+            yield
+        finally:
+            conn.execute(text("SELECT pg_advisory_unlock(hashtext(:key))"), {"key": key})
+            conn.close()
 
     def _ensure_tables(self) -> None:
         cfg = self.config
@@ -276,6 +308,17 @@ class PostgresTimescaleStorage(TimeseriesStorage):
                             value double precision
                         );
                         """
+                    )
+                )
+
+            # Under "keep" the load-time index belongs to the table's steady state: it is
+            # created once here and maintained incrementally by COPY, so concurrent writers
+            # never drop or rebuild it. "once" leaves it out and manages it around the load.
+            if cfg.index_strategy == "keep":
+                conn.execute(
+                    text(
+                        f"CREATE INDEX IF NOT EXISTS {cfg.index_name} "
+                        f"ON {cfg.schema}.{cfg.data_table} (ts_metadata_id, time DESC);"
                     )
                 )
 
