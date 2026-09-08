@@ -10,7 +10,7 @@ from entise.constants import Constants as Const
 from entise.constants import Objects as O
 from entise.constants.constants import CP_AIR, RHO_AIR
 from entise.core.base import Method
-from entise.core.utils import resolve_ts_or_scalar
+from entise.core.utils import align_auxiliary_series, resolve_ts_or_scalar
 from entise.methods.auxiliary.internal.selector import InternalGains
 from entise.methods.auxiliary.solar.selector import SolarGains
 from entise.methods.auxiliary.ventilation.strategies import VentilationInactive, VentilationTimeSeries
@@ -125,6 +125,8 @@ class R7C2(Method):
         # Geometry
         O.AREA,
         O.HEIGHT,
+        O.LAT,
+        O.LON,
         # Gains splits
         O.FRAC_CONV_INTERNAL,
         O.FRAC_RAD_AW,  # IW is derived
@@ -141,12 +143,15 @@ class R7C2(Method):
         O.T_EQ_H_O,
         # Timeseries
         O.GAINS_INTERNAL,
+        O.GAINS_INTERNAL_COL,
         O.GAINS_SOLAR,
         O.VENTILATION,
+        O.VENTILATION_COL,
     ]
 
     required_data = [O.WEATHER]
-    optional_data = [O.WINDOWS, O.GAINS_INTERNAL, O.GAINS_SOLAR, O.H_VE, O.T_EQ]  # Hint set of common auxiliaries
+    # Hint set of common auxiliaries
+    optional_data = [O.WINDOWS, O.GAINS_INTERNAL, O.GAINS_SOLAR, O.VENTILATION, O.H_VE, O.T_EQ]
 
     output_summary = {
         f"{Types.HEATING}{SEP}{C.DEMAND}[Wh]": "total heating demand",
@@ -260,9 +265,11 @@ class R7C2(Method):
         # (rather than in the Ventilation selector) because R7C2 bypasses
         # the selector to hit the VDI-6007-specific TimeSeries strategy.
         if not bool(obj.get(O.ACTIVE_VENTILATION, True)):
-            ven_df = VentilationInactive().generate(obj, data).squeeze()
+            ven_df = VentilationInactive().generate(obj, data)
         else:
-            ven_df = VentilationTimeSeries().generate(obj, data).squeeze()
+            ven_df = VentilationTimeSeries().generate(obj, data)
+        # Align onto the model index before the split — see R5C1 and issue #106.
+        ven_df = align_auxiliary_series(ven_df, index, O.VENTILATION, self.name)
         vent_split = resolve_ts_or_scalar(obj, data, O.VENTILATION_SPLIT, index, default=DEFAULT_VENTILATION_SPLIT)
         Hve_vent_series = ven_df * vent_split
         Hve_inf_series = ven_df * (1.0 - vent_split)
@@ -459,6 +466,10 @@ class R7C2(Method):
             ts_data = self.get_with_backup(data, ts_key)
             if ts_data is not None:
                 data_out[key] = ts_data
+                # Keep the table reachable under the user's own key too — the
+                # auxiliary strategies look it up that way. See R5C1 and issue #106.
+                if isinstance(ts_key, str) and ts_key != key:
+                    data_out.setdefault(ts_key, ts_data)
 
         return {k: v for k, v in data_out.items() if v is not None}
 
