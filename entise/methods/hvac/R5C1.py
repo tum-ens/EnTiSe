@@ -10,7 +10,7 @@ from entise.constants import Constants as Const
 from entise.constants import Objects as O
 from entise.constants.constants import CP_AIR, RHO_AIR
 from entise.core.base import Method
-from entise.core.utils import resolve_ts_or_scalar
+from entise.core.utils import align_auxiliary_series, resolve_ts_or_scalar
 from entise.methods.auxiliary.internal.selector import InternalGains
 from entise.methods.auxiliary.solar.strategies import SolarGainsInactive, SolarGainsISO13790
 from entise.methods.auxiliary.ventilation.strategies import VentilationInactive, VentilationTimeSeries
@@ -114,8 +114,11 @@ class R5C1(Method):
         O.HEIGHT,
         O.AREA_M,
         O.AREA_TOT,
+        O.LAT,
+        O.LON,
         # Ventilation
         O.H_VE,
+        O.VENTILATION_SPLIT,
         # Sky facing surface
         O.H_TR_OP_SKY,
         # 5R1C splits
@@ -127,8 +130,10 @@ class R5C1(Method):
         # Timeseries
         O.WINDOWS,
         O.GAINS_INTERNAL,
+        O.GAINS_INTERNAL_COL,
         O.GAINS_SOLAR,
         O.VENTILATION,
+        O.VENTILATION_COL,
     ]
     required_data = [O.WEATHER]
     optional_data = [O.WINDOWS, O.GAINS_INTERNAL, O.GAINS_SOLAR, O.VENTILATION]
@@ -265,9 +270,14 @@ class R5C1(Method):
         # (rather than in the Ventilation selector) because R5C1 bypasses
         # the selector to hit the ISO-13709-specific TimeSeries strategy.
         if not bool(obj.get(O.ACTIVE_VENTILATION, True)):
-            ven_df = VentilationInactive().generate(obj, data).squeeze()
+            ven_df = VentilationInactive().generate(obj, data)
         else:
-            ven_df = VentilationTimeSeries().generate(obj, data).squeeze()
+            ven_df = VentilationTimeSeries().generate(obj, data)
+        # Align onto the model index before the split: the auxiliary carries the
+        # user's table index, and a Series x Series product would otherwise align
+        # on the union of the two and silently produce an over-long, NaN-padded
+        # frame (issue #106).
+        ven_df = align_auxiliary_series(ven_df, index, O.VENTILATION, self.name)
         vent_split = resolve_ts_or_scalar(obj, data, O.VENTILATION_SPLIT, index, default=DEFAULT_VENTILATION_SPLIT)
         Hve_vent_series = ven_df * vent_split
         Hve_inf_series = ven_df * (1.0 - vent_split)
@@ -452,6 +462,12 @@ class R5C1(Method):
             ts_data = self.get_with_backup(data, ts_key)
             if ts_data is not None:
                 data_out[key] = ts_data
+                # Auxiliary strategies (VentilationTimeSeries, InternalTimeSeries)
+                # look their table up by the *user's* key — the value of obj[key] —
+                # not by the canonical key, so keep it reachable under both names
+                # (issue #106). R1C1 files it under the user's key only.
+                if isinstance(ts_key, str) and ts_key != key:
+                    data_out.setdefault(ts_key, ts_data)
 
         return {k: v for k, v in data_out.items() if v is not None}
 
