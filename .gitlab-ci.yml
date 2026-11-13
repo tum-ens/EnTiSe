@@ -12,15 +12,16 @@ workflow:
     - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH =~ /^(develop|main)$/'
 
 stages:
-  - lint
-  - test
+  - verify
 
 cache:
+  key: "$CI_JOB_NAME_SLUG"
   paths:
     - .pip-cache/
-      - .uv-cache/
+    - .uv-cache/
 
 .python-job-template: &python-job-template
+  stage: verify
   before_script:
     - python -m pip install uv
     - uv venv --python python
@@ -29,7 +30,6 @@ cache:
 
 lint:
   <<: *python-job-template
-  stage: lint
   image: python:3.12
   allow_failure: true
   script:
@@ -40,13 +40,8 @@ lint:
       mypy entise || status=1
       exit "$status"
 
-test:
+.test:
   <<: *python-job-template
-  stage: test
-  parallel:
-    matrix:
-      - PYTHON_VERSION: ["3.10", "3.11", "3.12", "3.13"]
-  image: python:$PYTHON_VERSION
   script:
     - pytest -m "not native_pylpg" --cov=entise --cov-report=xml tests/ --junitxml=junit/test-report.xml
   artifacts:
@@ -56,9 +51,23 @@ test:
         coverage_format: cobertura
         path: coverage.xml
 
+test:develop:
+  extends: .test
+  image: python:3.12
+  rules:
+    - if: '$CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "develop" || $CI_COMMIT_BRANCH == "develop"'
+
+test:main:
+  extends: .test
+  image: python:$PYTHON_VERSION
+  parallel:
+    matrix:
+      - PYTHON_VERSION: ["3.10", "3.11", "3.12", "3.13"]
+  rules:
+    - if: '$CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "main" || $CI_COMMIT_BRANCH == "main"'
+
 test:native-pylpg:
   <<: *python-job-template
-  stage: test
   image: python:3.12
   allow_failure: true
   script:

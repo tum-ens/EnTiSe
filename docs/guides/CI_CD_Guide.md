@@ -5,8 +5,9 @@ targeting `develop` or `main` and pushes to those two branches.
 
 ## Verification jobs
 
-- **Test** runs the suite on Python 3.10 through 3.13, including the installation
-  check. This job excludes tests marked `native_pylpg`.
+- **Test** runs on Python 3.12 for `develop`. Merge requests targeting
+  `main` and pushes to `main` test Python 3.10 through 3.13. Both include the
+  installation check and exclude tests marked `native_pylpg`.
 - **Native PyLPG** runs the external engine tests on Python 3.12 and reports
   failures separately while the runner baseline is established. The local
   engine has failed with exit status -6. Tests that exercise validation without
@@ -14,6 +15,9 @@ targeting `develop` or `main` and pushes to those two branches.
 - **Lint and type checks** report Ruff lint, formatting, and mypy findings.
   This job is advisory during the rollout while existing findings are
   measured on the runner.
+
+All verification jobs can start in parallel. Available runner slots
+determine how many jobs GitLab runs at once.
 
 ## Verify the rollout
 
