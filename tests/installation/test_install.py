@@ -39,10 +39,14 @@ def test_install(tmp_path):
         assert base_requirements == {"numpy>=2.0.0", "pandas<3.0.0", "joblib>=1.0.0", "tqdm>=4.0.0"}
         assert len(list_strategies()) == len(method_registry) == 16
         assert len(methods_by_type) == 10
-        manual = {name for name in list_strategies() if get_strategy_extra(name) is None}
-        assert manual == {"districtheatingsim"}
+        assert get_strategy_extra("districtheatingsim") is None
+        assert get_strategy_extra("internalgainsoccupancy") is None
+        assert method_registry["internalgainsoccupancy"].__name__ == "InternalOccupancy"
+        provided_extras = set(dist.metadata.get_all("Provides-Extra"))
+        assert "internalgainsoccupancy" not in provided_extras
         method_extras = {get_strategy_extra(name) for name in list_strategies()} - {None}
-        assert method_extras <= set(dist.metadata.get_all("Provides-Extra"))
+        assert len(method_extras) == 14
+        assert method_extras <= provided_extras
         for package in ("pvlib", "scipy", "windpowerlib", "demandlib", "holidays", "pylpg", "pint", "matplotlib"):
             assert find_spec(package) is None, package
         """

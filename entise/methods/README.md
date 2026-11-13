@@ -13,6 +13,8 @@ auxiliary calculations they use.
   install extra in [pyproject.toml](../../pyproject.toml), even when it has no
   optional dependencies. Include the method extra in its type group. Verify
   strategy discovery and the declared dependencies in fresh processes.
+- Declare auxiliary dependencies in the extras of the main methods that use
+  them. Auxiliaries have no separate install extra.
 - Use [`AuxiliaryMethod`](../core/base_auxiliary.py) for supporting calculations
   that prepare inputs with `get_input_data` and return a DataFrame from `run`.
 - Prefix private helper modules with `_`. Import optional dependencies in the

@@ -31,6 +31,8 @@ reference docs, see [Ruhnau](../../../entise/methods/hp/ruhnau.py),
   Expose the class lazily through its type package if that is part of the public
   interface. Import optional dependencies where they are used and report the
   install command when a required top-level package is absent.
+- Include auxiliary dependencies in the main method's extra. Auxiliaries
+  are installed with their main methods.
 
 ## Verify and document
 

@@ -21,7 +21,7 @@ Key facts
 Requirements
 ------------
 
-Install this method with ``pip install "entise[internalgainsoccupancy]"``.
+Install the main method that uses this calculation to get its dependencies.
 
 Required keys (specify in objects)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

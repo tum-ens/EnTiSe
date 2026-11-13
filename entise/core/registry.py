@@ -14,7 +14,7 @@ class _BuiltinStrategy(NamedTuple):
 
 # Module names are relative to entise.methods. Keep the established discovery order.
 _BUILTIN_STRATEGIES = {
-    "internalgainsoccupancy": _BuiltinStrategy("auxiliary.internal.strategies", (), "internalgainsoccupancy"),
+    "internalgainsoccupancy": _BuiltinStrategy("auxiliary.internal.strategies", (), None),
     "jordanvajen": _BuiltinStrategy("dhw.jordan_vajen", (Types.DHW,), "dhw-jordanvajen"),
     "demandlib_electricity": _BuiltinStrategy("electricity.demandlib", (Types.ELECTRICITY,), "electricity-demandlib"),
     "pylpg": _BuiltinStrategy("electricity.pylpg", (Types.ELECTRICITY,), "electricity-pylpg"),
