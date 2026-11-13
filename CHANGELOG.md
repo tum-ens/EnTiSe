@@ -10,7 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 ### Added
-- Added contributor guidance for method contracts, offline testing, and method merge request review.
+- Added contributor guidance for method contracts, offline testing, and method merge request review. (`#109`)
 
 ### Fixed
 - Aligned the ventilation auxiliary output onto the model index in the 5R1C and 7R2C HVAC models. `_prepare_inputs` multiplied the auxiliary's series (carrying the user's table index) against the ventilation-split series (built on the weather index), so pandas aligned on the *union* of the two and silently produced an over-long, NaN-padded frame — `n+1` rows for a table with one extra timestamp, `2n` all-NaN rows for a table read from CSV with the default `RangeIndex`. The sensible solver reads `Hve_arr[t]` for `t < n` only and never noticed; the failure surfaced one call later in the latent-cooling post-pass as `ValueError: operands could not be broadcast together with shapes (n+1,) (n,)`. A new `align_auxiliary_series` helper in `entise/core/utils.py` now reindexes a `DatetimeIndex` result by label (a table not covering the full weather index is a hard error naming the gap, rather than silent NaN) and aligns an index-less result positionally after a length check — matching how R1C1 already consumes the same auxiliaries. (`#106`)
