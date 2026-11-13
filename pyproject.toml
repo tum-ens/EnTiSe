@@ -119,6 +119,11 @@ lint.ignore = []
 line-length = 120
 target-version = "py312"
 
+[tool.pytest.ini_options]
+markers = [
+    "native_pylpg: runs the external PyLPG engine",
+]
+
 [tool.ruff.format]
 quote-style = "double"
 indent-style = "space"
