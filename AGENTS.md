@@ -19,8 +19,9 @@ Read the relevant coding constraints before editing [methods](entise/methods/REA
 
 ## Tests and changes
 
-Follow the [contributing guide](docs/guides/CONTRIBUTING.md#workflow) for issues,
-branches, and merge requests. Run tests from the repository root with your
+Follow the [contribution workflow](docs/guides/CONTRIBUTING.md#workflow) from
+scope and approval through review and publication. Record the agreed stopping
+point for substantive work. Run tests from the repository root with your
 development environment active.
 
 - Run the offline suite with `pytest tests --ignore=tests/installation`.

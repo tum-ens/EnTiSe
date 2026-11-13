@@ -85,6 +85,13 @@ Provide specific test cases for this method:
    - Edge case 1
    - Edge case 2
 
+### Review and verification
+
+- Reviewed commit and target SHA
+- Findings and their resolution
+- Checks run, results, and known baseline failures or verification gaps
+- Changes since review and any checks repeated for the published head
+
 ### Documentation
 - [ ] Method has proper docstrings
 - [ ] Documentation has been updated (if applicable)

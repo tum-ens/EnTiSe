@@ -15,6 +15,13 @@ Add screenshots or videos demonstrating the change or issue (if relevant).
 ### How to Test
 Provide steps to test this PR. List clear instructions for testing, including any edge cases or important configurations. Mention if new tests were added or updated.
 
+### Review and verification
+
+- Reviewed commit and target SHA
+- Findings and their resolution
+- Checks run, results, and known baseline failures or verification gaps
+- Changes since review and any checks repeated for the published head
+
 ### Type of Change
 - [ ] 🐛 Bug fix (non-breaking change that fixes an issue)
 - [ ] ✨ New feature (non-breaking change that adds functionality)
@@ -37,7 +44,7 @@ Provide steps to test this PR. List clear instructions for testing, including an
 - [ ] My code follows the code style of this project.
 - [ ] My changes generate no new warnings.
 - [ ] I have added or updated tests to cover my changes.
-- [ ] All tests pass locally with my changes.
+- [ ] The verification above accounts for any failing or skipped checks.
 
 ### Additional Notes
 Add any additional notes, suggestions, or comments here (e.g., areas the reviewer should focus on, known limitations, or special circumstances).
