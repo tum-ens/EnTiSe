@@ -115,27 +115,27 @@ Public methods
                ValueError: If the irradiance model is unknown.
 
            Caching rules:
-           - Cache solpos and poa_global.
+           - Cache solpos and poa_global per weather frame; never across weather frames.
            - Do NOT cache final total solar gains.
-           - Weather identity for caches must depend on location and average GHI in addition to time grid.
+           - The solar position is calculated at the centre of the object's 0.1 degree grid cell,
+             so all objects in a cell share it and the result does not depend on calculation order.
            - Window fingerprint for POA cache uses only tilt and orientation.
            """
            if windows is None:
                return pd.DataFrame({O.GAINS_SOLAR: np.zeros(len(weather), dtype=np.float32)}, index=weather.index)
 
-           # Weather/location signatures for caching
+           cache = _frame_cache(weather)
            timezone_info = weather.index[0].tzinfo
            tz_offset = 0 if timezone_info is None else timezone_info.utcoffset(None).total_seconds() / 3600
-           lat_r, lon_r = _round_loc(latitude, longitude)
-           wsig = _weather_signature_with_ghi(weather.index, weather[C.SOLAR_GHI])
+           cell = _cell_centre(latitude, longitude)
 
            # Cache solar position (solpos)
-           sp_key = (wsig, lat_r, lon_r, tz_offset)
-           solpos = _SOLPOS_CACHE.get(sp_key)
+           sp_key = (cell, tz_offset)
+           solpos = cache.solpos.get(sp_key)
            if solpos is None:
-               location = pvlib.location.Location(latitude, longitude, tz=tz_offset)
+               location = pvlib.location.Location(cell[0], cell[1], tz=tz_offset)
                solpos = location.get_solarposition(pd.to_datetime(weather.index, utc=True), method="nrel_numba")
-               _SOLPOS_CACHE[sp_key] = solpos
+               cache.solpos[sp_key] = solpos
 
            total_solar_gains = np.zeros(len(weather), dtype=np.float32)
            zenith = solpos["zenith"]
@@ -144,12 +144,12 @@ Public methods
            dhi = weather[C.SOLAR_DHI]
            dni = weather[C.SOLAR_DNI]
 
-           # Loop windows; cache POA per (weather/location/tilt/azimuth)
+           # Loop windows; cache POA per (grid cell/tilt/azimuth) within this weather frame
            for _, window in windows.iterrows():
                tilt = float(window[C.TILT])
                orientation = float(window[C.ORIENTATION])
-               poa_key = (wsig, lat_r, lon_r, tz_offset, round(tilt, 3), round(orientation, 3))
-               poa = _POA_CACHE.get(poa_key)
+               poa_key = (cell, tz_offset, round(tilt, 3), round(orientation, 3))
+               poa = cache.poa.get(poa_key)
                if poa is None:
                    irr = pvlib.irradiance.get_total_irradiance(
                        surface_tilt=tilt,
@@ -163,7 +163,7 @@ Public methods
                        model="isotropic",
                    )
                    poa = irr["poa_global"].to_numpy(dtype=np.float32, copy=False)
-                   _POA_CACHE[poa_key] = poa
+                   cache.poa[poa_key] = poa
 
                # Compute window gains from POA. Cast scalars to np.float32 so
                # `poa * area * g * sh` stays float32 (Python `float` would promote
@@ -174,3 +174,4 @@ Public methods
                total_solar_gains += poa * area * g * sh
 
            return pd.DataFrame({O.GAINS_SOLAR: total_solar_gains}, index=weather.index)
+
