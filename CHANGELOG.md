@@ -11,7 +11,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 ### Added
 - Added a shared contribution workflow that records approval scope and review
-  evidence, with GitLab verification jobs for merge requests.
+  evidence, with GitLab verification jobs for merge requests. (`#112`)
 - Added contributor guidance for method contracts, offline testing, and method merge request review. (`#109`)
 
 ### Fixed
