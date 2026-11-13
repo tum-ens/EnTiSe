@@ -4,6 +4,8 @@ Weather Service
 
 The Weather Service module provides a modular approach to retrieving weather data from various sources. It includes a base ``WeatherProvider`` interface, specific provider implementations, and a ``WeatherService`` facade for easy access to weather data.
 
+Install the service with ``pip install "entise[weather]"``.
+
 Architecture
 ------------
 

@@ -40,6 +40,8 @@ Key facts
 Requirements
 ------------
 
+Install this method with ``pip install "entise[hp-ruhnau]"``.
+
 Required keys (specify in objects)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

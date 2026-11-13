@@ -8,8 +8,6 @@ import logging
 from functools import lru_cache
 from typing import Iterable, Optional, Tuple
 
-import holidays
-
 logger = logging.getLogger(__name__)
 
 
@@ -39,6 +37,8 @@ def _years_key(years: Iterable) -> Tuple[int, ...]:
 def _get_holidays_cached(country: Optional[str], subdiv: Optional[str], years_key: Tuple[int, ...]):
     if not country or not years_key:
         return None
+    import holidays
+
     try:
         cal = holidays.country_holidays(country=country, subdiv=subdiv, years=years_key)
         # Store as tuple to avoid accidental external mutation of cached value

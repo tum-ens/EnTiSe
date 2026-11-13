@@ -2,8 +2,8 @@ import logging
 from typing import Any, Dict, Optional
 
 import pandas as pd
-from demandlib import bdew
 
+from entise._optional import require_module, requires_extra
 from entise.constants import SEP, Types
 from entise.constants import Columns as C
 from entise.constants import Objects as O
@@ -203,6 +203,9 @@ def calculate_timeseries(processed_obj: Dict[str, Any], processed_data: Dict[str
 
     # Get years for which to compute
     years = df_dts.index.year.unique().astype(int).sort_values()
+    with requires_extra("electricity-demandlib", "demandlib"):
+        from demandlib import bdew
+    require_module("electricity-demandlib", "holidays")
     holidays = get_holidays(holidays_location=holidays_location, years=years)
 
     # Generate demand profile for every year that is required

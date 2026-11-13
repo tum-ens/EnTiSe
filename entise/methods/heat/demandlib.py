@@ -2,8 +2,8 @@ import logging
 from typing import Optional
 
 import pandas as pd
-from demandlib import bdew
 
+from entise._optional import require_module, requires_extra
 from entise.constants import SEP, Types
 from entise.constants import Columns as C
 from entise.constants import Objects as O
@@ -221,6 +221,9 @@ def calculate_timeseries(obj, data):
         air_temp = air_temp.resample("1h").mean().interpolate()
 
     # Get holidays
+    with requires_extra("heating-demandlib", "demandlib"):
+        from demandlib import bdew
+    require_module("heating-demandlib", "holidays")
     holidays = get_holidays(holidays_location=holidays_location, years=air_temp.index.year.unique())
 
     # Calculate heat demand

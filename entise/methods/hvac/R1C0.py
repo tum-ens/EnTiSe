@@ -3,6 +3,7 @@ import logging
 import numpy as np
 import pandas as pd
 
+from entise._optional import require_module
 from entise.constants import SEP, Types
 from entise.constants import Columns as C
 from entise.constants import Objects as O
@@ -165,6 +166,7 @@ class R1C0(Method):
             gains_internal=gains_internal,
             gains_solar=gains_solar,
         )
+        require_module("hvac-1r0c", "pvlib")
         obj, data = self._get_input_data(obj, data, ts_type)
 
         # Timestep in seconds. Only the delta matters — casting the whole

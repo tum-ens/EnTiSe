@@ -1,21 +1,10 @@
-"""
-Heating methods for time series generation.
+"""Heating demand generation methods."""
 
-This package contains methods for generating heating demand or supply time series.
-"""
+from functools import partial
 
-from entise.methods.heat.demandlib import Demandlib
+from entise.methods._exports import list_exports, load_export
 
-# Try to import DistrictHeatSim only if the dependency is available
-try:
-    from entise.methods.heat.districtheatingsim import DistrictHeatSim
-
-    __all__ = [
-        "Demandlib",
-        "DistrictHeatSim",
-    ]
-except ImportError:
-    # DistrictHeatSim is not available, only export Demandlib
-    __all__ = [
-        "Demandlib",
-    ]
+_EXPORTS = {"Demandlib": "demandlib", "DistrictHeatSim": "districtheatingsim"}
+__all__ = list(_EXPORTS)
+__getattr__ = partial(load_export, __name__, _EXPORTS)
+__dir__ = partial(list_exports, globals(), _EXPORTS)

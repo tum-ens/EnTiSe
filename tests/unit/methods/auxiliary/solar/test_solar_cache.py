@@ -2,6 +2,7 @@
 
 import numpy as np
 import pandas as pd
+import pvlib
 import pytest
 
 from entise.constants import Columns as C
@@ -85,7 +86,7 @@ def test_weather_frames_with_equal_summary_do_not_share_gains(weather, windows):
 
 
 def test_same_weather_frame_reuses_the_cached_irradiance(weather, windows, mocker):
-    spy = mocker.spy(strategies.pvlib.irradiance, "get_total_irradiance")
+    spy = mocker.spy(pvlib.irradiance, "get_total_irradiance")
 
     _gains(weather, windows, POSITION_A)
     calls_after_first_object = spy.call_count

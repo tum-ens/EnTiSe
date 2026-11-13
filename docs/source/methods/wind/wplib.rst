@@ -38,6 +38,8 @@ Key facts
 Requirements
 ------------
 
+Install this method with ``pip install "entise[wind-wplib]"``.
+
 Required keys (specify in objects)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

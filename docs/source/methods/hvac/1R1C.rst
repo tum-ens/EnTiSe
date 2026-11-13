@@ -48,6 +48,8 @@ Key facts
 Requirements
 ------------
 
+Install this method with ``pip install "entise[hvac-1r1c]"``.
+
 Required keys (specify in objects)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

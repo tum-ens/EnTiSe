@@ -21,6 +21,14 @@ Key facts
 Requirements
 ------------
 
+{% if install_extra %}
+Install this method with ``pip install "entise[{{ install_extra }}]"``.
+
+{% elif manual_install %}
+Install the DistrictHeatingSim backend manually with Python 3.11. See the
+:ref:`installation guide <installation>` for instructions.
+
+{% endif %}
 Required keys (specify in objects)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

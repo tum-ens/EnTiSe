@@ -4,16 +4,6 @@ from typing import Optional
 import numpy as np
 import pandas as pd
 
-# Try to import the optional dependency
-try:
-    from districtheatingsim.heat_requirement.heat_requirement_BDEW import calculate as bdew_calculate
-
-    DISTRICTHEATINGSIM_AVAILABLE = True
-except ImportError:
-    DISTRICTHEATINGSIM_AVAILABLE = False
-    bdew_calculate = None
-
-
 from entise.constants import SEP, Types
 from entise.constants import Columns as C
 from entise.constants import Objects as O
@@ -237,6 +227,16 @@ def calculate_timeseries(obj, data):
     Returns:
         pandas.Series: Integer Watts indexed by tz-naive regular timestamps.
     """
+    try:
+        from districtheatingsim.heat_requirement.heat_requirement_BDEW import calculate as bdew_calculate
+    except ModuleNotFoundError as exc:
+        if exc.name != "districtheatingsim":
+            raise
+        raise ImportError(
+            "The districtheatingsim method requires a manual installation of DistrictHeatingSim "
+            "with Python 3.11. See the EnTiSe installation guide."
+        ) from exc
+
     demand_kwh = float(obj[O.DEMAND_KWH])
 
     profile_type = str(obj.get(O.PROFILE_TYPE, DEFAULT_PROFILE_TYPE)).strip().upper()

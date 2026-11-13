@@ -8,11 +8,11 @@ to generate DHW demand time series.
 import logging
 from typing import Any, Dict, Tuple, Union
 
-import holidays
 import numpy as np
 import pandas as pd
 
 import entise.methods.dhw.defaults as defaults
+from entise._optional import requires_extra
 from entise.constants import Columns as C
 from entise.constants import Objects as O
 from entise.methods.dhw.jordanvajen.utils import (
@@ -320,6 +320,9 @@ def _calculate_timeseries(
         location = location.split(",")
         country = location[-1].strip()
         subdiv = location[0].strip() if len(location) > 1 else None
+
+        with requires_extra("dhw-jordanvajen", "holidays"):
+            import holidays
 
         try:
             holiday_dates = set(

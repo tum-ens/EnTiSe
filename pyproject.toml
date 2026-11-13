@@ -24,28 +24,46 @@ classifiers = [
 ]
 keywords = ["energy", "time series", "simulation"]
 dependencies = [
-    "cattrs",
-    "chardet>=5.0.0",
-    "demandlib",
-    "pyloadprofilegenerator",
-    "holidays>=0.50",
     "joblib>=1.0.0",
-    "matplotlib>=3.1.0",
-    "notebook>=7.5.4",
     "numpy>=2.0.0",
-    "openmeteo-requests",
     "pandas<3.0.0",
-    "pint",
-    "pvlib>=0.12.0",
-    "requests-cache",
-    "retry-requests",
     "tqdm>=4.0.0",
-    "windpowerlib",
 ]
 requires-python = ">=3.10,<3.14"
 
 [project.optional-dependencies]
+dhw-jordanvajen = ["holidays>=0.50", "scipy"]
+electricity-demandlib = ["demandlib", "holidays>=0.50"]
+electricity-pylpg = ["pyloadprofilegenerator"]
+file = []
+heating-demandlib = ["demandlib", "holidays>=0.50"]
+hp-ruhnau = []
+hvac-1r0c = ["pvlib>=0.12.0"]
+hvac-1r1c = ["pvlib>=0.12.0"]
+hvac-5r1c = ["pvlib>=0.12.0"]
+hvac-7r2c = ["pvlib>=0.12.0"]
+internalgainsoccupancy = []
+occupancy-geoma = []
+occupancy-pht = []
+pv-pvlib = ["pvlib>=0.12.0"]
+wind-wplib = ["windpowerlib"]
+
+cooling = ["entise[file]"]
+dhw = ["entise[dhw-jordanvajen,file]"]
+electricity = ["entise[electricity-demandlib,electricity-pylpg,file]"]
+heating = ["entise[heating-demandlib,file]"]
+hp = ["entise[hp-ruhnau,file]"]
+hvac = ["entise[hvac-1r0c,hvac-1r1c,hvac-5r1c,hvac-7r2c,file]"]
+mobility = ["entise[file]"]
+occupancy = ["entise[occupancy-geoma,occupancy-pht,file]"]
+pv = ["entise[pv-pvlib,file]"]
+wind = ["entise[wind-wplib,file]"]
+all = ["entise[cooling,dhw,electricity,examples,heating,hp,hvac,mobility,occupancy,pv,weather,wind]"]
+
+examples = ["matplotlib>=3.1.0", "notebook>=7.5.4"]
+weather = ["openmeteo-requests", "pint", "pvlib>=0.12.0", "requests-cache", "retry-requests"]
 dev = [
+    "entise[dhw,electricity,heating,hp,hvac,occupancy,pv,weather,wind]",
     "pytest>=8.3.4",
     "pytest-cov>=6.0.0",
     "pytest-mock>=3.14.0",

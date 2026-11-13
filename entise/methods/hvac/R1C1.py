@@ -3,6 +3,7 @@ import logging
 import numpy as np
 import pandas as pd
 
+from entise._optional import require_module
 from entise.constants import SEP, Types
 from entise.constants import Columns as C
 from entise.constants import Constants as Const
@@ -197,6 +198,7 @@ class R1C1(Method):
             area=area,
             height=height,
         )
+        require_module("hvac-1r1c", "pvlib")
         obj, data = self._get_input_data(obj, data, ts_type)
 
         # Timestep in seconds (assuming a regular time grid). Compute from

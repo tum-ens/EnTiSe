@@ -36,6 +36,8 @@ Key facts
 Requirements
 ------------
 
+Install this method with ``pip install "entise[pv-pvlib]"``.
+
 Required keys (specify in objects)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

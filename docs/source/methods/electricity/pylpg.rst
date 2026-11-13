@@ -24,6 +24,8 @@ Key facts
 Requirements
 ------------
 
+Install this method with ``pip install "entise[electricity-pylpg]"``.
+
 Required keys (specify in objects)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

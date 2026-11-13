@@ -25,10 +25,12 @@ reference docs, see [Ruhnau](../../../entise/methods/hp/ruhnau.py),
   the output metadata consistent with the returned columns and units. If the
   method consumes another strategy's output, follow how the
   [runner](../../../entise/core/runner.py) resolves that dependency.
-- Check the [current registry](../../../entise/core/registry.py) and sibling
-  methods for discovery. Expose the new class through the type package if its
-  public import is part of the intended interface. Import optional dependencies
-  in the path that uses them.
+- Add the method to the [built-in registry](../../../entise/core/registry.py)
+  and declare its extra and type group in [pyproject.toml](../../../pyproject.toml).
+  Declare an empty extra when the method needs only core dependencies.
+  Expose the class lazily through its type package if that is part of the public
+  interface. Import optional dependencies where they are used and report the
+  install command when a required top-level package is absent.
 
 ## Verify and document
 
@@ -40,6 +42,8 @@ reference docs, see [Ruhnau](../../../entise/methods/hp/ruhnau.py),
   class first. Set the strategy name for its type on a test object, run with
   `raise_on_error=True`, and assert the result for that object and type. A
   direct import can register the class and mask a discovery problem. The
+  subprocess should exercise the method with only its declared extra and check
+  that it leaves other method modules unloaded. The
   [PV integration test](../../../tests/integration/pv_pvlib/test_pv_pvlib.py)
   shows how to exercise this entry point with local inputs.
 - Document inputs, units, assumptions, and returned values in the method

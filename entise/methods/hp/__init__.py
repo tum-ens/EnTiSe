@@ -1,11 +1,10 @@
-"""
-Heat Pump methods for time series generation.
+"""Heat pump time-series methods."""
 
-This package contains methods for generating heat pump COP time series.
-"""
+from functools import partial
 
-# Import and expose the Ruhnau class
-from entise.methods.hp.ruhnau import Ruhnau
+from entise.methods._exports import list_exports, load_export
 
-# Expose the classes
-__all__ = ["Ruhnau"]
+_EXPORTS = {"Ruhnau": "ruhnau"}
+__all__ = list(_EXPORTS)
+__getattr__ = partial(load_export, __name__, _EXPORTS)
+__dir__ = partial(list_exports, globals(), _EXPORTS)
