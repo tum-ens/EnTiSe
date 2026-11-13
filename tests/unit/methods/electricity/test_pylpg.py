@@ -38,6 +38,7 @@ def _energy_wh_from_power(power_w: pd.Series, dt_s: float) -> float:
     return float(power_w.sum()) * (dt_s / 3600.0)
 
 
+@pytest.mark.native_pylpg
 def test_calculate_timeseries_hourly_runs_and_no_nans():
     """Hourly path: returns DataFrame with expected column, length match, tz-naive index, no NaNs, non-negative."""
     dts = _make_datetimes("2022-01-01 00:00:00", periods=6, freq="h")
@@ -64,6 +65,7 @@ def test_calculate_timeseries_hourly_runs_and_no_nans():
     assert (ts["pylpg"] >= 0).all()
 
 
+@pytest.mark.native_pylpg
 def test_generate_end_to_end_schema_and_summary_consistency():
     """Public API: returns summary and timeseries; summary’s Wh/max W match recomputed values from ts."""
     dts = _make_datetimes("2022-01-01 00:00:00", periods=8, freq="15min")
@@ -95,6 +97,7 @@ def test_generate_end_to_end_schema_and_summary_consistency():
     assert result["summary"][f"{Types.ELECTRICITY}{SEP}{O.LOAD_MAX}[W]"] == int(round(float(ts[OUT_COL].max())))
 
 
+@pytest.mark.native_pylpg
 def test_multiyear_concat_runs():
     """Cross-year horizon: handles Dec→Jan boundary with correct length, tz-naive index, and no NaNs."""
     dts = _make_datetimes("2021-12-31 23:00:00", periods=5, freq="h")
@@ -118,6 +121,7 @@ def test_multiyear_concat_runs():
     assert ts["pylpg"].isna().sum() == 0
 
 
+@pytest.mark.native_pylpg
 def test_resampling_behaviour_preserves_energy_in_summary():
     """Verify that summary Wh matches recomputed Wh from the emitted timeseries for multiple dt_s."""
     for freq in ["60min", "15min", "5min"]:
@@ -144,6 +148,7 @@ def test_resampling_behaviour_preserves_energy_in_summary():
         assert res["summary"][f"{Types.ELECTRICITY}{SEP}{C.DEMAND}[Wh]"] == int(round(e_wh))
 
 
+@pytest.mark.native_pylpg
 def test_non_monotonic_datetimes_are_normalized_but_length_preserved():
     """Non-monotonic datetimes: implementation normalizes to a regular range; ensure output length matches input."""
     idx = pd.to_datetime(

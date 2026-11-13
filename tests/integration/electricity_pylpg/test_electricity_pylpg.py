@@ -39,6 +39,7 @@ def example_inputs():
     return objects, data
 
 
+@pytest.mark.native_pylpg
 def test_electricity_pylpg_example_runs_end_to_end(example_inputs):
     """
     Integration test:

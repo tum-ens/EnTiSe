@@ -12,7 +12,8 @@ current diff. For a local branch targeting `develop`, start with
 `git diff origin/develop...HEAD`. Check the worktree separately if the request
 includes staged or unstaged changes, and identify those changes in the report.
 Read [AGENTS.md](../../../AGENTS.md) and the scoped guidance for the files under
-review.
+review. Follow the [contribution workflow](../../../docs/guides/CONTRIBUTING.md#workflow)
+for the handoff to publication.
 
 ## Check the changed behavior
 
@@ -43,6 +44,8 @@ review.
 
 Put actionable findings first. Give the file and line, the input or execution
 path that triggers the issue, and the consequence. State the reviewed head,
-test results, and any verification gaps. If there are no actionable findings,
-say so. Recheck later changes before treating a new head as reviewed. Apply
+test results, known baseline failures, and any verification gaps. If there are
+no actionable findings, say so. For publication, put the reviewed SHA and
+evidence in the MR description. Compare the reviewed SHA with the publication
+head, review any later changes, and record their effect on verification. Apply
 fixes or publish comments only when the user requests those actions.

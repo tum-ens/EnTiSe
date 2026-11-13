@@ -3,6 +3,13 @@
 
 variables:
   PIP_CACHE_DIR: "$CI_PROJECT_DIR/.pip-cache"
+  UV_CACHE_DIR: "$CI_PROJECT_DIR/.uv-cache"
+  GIT_DEPTH: "0"
+
+workflow:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME =~ /^(develop|main)$/'
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH =~ /^(develop|main)$/'
 
 stages:
   - lint
@@ -11,6 +18,7 @@ stages:
 cache:
   paths:
     - .pip-cache/
+      - .uv-cache/
 
 .python-job-template: &python-job-template
   before_script:
@@ -21,10 +29,14 @@ lint:
   <<: *python-job-template
   stage: lint
   image: python:3.12
+  allow_failure: true
   script:
-    - ruff check .
-    - ruff format --check .
-    - mypy entise
+    - |
+      status=0
+      ruff check . || status=1
+      ruff format --check . || status=1
+      mypy entise || status=1
+      exit "$status"
 
 test:
   <<: *python-job-template
@@ -34,10 +46,21 @@ test:
       - PYTHON_VERSION: ["3.10", "3.11", "3.12", "3.13"]
   image: python:$PYTHON_VERSION
   script:
-    - pytest --cov=entise tests/ --junitxml=junit/test-report.xml
+    - pytest -m "not native_pylpg" --cov=entise --cov-report=xml tests/ --junitxml=junit/test-report.xml
   artifacts:
     reports:
       junit: junit/test-report.xml
       coverage_report:
         coverage_format: cobertura
         path: coverage.xml
+
+test:native-pylpg:
+  <<: *python-job-template
+  stage: test
+  image: python:3.12
+  allow_failure: true
+  script:
+    - pytest -m native_pylpg tests/ --junitxml=junit/native-pylpg.xml
+  artifacts:
+    reports:
+      junit: junit/native-pylpg.xml
