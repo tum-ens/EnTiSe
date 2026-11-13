@@ -5,6 +5,23 @@
 ### TL;DR
 Briefly describe the method change (max 5 sentences).
 
+### Method review
+
+- [ ] Declared inputs, outputs, and names follow the applicable method contract.
+- [ ] The test notes identify the applicable checks and their results. For a bug
+  fix, show that the regression test fails with the base implementation and
+  passes with the fix.
+- [ ] Changes to generated output or the public API have a changelog entry.
+
+Examples of checks to cite in **How to Test**:
+
+- [Determinism](https://gitlab.lrz.de/tum-ens/need/entise/-/blob/1f79e48007e3481857222a7230cd48723d940963/tests/integration/test_reproducibility.py#L82) compares
+  time series and summaries across object order, worker count, and batch size.
+- [RC energy balance](https://gitlab.lrz.de/tum-ens/need/entise/-/blob/1f79e48007e3481857222a7230cd48723d940963/tests/unit/methods/hvac/test_R1C1.py#L312) checks that
+  an undersized heater reaches the expected steady-state temperature.
+- [Bounds](https://gitlab.lrz.de/tum-ens/need/entise/-/blob/1f79e48007e3481857222a7230cd48723d940963/tests/unit/methods/hvac/test_R7C2.py#L191) checks heating and cooling
+  power against their configured limits.
+
 ### Method Details
 **Method Name**: `method_name`
 
@@ -17,7 +34,7 @@ Briefly describe the method change (max 5 sentences).
 - [ ] ⚡ Electricity
 - [ ] 🌋 Geothermal
 - [ ] 🌡️ Heat Pump
-- [ ] 🔥 Heating (tick only for methods that exclusively generate cooling, otherwise choose HVAC)
+- [ ] 🔥 Heating (tick only for methods that exclusively generate heating, otherwise choose HVAC)
 - [ ] 🏢 HVAC (Heating, Ventilation, and Air Conditioning)
 - [ ] 💧 Hydro
 - [ ] 🚗 Mobility
