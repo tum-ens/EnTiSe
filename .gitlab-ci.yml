@@ -22,7 +22,9 @@ cache:
 
 .python-job-template: &python-job-template
   before_script:
-    - pip install uv
+    - python -m pip install uv
+    - uv venv --python python
+    - export PATH="$CI_PROJECT_DIR/.venv/bin:$PATH"
     - uv pip install -e ".[dev]"
 
 lint:
