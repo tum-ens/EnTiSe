@@ -39,6 +39,8 @@ Key facts
 Requirements
 ------------
 
+Install this method with ``pip install "entise[occupancy-pht]"``.
+
 Required keys (specify in objects)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

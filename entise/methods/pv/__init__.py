@@ -1,11 +1,10 @@
-"""
-PV (Photovoltaic) methods for time series generation.
+"""Photovoltaic generation methods."""
 
-This package contains methods for generating PV power generation time series.
-"""
+from functools import partial
 
-# Import and expose the PVLib class
-from entise.methods.pv.pvlib import PVLib
+from entise.methods._exports import list_exports, load_export
 
-# Expose the classes
-__all__ = ['PVLib']
+_EXPORTS = {"PVLib": "pvlib"}
+__all__ = list(_EXPORTS)
+__getattr__ = partial(load_export, __name__, _EXPORTS)
+__dir__ = partial(list_exports, globals(), _EXPORTS)

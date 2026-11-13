@@ -25,6 +25,42 @@ Install the latest released version from PyPI using pip:
 
    pip install entise
 
+The core includes the file loader, Ruhnau heat pump, and GeoMA and PHT
+occupancy methods. Add the extras for any other methods you run:
+
+.. code-block:: bash
+
+   pip install "entise[pv-pvlib,hvac-1r1c]"
+
+Each method's reference page gives its install command. A type group
+installs all packaged methods of that type. For example, ``entise[hvac]``
+installs the four RC methods. The other groups are ``cooling``, ``dhw``,
+``electricity``, ``heating``, ``hp``, ``mobility``, ``occupancy``, ``pv``,
+and ``wind``. Cooling and mobility currently provide the file loader.
+
+.. list-table::
+   :header-rows: 1
+
+   * - Extra
+     - Purpose
+   * - ``all``
+     - All packaged methods, the weather service, and example tools.
+   * - ``weather``
+     - The weather service and Open-Meteo provider.
+   * - ``examples``
+     - Matplotlib and Jupyter Notebook. Add the extras for the methods you run.
+   * - ``numba``
+     - The optional 1R1C accelerator. Install with ``hvac-1r1c`` or ``hvac``.
+
+For the previous installation coverage, use ``pip install "entise[all]"``.
+To run the PyLPG notebook, install ``entise[examples,electricity-pylpg]`` and
+start it with ``python -m notebook``.
+
+DistrictHeatingSim requires a separate manual installation with Python 3.11.
+Follow the `DistrictHeatingSim installation instructions
+<https://github.com/JonasPfeiffer123/DistrictHeatingSim>`_ to install its
+backend alongside EnTiSe.
+
 If you prefer ``uv`` for faster installs, you can use:
 
 .. code-block:: bash
@@ -66,7 +102,8 @@ If you plan to contribute or need the latest development version, install from s
         python -m venv .venv
         source .venv/bin/activate
 
-3. Install in editable mode with development extras:
+3. Install in editable mode with development extras. This includes the
+   packaged method and weather dependencies needed by the test suite:
 
    .. code-block:: bash
 

@@ -9,6 +9,8 @@ import os
 import numpy as np
 import pandas as pd
 
+from entise._optional import requires_extra
+
 # Constants
 SECONDS_PER_MINUTE = 60
 MINUTES_PER_HOUR = 60
@@ -137,7 +139,8 @@ def _sample_event_volumes(
     np.ndarray
         Array of sampled volumes
     """
-    from scipy.stats import truncnorm
+    with requires_extra("dhw-jordanvajen", "scipy"):
+        from scipy.stats import truncnorm
 
     mu = mean_flow
     sigma = mu * sigma_relative

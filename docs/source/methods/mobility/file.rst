@@ -66,6 +66,8 @@ Key facts
 Requirements
 ------------
 
+Install this method with ``pip install "entise[file]"``.
+
 Required keys (specify in objects)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

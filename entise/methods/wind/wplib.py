@@ -1,8 +1,8 @@
 import logging
 
 import pandas as pd
-from windpowerlib import ModelChain, WindTurbine
 
+from entise._optional import requires_extra
 from entise.constants import SEP, Types
 from entise.constants import Columns as C
 from entise.constants import Objects as O
@@ -287,6 +287,9 @@ def calculate_timeseries(obj, data):
           defined in MODELCHAIN_PARAMS.
         - The output power is scaled by the system power rating.
     """
+    with requires_extra("wind-wplib", "windpowerlib", feature="Wind method 'wplib'"):
+        from windpowerlib import ModelChain, WindTurbine
+
     # Get objects
     power = obj[O.POWER]
     turbine_type = obj[O.TURBINE_TYPE]

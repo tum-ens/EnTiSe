@@ -44,6 +44,19 @@ EnTiSe can be installed directly from PyPI:
 
    pip install entise
 
+The default installation provides the core. Add the methods you use by
+listing their extras in one command:
+
+.. code-block:: bash
+
+   pip install "entise[pv-pvlib,hvac-1r1c]"
+
+Use a type group such as ``entise[hvac]`` to install all packaged methods of that
+type. Use ``entise[all]`` for the previous feature coverage, ``entise[weather]``
+for the weather service, or ``entise[examples]`` for plotting and notebooks.
+Example scripts and notebooks also need the extras for the methods they run.
+The installation guide and each method reference page list the install commands.
+
 For faster installation, you can use `uv <https://github.com/astral-sh/uv>`_:
 
 .. code-block:: bash
@@ -65,7 +78,7 @@ Or clone the repository and install in development mode:
    cd entise
    pip install -e ".[dev]"
 
-Now you're ready to use EnTiSe! Check the examples directory for usage examples.
+The examples directory contains scripts and notebooks for the available methods.
 
 Repository Structure
 =====================

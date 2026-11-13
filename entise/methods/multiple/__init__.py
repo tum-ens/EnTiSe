@@ -1,11 +1,10 @@
-"""
-Multiple types methods for time series generation.
+"""Methods shared by multiple time-series types."""
 
-This package contains methods that can handle multiple types of time series data.
-"""
+from functools import partial
 
-# Import the FileLoader class directly
-from entise.methods.multiple.file import FileLoader
+from entise.methods._exports import list_exports, load_export
 
-# Expose the FileLoader class
-__all__ = ['FileLoader']
+_EXPORTS = {"FileLoader": "file"}
+__all__ = list(_EXPORTS)
+__getattr__ = partial(load_export, __name__, _EXPORTS)
+__dir__ = partial(list_exports, globals(), _EXPORTS)

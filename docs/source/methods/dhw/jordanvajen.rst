@@ -42,6 +42,8 @@ Key facts
 Requirements
 ------------
 
+Install this method with ``pip install "entise[dhw-jordanvajen]"``.
+
 Required keys (specify in objects)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

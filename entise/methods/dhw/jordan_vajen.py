@@ -2,8 +2,8 @@ import logging
 
 import numpy as np
 import pandas as pd
-import scipy.stats as stats
 
+from entise._optional import require_module, requires_extra
 from entise.constants import SEP, Types
 from entise.constants import Columns as C
 from entise.constants import Objects as O
@@ -313,8 +313,12 @@ def calculate_timeseries(obj, data):
     end = datetimes[C.DATETIME].iloc[-1].normalize()
     days = pd.date_range(start, end, freq="D")
 
+    with requires_extra("dhw-jordanvajen", "scipy"):
+        from scipy.stats import truncnorm
+    require_module("dhw-jordanvajen", "holidays")
+
     # Sample once per day from the truncated normal
-    dist = stats.truncnorm(a, b, loc=mean_daily_l, scale=sd_daily_l)
+    dist = truncnorm(a, b, loc=mean_daily_l, scale=sd_daily_l)
     daily_demand_l = pd.Series(dist.rvs(size=len(days), random_state=rng), index=days)
 
     # Get water temperatures

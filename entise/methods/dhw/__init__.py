@@ -1,11 +1,10 @@
-"""
-DHW (Domestic Hot Water) methods for time series generation.
+"""Domestic hot water generation methods."""
 
-This package contains methods for generating domestic hot water demand time series.
-"""
+from functools import partial
 
-# Import and expose the JordanVajen class
-from entise.methods.dhw.jordan_vajen import JordanVajen
+from entise.methods._exports import list_exports, load_export
 
-# Expose the classes
-__all__ = ['JordanVajen']
+_EXPORTS = {"JordanVajen": "jordan_vajen"}
+__all__ = list(_EXPORTS)
+__getattr__ = partial(load_export, __name__, _EXPORTS)
+__dir__ = partial(list_exports, globals(), _EXPORTS)

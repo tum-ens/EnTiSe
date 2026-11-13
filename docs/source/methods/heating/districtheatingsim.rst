@@ -40,6 +40,9 @@ Key facts
 Requirements
 ------------
 
+Install the DistrictHeatingSim backend manually with Python 3.11. See the
+:ref:`installation guide <installation>` for instructions.
+
 Required keys (specify in objects)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

@@ -2,9 +2,8 @@ import logging
 import warnings
 
 import pandas as pd
-import pvlib
-from pvlib import pvsystem
 
+from entise._optional import requires_extra
 from entise.constants import SEP, Types
 from entise.constants import Columns as C
 from entise.constants import Objects as O
@@ -189,6 +188,9 @@ class PVLib(Method):
 
         # Fill missing data
         if obj_out[O.ALTITUDE] is None:
+            with requires_extra("pv-pvlib", "pvlib"):
+                import pvlib
+
             obj_out[O.ALTITUDE] = pvlib.location.lookup_altitude(obj_out[O.LAT], obj_out[O.LON])
 
         if data_out[O.WEATHER] is not None:
@@ -268,6 +270,10 @@ def calculate_timeseries(obj, data):
     # Get objects
     altitude = obj[O.ALTITUDE]
     azimuth = obj[O.AZIMUTH]
+    with requires_extra("pv-pvlib", "pvlib"):
+        import pvlib
+        from pvlib import pvsystem
+
     lat = obj[O.LAT]
     lon = obj[O.LON]
     power = obj[O.POWER]

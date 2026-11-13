@@ -4,6 +4,7 @@ from typing import Optional
 import numpy as np
 import pandas as pd
 
+from entise._optional import require_module
 from entise.constants import SEP, Types
 from entise.constants import Columns as C
 from entise.constants import Constants as Const
@@ -171,6 +172,7 @@ class R7C2(Method):
     def generate(
         self, obj: dict = None, data: dict = None, results: dict = None, ts_type: str = Types.HVAC, **kwargs
     ) -> dict:
+        require_module("hvac-7r2c", "pvlib")
         obj, data = self._process_kwargs(obj, data, **kwargs)
         obj, data = self._get_input_data(obj, data, ts_type)
         data = self._prepare_inputs(obj, data)

@@ -43,6 +43,8 @@ Key facts
 Requirements
 ------------
 
+Install this method with ``pip install "entise[electricity-demandlib]"``.
+
 Required keys (specify in objects)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

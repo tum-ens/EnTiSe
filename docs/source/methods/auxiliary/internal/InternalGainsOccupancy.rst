@@ -21,6 +21,8 @@ Key facts
 Requirements
 ------------
 
+Install the main method that uses this calculation to get its dependencies.
+
 Required keys (specify in objects)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

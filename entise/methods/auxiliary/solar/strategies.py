@@ -1,6 +1,5 @@
 import numpy as np
 import pandas as pd
-import pvlib
 
 from entise.constants import Columns as C
 from entise.constants import Objects as O
@@ -143,7 +142,8 @@ class SolarGainsPVLib(AuxiliaryMethod):
             ValueError: If the irradiance model is unknown.
 
         Caching rules:
-        - Cache solpos and poa_global per weather frame; never across weather frames.
+
+        - Cache solpos and poa_global per weather frame.
         - Do NOT cache final total solar gains.
         - The solar position is calculated at the centre of the object's 0.1 degree grid cell,
           so all objects in a cell share it and the result does not depend on calculation order.
@@ -151,6 +151,8 @@ class SolarGainsPVLib(AuxiliaryMethod):
         """
         if windows is None:
             return pd.DataFrame({O.GAINS_SOLAR: np.zeros(len(weather), dtype=np.float32)}, index=weather.index)
+
+        import pvlib
 
         cache = _frame_cache(weather)
         timezone_info = weather.index[0].tzinfo

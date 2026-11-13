@@ -1,10 +1,10 @@
-"""
-Occupancy methods for time series generation.
+"""Occupancy inference methods."""
 
-This package contains methods for generating occupancy-related time series.
-"""
+from functools import partial
 
-from .geoma import GeoMA
-from .pht import PHT
+from entise.methods._exports import list_exports, load_export
 
-__all__ = ["GeoMA", "PHT"]
+_EXPORTS = {"GeoMA": "geoma", "PHT": "pht"}
+__all__ = list(_EXPORTS)
+__getattr__ = partial(load_export, __name__, _EXPORTS)
+__dir__ = partial(list_exports, globals(), _EXPORTS)

@@ -1,9 +1,10 @@
-"""
-Wind methods for time series generation.
+"""Wind power generation methods."""
 
-This package contains methods for generating wind power generation time series.
-"""
+from functools import partial
 
-from entise.methods.wind.wplib import WPLib
+from entise.methods._exports import list_exports, load_export
 
-__all__ = ["WPLib"]
+_EXPORTS = {"WPLib": "wplib"}
+__all__ = list(_EXPORTS)
+__getattr__ = partial(load_export, __name__, _EXPORTS)
+__dir__ = partial(list_exports, globals(), _EXPORTS)
