@@ -97,10 +97,13 @@ Discuss any performance implications of this method (time complexity, memory usa
 - **Time Complexity**: e.g. log(O) (if applicable)
 
 ### Checklist
+- [ ] My method follows the project's naming conventions and style guidelines
 - [ ] I have reviewed my own code for clarity and maintainability
 - [ ] I have added appropriate error handling
 - [ ] I have added appropriate logging (if applicable)
+- [ ] I have added unit tests for this method
 - [ ] I have updated the documentation as needed.
+- [ ] All tests pass locally with my changes
 - [ ] I have considered edge cases and potential failure modes
 
 ### Additional Notes

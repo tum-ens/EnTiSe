@@ -19,9 +19,13 @@ Read the relevant coding constraints before editing [methods](entise/methods/REA
 
 ## Tests and changes
 
-- Run the offline suite with `.venv/bin/python -m pytest tests --ignore=tests/installation`.
+Follow the [contributing guide](docs/guides/CONTRIBUTING.md#workflow) for issues,
+branches, and merge requests. Run tests from the repository root with your
+development environment active.
+
+- Run the offline suite with `pytest tests --ignore=tests/installation`.
   Keep unit and integration tests offline by using fixtures or mocking external services.
-- Run the full suite with `.venv/bin/python -m pytest tests`. The installation
+- Run the full suite with `pytest tests`. The installation
   smoke test can access package indexes to install dependencies.
 - Add an entry under `[Unreleased]` in [`CHANGELOG.md`](CHANGELOG.md) when a change
   affects generated output or the public API.
