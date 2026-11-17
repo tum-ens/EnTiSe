@@ -23,11 +23,31 @@ consult this setting; everything else runs unchanged.
 from __future__ import annotations
 
 import os
+from collections.abc import Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar
 
 _VALID = {"auto", "numba", "none"}
 _ACCELERATOR = os.environ.get("ENTISE_ACCELERATOR", "auto").lower()
 if _ACCELERATOR not in _VALID:
     _ACCELERATOR = "auto"
+
+_TASK_ACCELERATOR: ContextVar[str | None] = ContextVar("_TASK_ACCELERATOR", default=None)
+
+
+def _get_accelerator_mode() -> str:
+    """Return the requested mode without checking Numba availability."""
+    return _TASK_ACCELERATOR.get() or _ACCELERATOR
+
+
+@contextmanager
+def _use_accelerator_mode(mode: str) -> Iterator[None]:
+    """Apply a submitted mode for the duration of a worker task."""
+    token = _TASK_ACCELERATOR.set(mode)
+    try:
+        yield
+    finally:
+        _TASK_ACCELERATOR.reset(token)
 
 
 def _numba_available() -> bool:
@@ -48,9 +68,10 @@ def get_accelerator() -> str:
     * ``numba`` → ``'numba'`` (raises ``ImportError`` here if numba is missing)
     * ``none`` → ``'none'``
     """
-    if _ACCELERATOR == "none":
+    mode = _get_accelerator_mode()
+    if mode == "none":
         return "none"
-    if _ACCELERATOR == "numba":
+    if mode == "numba":
         if not _numba_available():
             raise ImportError(
                 "ENTISE_ACCELERATOR=numba was requested but numba is not installed. "
@@ -62,7 +83,10 @@ def get_accelerator() -> str:
 
 
 def set_accelerator(mode: str) -> None:
-    """Override the accelerator at runtime.
+    """Set the default accelerator for this process at runtime.
+
+    A call to ``Generator.generate()`` passes the current mode to its process
+    workers, including workers reused from an earlier call.
 
     Args:
         mode: One of ``'auto'``, ``'numba'``, ``'none'``.

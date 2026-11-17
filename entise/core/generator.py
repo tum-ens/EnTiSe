@@ -1,5 +1,7 @@
 import logging
+from collections.abc import Callable
 from contextlib import contextmanager
+from os import getpid
 from typing import Any, Dict, List, Tuple
 
 import pandas as pd
@@ -11,6 +13,7 @@ from entise.constants import VALID_TYPES
 from entise.constants import Keys as K
 from entise.constants import Objects as O
 from entise.core.runner import Runner
+from entise.perf import _get_accelerator_mode, _use_accelerator_mode
 
 
 @contextmanager
@@ -46,6 +49,20 @@ def tqdm_joblib(tqdm_object):
             tqdm_object.close()
         except Exception:
             pass
+
+
+def _process_with_accelerator(
+    process_object: Callable[[dict, Dict[str, pd.DataFrame]], Dict[str, Any]],
+    obj: dict,
+    data: Dict[str, pd.DataFrame],
+    mode: str,
+    caller_pid: int,
+) -> Dict[str, Any]:
+    """Use the submitting process mode for this task in a different process."""
+    if getpid() == caller_pid:
+        return process_object(obj, data)
+    with _use_accelerator_mode(mode):
+        return process_object(obj, data)
 
 
 class Generator:
@@ -100,7 +117,8 @@ class Generator:
     ) -> Tuple[pd.DataFrame, Dict[str, pd.DataFrame]]:
         """
         Generates time series data by processing objects in parallel or sequentially
-        based on the number of workers specified. Supports batching to reduce
+        based on the number of workers specified. Process workers use the accelerator
+        mode selected at the time of this call. Supports batching to reduce
         scheduling and serialization overhead when running in parallel.
 
         Args:
@@ -168,12 +186,19 @@ class Generator:
             prefer="processes" if backend == "loky" else None,
         )
 
+        mode = _get_accelerator_mode()
+        caller_pid = getpid()
+        tasks = (
+            delayed(_process_with_accelerator)(self._safe_process_object, obj, data, mode, caller_pid)
+            for obj in object_params
+        )
+
         # Execute with a progress bar that advances by the number of objects completed
         if show_progress:
             with tqdm_joblib(tqdm(total=n, disable=not show_progress, unit="obj")):
-                results = process(delayed(self._safe_process_object)(obj, data) for obj in object_params)
+                results = process(tasks)
         else:
-            results = process(delayed(self._safe_process_object)(obj, data) for obj in object_params)
+            results = process(tasks)
 
         return self._collect_results(results)
 
