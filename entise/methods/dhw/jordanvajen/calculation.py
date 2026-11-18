@@ -1,18 +1,26 @@
 """
 Core calculation functions for the Jordan & Vajen DHW method.
 
-Water is drawn per local day of the site:
+Water is drawn per local day of the site.
 
-1. Each local day gets a volume: a draw from the dwelling's daily demand,
-   scaled by the day's seasonal factor and by its weekday weight (holidays
-   count as Sundays).
-2. The day's volume is split over the event types by their weight for that
-   weekday (``probability_day``).
-3. Each event type's volume is drawn as discrete events at that weekday's
-   activity times (``probability``). A time is placed on the instant it names
-   in the site's time zone: a time that does not exist when clocks go forward
-   moves forward, and a time that happens twice when clocks go back takes the
-   first occurrence. The row that contains the instant receives the volume.
+- **Shares and weekday factors.** Each event type has a share of the mean
+  daily volume, from the weekly mean of its ``probability_day``. Within the
+  type, ``probability_day`` also gives a factor per weekday, normalised so
+  that its weekly mean is 1; holidays use Sunday's factor.
+- **Daily volume.** A day's volume is a draw from the dwelling's daily demand,
+  scaled by the seasonal factor and by Σ share × factor of the day's weekday.
+  Weekday totals vary, and the annual event mix stays at the shares.
+- **Events.** For each day and event type, the number of events is a Poisson
+  draw around the day's expected volume of that type divided by the type's
+  mean event volume. Each event's size comes from the type's own
+  distribution, so a bath stays a bath.
+- **Placement.** Events are placed at the activity times of the day's weekday
+  (``probability``). A time is placed on the instant it names in the site's
+  time zone: a time that does not exist when clocks go forward moves forward,
+  and a time that happens twice when clocks go back takes the first
+  occurrence. The row that contains the instant receives the volume.
+- **Run total.** One factor over the whole run makes the total equal the sum
+  of the daily volumes.
 """
 
 import logging
@@ -61,12 +69,26 @@ def _weekdays(days: pd.DatetimeIndex, holidays: frozenset[date]) -> np.ndarray:
 
 
 def _day_weights(activity: pd.DataFrame) -> pd.DataFrame:
-    """Weight of each event type on each weekday, from ``probability_day`` (1 if absent)."""
+    """``probability_day`` of each event type (columns) on each weekday (rows), 1 if absent."""
     if C.PROBABILITY_DAY in activity.columns:
         weights = activity.groupby([C.DAY_OF_WEEK, C.EVENT])[C.PROBABILITY_DAY].first().unstack(C.EVENT)
     else:
         weights = activity.groupby([C.DAY_OF_WEEK, C.EVENT]).size().unstack(C.EVENT).notna().astype(float)
     return weights.reindex(range(7)).fillna(0.0).sort_index(axis=1)
+
+
+def event_shares(activity: pd.DataFrame) -> tuple[pd.Series, pd.DataFrame]:
+    """Return each event type's share of the mean daily volume and its factor per weekday.
+
+    The share comes from the weekly mean of ``probability_day``. The factor is
+    ``probability_day`` on that weekday divided by its weekly mean, so the
+    factors of an event type average to 1 over a week.
+    """
+    weights = _day_weights(activity)
+    weekly = weights.mean(axis=0)
+    shares = weekly / weekly.sum() if weekly.sum() > 0 else weekly
+    factors = weights.div(weekly.where(weekly > 0), axis=1).fillna(0.0)
+    return shares, factors
 
 
 def daily_volume(
@@ -79,14 +101,13 @@ def daily_volume(
     holidays: frozenset[date],
     rng: np.random.Generator,
 ) -> pd.Series:
-    """Return the volume [l] of each local day.
+    """Return the expected volume [l] of each local day.
 
     The base draw is a truncated normal around the mean daily volume of the
     day's year (``mean_annual_l`` divided by the actual number of days in that
     year). It is scaled by the seasonal factor
     ``1 + seasonal_variation * cos(2 pi (day_of_year - peak) / days_in_year)``
-    and by the weekday weight, normalised so that an average week keeps the
-    mean.
+    and by Σ share × weekday factor over the event types (see :func:`event_shares`).
     """
     with requires_extra("dhw-jordanvajen", "scipy"):
         from scipy.stats import truncnorm
@@ -99,11 +120,20 @@ def daily_volume(
         2.0 * np.pi * (days.day_of_year.to_numpy() - seasonal_peak_day) / length
     )
 
-    per_weekday = _day_weights(activity).sum(axis=1).to_numpy()
-    mean_weight = per_weekday.mean()
-    weekday = per_weekday[_weekdays(days, holidays)] / mean_weight if mean_weight > 0 else np.ones(len(days))
+    shares, factors = event_shares(activity)
+    weekday_total = (factors * shares).sum(axis=1).to_numpy()[_weekdays(days, holidays)]
+    return pd.Series(draws * seasonal * weekday_total, index=days)
 
-    return pd.Series(draws * seasonal * weekday, index=days)
+
+def _mean_event_volume(mean_flow: float, sigma_rel: float) -> float:
+    """Mean of the truncated normal that event volumes are drawn from (see ``_sample_event_volumes``)."""
+    with requires_extra("dhw-jordanvajen", "scipy"):
+        from scipy.stats import truncnorm
+
+    sigma = mean_flow * sigma_rel
+    if sigma <= 0:
+        return mean_flow
+    return float(truncnorm(-mean_flow / sigma, np.inf, loc=mean_flow, scale=sigma).mean())
 
 
 def sample_volume(
@@ -114,38 +144,47 @@ def sample_volume(
     daily_volume: pd.Series,
     rng: np.random.Generator,
     holidays: frozenset[date],
-) -> pd.Series:
+    *,
+    hours: np.ndarray | None = None,
+    by_event: bool = False,
+) -> pd.Series | pd.DataFrame:
     """Draw each local day's volume as events and place them on the run's rows.
 
     Args:
-        axis: The run's UTC instants; row ``i`` covers ``[axis[i], axis[i] + step)``.
+        axis: The run's UTC instants; row ``i`` covers ``[axis[i], axis[i + 1])``.
         zone: The site's time zone.
         step: The run's time step.
         activity: Activity table with day of week, time, event, probability,
             duration and flow rate (and optionally probability_day).
-        daily_volume: Volume [l] of each local day, indexed by the day at midnight.
+        daily_volume: Expected volume [l] of each local day, indexed by the day at midnight.
         rng: Random number generator.
         holidays: Local dates that count as Sundays.
+        hours: Length of each row in hours; defaults to ``step`` for every row.
+        by_event: Return one column per event type instead of the total.
 
     Returns:
-        Volume [l] per row of the run. A day that the run covers completely
-        receives exactly its daily volume; a partly covered day receives the
-        share of its activity that the run covers.
+        Volume [l] per row of the run. Over the run it equals the expected
+        volume of the covered days; a partly covered day contributes the share
+        of its activity that the run covers.
     """
     n = len(axis)
-    end = axis[-1] + step
+    hours = np.full(n, step / pd.Timedelta(1, unit="h")) if hours is None else np.asarray(hours, dtype=float)
+    end = axis[-1] + pd.Timedelta(hours[-1] * 3600.0, unit="s")
     days = pd.DatetimeIndex(daily_volume.index)
     weekdays = _weekdays(days, holidays)
-    weights = _day_weights(activity)
-    shares = weights.to_numpy()[weekdays]
-    totals = shares.sum(axis=1, keepdims=True)
-    shares = np.divide(shares, totals, out=np.zeros_like(shares), where=totals > 0)
+    shares, factors = event_shares(activity)
+    expected_by_type = (factors * shares).to_numpy()[weekdays]
+    totals = expected_by_type.sum(axis=1, keepdims=True)
+    split = np.divide(expected_by_type, totals, out=np.zeros_like(expected_by_type), where=totals > 0)
+    expected_by_type = daily_volume.to_numpy(dtype=float)[:, None] * split
 
     seconds = _convert_time_to_seconds_of_day(activity[C.TIME].astype(str))
     activity = activity.assign(_seconds=seconds)
-    volume = np.zeros(n)
+    volumes = {}
+    target_total = 0.0
+    largest = None  # (expected volume, event, day of slot, row, scale) of the event type with the most water
 
-    for j, event in enumerate(weights.columns):
+    for j, event in enumerate(factors.columns):
         rows = activity[activity[C.EVENT] == event]
         first = rows.iloc[0]
         mean_flow = float(first[C.FLOW_RATE] * first[C.DURATION])
@@ -160,10 +199,8 @@ def sample_volume(
             probs = slots[C.PROBABILITY].to_numpy(dtype=float)
             full_mass[day_index] = probs.sum()
 
-            wall = (
-                days[day_index].to_numpy()[:, None] + (slot_seconds * 1_000_000_000).astype("timedelta64[ns]")[None, :]
-            )
-            wall = pd.DatetimeIndex(wall.ravel())
+            offsets = (slot_seconds * 1_000_000_000).astype("timedelta64[ns]")
+            wall = pd.DatetimeIndex((days[day_index].to_numpy()[:, None] + offsets[None, :]).ravel())
             instants = wall.tz_localize(zone, nonexistent="shift_forward", ambiguous=np.ones(len(wall), dtype=bool))
             instants = instants.tz_convert("UTC")
             covered = np.asarray((instants >= axis[0]) & (instants < end))
@@ -173,6 +210,8 @@ def sample_volume(
             pos_parts.append(pos[covered])
             prob_parts.append(np.tile(probs, len(day_index))[covered])
 
+        volume = np.zeros(n)
+        volumes[event] = volume
         if not day_parts:
             continue
         day_of_slot = np.concatenate(day_parts)
@@ -185,24 +224,40 @@ def sample_volume(
 
         covered_mass = np.bincount(day_of_slot, weights=prob, minlength=len(days))
         fraction = np.divide(covered_mass, full_mass, out=np.zeros(len(days)), where=full_mass > 0)
-        target = daily_volume.to_numpy(dtype=float) * shares[:, j] * fraction
-        counts = np.where((target > 0) & (covered_mass > 0), np.maximum(1, np.rint(target / mean_flow)), 0).astype(int)
-        if counts.sum() == 0:
+        expected = expected_by_type[:, j] * fraction
+        target_total += float(expected.sum())
+        if mean_flow <= 0 or not len(prob):
             continue
 
         # Inverse sampling within each day: day k occupies [k, k + 1) of one cumulative scale.
-        within = np.cumsum(prob) - np.repeat(
-            np.cumsum(covered_mass) - covered_mass, np.bincount(day_of_slot, minlength=len(days))
-        )
-        scale = day_of_slot + within / covered_mass[day_of_slot]
+        starts = np.repeat(np.cumsum(covered_mass) - covered_mass, np.bincount(day_of_slot, minlength=len(days)))
+        scale = day_of_slot + (np.cumsum(prob) - starts) / covered_mass[day_of_slot]
         last = np.r_[day_of_slot[1:] != day_of_slot[:-1], True]
         scale[last] = day_of_slot[last] + 1.0
+        if largest is None or expected.sum() > largest[0]:
+            largest = (float(expected.sum()), event, expected, pos, scale)
+
+        # The number of events has the day's expected volume over the mean size of the drawn events.
+        counts = rng.poisson(np.where(covered_mass > 0, expected / _mean_event_volume(mean_flow, sigma_rel), 0.0))
+        if counts.sum() == 0:
+            continue
+
         event_days = np.repeat(np.arange(len(days)), counts)
         picks = np.searchsorted(scale, event_days + rng.random(len(event_days)), side="right")
 
-        volumes = _sample_event_volumes(mean_flow, sigma_rel, len(event_days), rng)
-        drawn = np.bincount(event_days, weights=volumes, minlength=len(days))
-        volumes = volumes * np.divide(target, drawn, out=np.zeros(len(days)), where=drawn > 0)[event_days]
-        volume += np.bincount(pos[picks], weights=volumes, minlength=n)
+        sizes = _sample_event_volumes(mean_flow, sigma_rel, len(event_days), rng)
+        volume += np.bincount(pos[picks], weights=sizes, minlength=n)
 
-    return pd.Series(volume, index=axis)
+    # One factor over the whole run keeps the event sizes and makes the total exact.
+    result = pd.DataFrame(volumes, index=axis)
+    drawn_total = float(result.to_numpy().sum())
+    if drawn_total > 0:
+        result *= target_total / drawn_total
+    elif target_total > 0 and largest is not None:
+        # A run too small to draw any event still receives its volume, as one event of the largest type.
+        _, event, expected, pos, scale = largest
+        day = rng.choice(len(days), p=expected / expected.sum())
+        pick = np.searchsorted(scale, day + rng.random(), side="right")
+        result.loc[result.index[pos[pick]], event] = target_total
+
+    return result if by_event else result.sum(axis=1)

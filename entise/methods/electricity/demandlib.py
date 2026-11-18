@@ -128,8 +128,8 @@ class Demandlib(Method):
             raise ValueError("[demandlib_electricity] demand must be > 0 ")
 
         dts_key = Method.get_with_method_backup(obj, O.DATETIMES, method_type, O.DATETIMES)
-        table, step = time_table(data, dts_key)
-        data_out = {O.DATETIMES: table, "step": step, "run_data": data}
+        table, step, hours = time_table(data, dts_key, site_zone(obj_out))
+        data_out = {O.DATETIMES: table, "step": step, "hours": hours, "run_data": data}
 
         obj_out = {k: v for k, v in obj_out.items() if v is not None}
         return obj_out, data_out
@@ -140,8 +140,7 @@ class Demandlib(Method):
 
         ts.columns = [out_col]
 
-        hours = data["step"] / pd.Timedelta(1, unit="h")
-        demand_wh = int(round(float(ts[out_col].sum()) * hours))
+        demand_wh = int(round(float(np.dot(ts[out_col].to_numpy(dtype=float), data["hours"]))))
         load_max_w = int(round(float(ts[out_col].max())))
 
         summary = {
@@ -198,6 +197,6 @@ def calculate_timeseries(processed_obj: Dict[str, Any], processed_data: Dict[str
         )
 
     power = read_profile(profile, axis, zone, step, name="demandlib_electricity")
-    power = scale_to_energy(power, step, demand_kwh * 1000.0)
+    power = scale_to_energy(power, processed_data["hours"], demand_kwh * 1000.0)
 
     return pd.DataFrame({profile_type: np.round(power).astype(int)}, index=axis)

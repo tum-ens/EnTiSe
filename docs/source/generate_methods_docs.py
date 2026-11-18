@@ -104,9 +104,9 @@ def get_enriched_description(cls) -> str:
     if "entise.methods.electricity" in mod or "demandlib" in key:
         return (
             "Electricity demand profiles using demandlib's BDEW standard load profiles (SLPs). Given a time "
-            "horizon and an annual demand, the method builds BDEW SLPs (e.g., H0 household) for the covered years, "
-            "optionally adjusts for holidays, and scales to the requested annual energy. The 15-minute SLP is then "
-            "aligned to the target resolution using energy-conserving resampling.\n\n"
+            "horizon and the energy demand over it, the method builds BDEW SLPs (e.g., H0 household) for the "
+            "covered years, optionally adjusts for holidays, reads them at the site's local wall clock and scales "
+            "them so that the energy over the run equals the demand.\n\n"
             f"References: {refs['demandlib']}."
         )
 

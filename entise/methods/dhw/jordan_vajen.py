@@ -33,13 +33,20 @@ class JordanVajen(Method):
 
     Water is drawn per local day of the object's ``timezone`` (UTC if unset):
 
-    - Each local day gets a volume drawn from the dwelling's daily demand, scaled by
-      the seasonal factor (using the actual length of the year) and by the
-      weekday's weight; holidays count as Sundays. The total over the run is the
-      sum of these daily volumes.
-    - The day's volume is drawn as events at the activity times of its weekday.
-      A time that does not exist on the day clocks go forward moves forward, and a
-      time that happens twice on the day clocks go back takes its first occurrence.
+    - Each event type (bath, shower, ...) has a share of the mean daily volume,
+      from the weekly mean of its ``probability_day``. Within the type,
+      ``probability_day`` gives a factor per weekday, normalised so that its weekly
+      mean is 1; holidays use Sunday's factor. A day's expected volume is a draw
+      from the dwelling's daily demand, scaled by the seasonal factor (using the
+      actual length of the year) and by Σ share × factor of its weekday. Weekday
+      totals therefore vary, and the annual event mix stays at the shares.
+    - For each day and event type, the number of events is a Poisson draw around
+      the expected volume over the type's mean event size, and each event keeps
+      its own size. One factor over the whole run makes the total equal the sum
+      of the days' expected volumes.
+    - Events are placed at the activity times of the day's weekday. A time that
+      does not exist on the day clocks go forward moves forward, and a time that
+      happens twice on the day clocks go back takes its first occurrence.
     - ``power[W]`` is the energy of the interval that starts at the label divided
       by the interval's length.
 
@@ -259,9 +266,10 @@ def get_input_data(obj, data, method_type=Types.DHW):
         raise KeyError(f"Required data '{obj_out[O.DATETIMES]}' not found in input data")
 
     # The run's instants and the site's local calendar
-    table, step = time_table(data, obj_out[O.DATETIMES])
+    table, step, hours = time_table(data, obj_out[O.DATETIMES], site_zone(obj_out))
     data_out[O.DATETIMES] = table
     data_out["step"] = step
+    data_out["hours"] = hours
     data_out["datetimes_index"] = output_index(table.index, obj_out, data).to_series()
 
     # Get activity data if not provided
@@ -334,7 +342,7 @@ def calculate_timeseries(obj, data):
         holidays,
         rng,
     )
-    ts_volume = sample_volume(axis, zone, step, activity_data, volume_per_day, rng, holidays)
+    ts_volume = sample_volume(axis, zone, step, activity_data, volume_per_day, rng, holidays, hours=data["hours"])
 
     # Water temperatures by local month, and the energy to heat the water
     local_times = pd.DataFrame({C.DATETIME: axis.tz_convert(zone)})
@@ -346,7 +354,7 @@ def calculate_timeseries(obj, data):
     ts_energy = pd.Series(np.round(ts_volume.to_numpy() * energy_factor).astype(int), index=out_index)
     ts_volume = pd.Series(ts_volume.to_numpy(), index=out_index).round(3)
     # Power is the energy of the interval that starts at the label, divided by its length.
-    ts_power = ts_energy / (step / pd.Timedelta(1, unit="h"))
+    ts_power = ts_energy / data["hours"]
     water_temp.index = out_index
 
     return ts_volume, ts_energy, ts_power, water_temp

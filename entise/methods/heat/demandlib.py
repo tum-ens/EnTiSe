@@ -82,7 +82,8 @@ class Demandlib(Method):
             data: Data dictionary containing the weather dataframe under O.WEATHER.
             results: Unused placeholder for interface compatibility.
             ts_type: Timeseries type, defaults to Types.HEATING.
-            annual_demand_kwh: Optional annual heat demand in kWh; defaults to 1.0.
+            annual_demand_kwh: Optional heat demand in kWh over the simulated run (the
+                keyword keeps its historical name); defaults to 1.0.
             weather: Optional weather dataframe override with C.DATETIME and C.TEMP_AIR.
             building_type: Optional BDEW building type (e.g., "EFH").
             building_class: Optional BDEW building class (int).
@@ -127,9 +128,9 @@ class Demandlib(Method):
             raise ValueError("[demandlib_heat] demand must be > 0 ")
 
         weather_key = Method.get_with_method_backup(obj, O.WEATHER, method_type, O.WEATHER)
-        weather, step = time_table(data, weather_key)
+        weather, step, hours = time_table(data, weather_key, site_zone(obj_out))
         weather = Method._strip_weather_height(weather)
-        data_out = {O.WEATHER: weather, "step": step, "run_data": data}
+        data_out = {O.WEATHER: weather, "step": step, "hours": hours, "run_data": data}
 
         obj_out = {k: v for k, v in obj_out.items() if v is not None}
         return obj_out, data_out
@@ -140,8 +141,7 @@ class Demandlib(Method):
         df = ts.round().astype(int).to_frame(out_col)
         df.index = output_index(ts.index, obj, data["run_data"])
 
-        hours = data["step"] / pd.Timedelta(1, unit="h")
-        demand_wh = int(round(float(df[out_col].sum()) * hours))
+        demand_wh = int(round(float(np.dot(df[out_col].to_numpy(dtype=float), data["hours"]))))
         load_max_w = int(round(float(df[out_col].max())))
 
         summary = {
@@ -206,5 +206,5 @@ def calculate_timeseries(obj, data):
     power = read_profile(
         pd.Series(profile.to_numpy(dtype=float), index=air_temp.index), axis, zone, step, name="demandlib_heat"
     )
-    power = scale_to_energy(power, step, demand_kwh * 1000.0)
+    power = scale_to_energy(power, data["hours"], demand_kwh * 1000.0)
     return pd.Series(np.round(power).astype(int), index=axis, name=C.LOAD)

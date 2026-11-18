@@ -26,10 +26,42 @@ import pandas as pd
 from entise.core._time import regular_step, run_time
 
 
-def time_table(data: Mapping[str, Any], key: str) -> tuple[pd.DataFrame, pd.Timedelta]:
-    """Return the run's normalized table ``key`` and its regular time step."""
+def time_table(data: Mapping[str, Any], key: str, zone: ZoneInfo) -> tuple[pd.DataFrame, pd.Timedelta, np.ndarray]:
+    """Return the run's normalized table ``key``, its time step and the length of each row in hours.
+
+    A calendar method accepts a step that is regular in elapsed time, such as
+    hourly data, or regular on the site's local wall clock, such as daily data
+    labelled at local midnight, whose days last 23 or 25 hours when the clocks
+    change. Row ``i`` covers ``[t_i, t_i + step)`` of the local wall clock in the
+    second case.
+
+    Raises:
+        ValueError: If the step is regular on neither clock, naming the table
+            and the local instant where it changes.
+    """
     table = run_time(data).table(key)
-    return table, regular_step(table.index, table=key)
+    axis = table.index
+    try:
+        step = regular_step(axis, table=key)
+        return table, step, np.full(len(axis), step / pd.Timedelta(1, unit="h"))
+    except ValueError:
+        if len(axis) < 2:
+            raise
+
+    wall = wall_clock(axis, zone)
+    wall_steps = wall[1:] - wall[:-1]
+    changed = wall_steps != wall_steps[0]
+    if changed.any() or wall_steps[0] <= pd.Timedelta(0):
+        elapsed = axis[1:] - axis[:-1]
+        position = int(np.argmax(elapsed != elapsed[0])) + 1
+        raise ValueError(
+            f"Table '{key}' needs a time step that is regular in elapsed time or on the local clock of {zone.key}, "
+            f"but the step changes at {axis[position].tz_convert(zone):%Y-%m-%d %H:%M:%S%z}."
+        )
+    step = pd.Timedelta(wall_steps[0])
+    last_end = (wall[-1:] + step).tz_localize(zone, nonexistent="shift_forward", ambiguous=np.ones(1, dtype=bool))
+    ends = axis[1:].append(last_end.tz_convert(axis.tz))
+    return table, step, np.asarray((ends - axis) / pd.Timedelta(1, unit="h"), dtype=float)
 
 
 def wall_clock(axis: pd.DatetimeIndex, zone: ZoneInfo) -> pd.DatetimeIndex:
@@ -110,10 +142,9 @@ def hourly_wall_series(values: pd.Series, zone: ZoneInfo, step: pd.Timedelta, *,
     return hourly.reindex(grid).interpolate(limit_direction="both")
 
 
-def scale_to_energy(power_w: np.ndarray, step: pd.Timedelta, energy_wh: float) -> np.ndarray:
-    """Scale mean powers so that the run's energy ``Σ W · step`` equals ``energy_wh``."""
-    hours = step / pd.Timedelta(1, unit="h")
-    total = float(np.sum(power_w) * hours)
+def scale_to_energy(power_w: np.ndarray, hours: np.ndarray, energy_wh: float) -> np.ndarray:
+    """Scale mean powers so that the run's energy ``Σ W · hours`` equals ``energy_wh``."""
+    total = float(np.sum(power_w * hours))
     if total <= 0:
         raise ValueError("The profile has no energy to scale.")
     return power_w * (energy_wh / total)

@@ -82,12 +82,13 @@ class DistrictHeatSim(Method):
         summary and timeseries.
 
         Args:
-            obj: Object dictionary with inputs like annual demand, profile type,
+            obj: Object dictionary with inputs like demand over the run, profile type,
                  DHW share, and weather key.
             data: Data dictionary containing the weather dataframe under O.WEATHER.
             results: Unused placeholder for interface compatibility.
             ts_type: Timeseries type, defaults to Types.HEATING.
-            annual_demand_kwh: Optional annual heat demand in kWh.
+            annual_demand_kwh: Optional heat demand in kWh over the simulated run (the
+                keyword keeps its historical name).
             weather: Optional weather dataframe override with C.DATETIME and C.TEMP_AIR.
             profile_type: Optional BDEW profile type (e.g., "HEF03", "GBH01").
                           First three characters define building type, last two subtype.
@@ -137,9 +138,9 @@ class DistrictHeatSim(Method):
         obj_out[O.TIMEZONE] = obj.get(O.TIMEZONE)
 
         weather_key = Method.get_with_method_backup(obj, O.WEATHER, method_type, O.WEATHER)
-        weather, step = time_table(data, weather_key)
+        weather, step, hours = time_table(data, weather_key, site_zone(obj_out))
         weather = Method._strip_weather_height(weather)
-        data_out = {O.WEATHER: weather, "step": step, "run_data": data}
+        data_out = {O.WEATHER: weather, "step": step, "hours": hours, "run_data": data}
 
         obj_out = {k: v for k, v in obj_out.items() if v is not None}
         return obj_out, data_out
@@ -167,10 +168,10 @@ class DistrictHeatSim(Method):
             index=output_index(ts_total_w.index, obj, data["run_data"]),
         )
 
-        hours = data["step"] / pd.Timedelta(1, unit="h")
-        demand_wh = int(round(float(ts_total_w.sum()) * hours))
+        hours = data["hours"]
+        demand_wh = int(round(float(np.dot(ts_total_w.to_numpy(), hours))))
         load_max_w = int(round(float(ts_total_w.max())))
-        demand_dhw_wh = int(round(float(ts_dhw_w.sum()) * hours))
+        demand_dhw_wh = int(round(float(np.dot(ts_dhw_w.to_numpy(), hours))))
         load_dhw_max_w = int(round(float(ts_dhw_w.max())))
 
         summary = {
@@ -195,7 +196,7 @@ def calculate_timeseries(obj, data):
 
     Args:
         obj: Processed object mapping with keys:
-            - O.DEMAND_KWH: Annual heat demand in kWh (float).
+            - O.DEMAND_KWH: Heat demand in kWh over the simulated run (float).
             - O.PROFILE_TYPE: BDEW profile type string (e.g., "HEF03", "GBH01").
             - O.DHW_SHARE: Optional DHW share (0–1) forwarded to
               DistrictHeatingSim as real_ww_share (float, optional).
@@ -264,5 +265,5 @@ def calculate_timeseries(obj, data):
     # Hourly energy [kWh] is the mean power [kW] of the hour that starts at the label.
     profile_kw = pd.concat(hourly_kwh_chunks).sort_index()
     power = read_profile(profile_kw, axis, zone, step, name="districtheatingsim").clip(min=0.0)
-    power = scale_to_energy(power, step, demand_kwh * 1000.0)
+    power = scale_to_energy(power, data["hours"], demand_kwh * 1000.0)
     return pd.Series(np.round(power).astype(int), index=axis, name=C.LOAD)

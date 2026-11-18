@@ -80,6 +80,7 @@ class PHT(Method):
         night_schedule: bool = None,
         night_schedule_start: int = None,
         night_schedule_end: int = None,
+        night_schedule_duration: float = None,
     ):
         """
         Generate a binary occupancy schedule from electricity demand using PHT.
@@ -115,6 +116,9 @@ class PHT(Method):
             night_schedule (bool, optional): If True, apply nightly zeroing.
             night_schedule_start (int, optional): Hour marking the start of the nightly off period.
             night_schedule_end (int, optional): Hour marking the end of the nightly off period.
+            night_schedule_duration (float, optional): Hours of occupancy inside the evening
+                window that trigger the hold until 09:00 local time (key
+                ``night_schedule_duration[h]``, default 1).
 
         Returns:
             dict: A dictionary with two keys:
@@ -143,7 +147,10 @@ class PHT(Method):
             night_schedule=night_schedule,
             night_schedule_start=night_schedule_start,
             night_schedule_end=night_schedule_end,
+            night_schedule_duration=night_schedule_duration,
         )
+        if night_schedule_duration is not None:
+            processed_obj[O.NIGHT_SCHEDULE_DURATION] = night_schedule_duration
 
         # Get input data
         processed_obj, processed_data = self._get_input_data(processed_obj, processed_data, results, ts_type)
@@ -228,6 +235,8 @@ def calculate_timeseries(obj: dict, data: dict) -> pd.DataFrame:
             - O.NIGHT_SCHEDULE (bool): If True, enforce nightly off period.
             - O.NIGHT_SCHEDULE_START (int): Start hour [0-23] of the nightly off period.
             - O.NIGHT_SCHEDULE_END (int): End hour [0-23] of the nightly off period.
+            - O.NIGHT_SCHEDULE_DURATION (float): Hours of occupancy inside the evening
+              window that trigger the hold until 09:00 local time (default 1).
         data (dict):
             Dictionary containing the electricity demand DataFrame at key Types.ELECTRICITY.
             The DataFrame must be indexed by timezone-aware datetimes and include a power

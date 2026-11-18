@@ -8,11 +8,11 @@ Space heating demand using demandlib’s temperature-driven BDEW model.
 
 Purpose and scope:
 
-- Wraps demandlib’s BDEW methodology to synthesize hourly heating energy profiles driven by outdoor air temperature and building archetype parameters. Profiles are scaled to an annual demand target and aligned to the requested timestep.
+- Wraps demandlib’s BDEW methodology to synthesize hourly heating energy profiles driven by outdoor air temperature and building archetype parameters. Profiles are scaled so that the energy over the run equals ``Objects.DEMAND_KWH``.
 
 Notes:
 
-- Provide weather with a datetime column and air temperature. The method derives wall‑clock timestamps and applies an energy‑conserving resampling when your resolution differs from the native demandlib resolution.
+- Provide weather with timestamps and air temperature. The engine runs on the hourly local wall clock of the object's ``timezone`` (UTC if unset). On the 23-hour day of the change to summer time the skipped hour is not read; on the 25-hour day the repeated hour is read twice. Each row is the mean power over the interval that starts at its label.
 
 - Building type/class and wind class adjust the sensitivity and seasonal shape as per BDEW assumptions.
 
@@ -57,6 +57,7 @@ Optional keys (specify in objects)
 - ``building_class``
 - ``wind_class``
 - ``holidays_location``
+- ``timezone``
 
 
 
@@ -143,7 +144,8 @@ Public methods
                data: Data dictionary containing the weather dataframe under O.WEATHER.
                results: Unused placeholder for interface compatibility.
                ts_type: Timeseries type, defaults to Types.HEATING.
-               annual_demand_kwh: Optional annual heat demand in kWh; defaults to 1.0.
+               annual_demand_kwh: Optional heat demand in kWh over the simulated run (the
+                   keyword keeps its historical name); defaults to 1.0.
                weather: Optional weather dataframe override with C.DATETIME and C.TEMP_AIR.
                building_type: Optional BDEW building type (e.g., "EFH").
                building_class: Optional BDEW building class (int).
@@ -171,5 +173,5 @@ Public methods
 
            logger.debug(f"[demandlib heat]: Generating {ts_type} data")
 
-           return self._format_output(ts, processed_data)
+           return self._format_output(ts, processed_obj, processed_data)
 

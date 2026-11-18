@@ -138,9 +138,11 @@ class Generator:
                 "threading" for threads). Defaults to "loky".
             show_progress (bool, optional): If True, display a progress bar. In
                 parallel mode, the bar updates on batch completion. Defaults to True.
-            utc (bool, optional): If True, every time series is indexed in UTC. By
-                default, each object's time series are indexed in its site time zone
-                (the ``timezone`` key, UTC if not set). Defaults to False.
+            utc (bool, optional): Methods index their outputs with ``output_index``,
+                which uses each object's site time zone (the ``timezone`` key, UTC if
+                not set). If True, those outputs are indexed in UTC instead. Methods
+                that pass a table through, such as ``file``, keep its index.
+                Defaults to False.
 
         Returns:
             Tuple[pd.DataFrame, Dict[str, pd.DataFrame]]: A tuple containing the

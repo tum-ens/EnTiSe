@@ -76,6 +76,7 @@ class GeoMA(Method):
         night_schedule: bool = None,
         night_schedule_start: int = None,
         night_schedule_end: int = None,
+        night_schedule_duration: float = None,
     ):
         """
         Generate a binary occupancy schedule from electricity demand using GeoMA.
@@ -91,6 +92,8 @@ class GeoMA(Method):
                 - O.NIGHT_SCHEDULE (bool): Whether to enforce a nightly schedule.
                 - O.NIGHT_SCHEDULE_START (int): Start hour of nightly off period [0-23].
                 - O.NIGHT_SCHEDULE_END (int): End hour of nightly off period [0-23].
+                - O.NIGHT_SCHEDULE_DURATION (float): Hours of occupancy inside the evening
+                  window that trigger the hold until 09:00 local time (default 1).
             data (dict, optional):
                 Not used directly for this method. The electricity time series is expected
                 to be present in results under Types.ELECTRICITY.
@@ -107,6 +110,9 @@ class GeoMA(Method):
                 the nightly off period (e.g., 18:00).
             night_schedule_end (int, optional):  Hour of day marking the end of the
                 nightly off period (e.g., 00:00).
+            night_schedule_duration (float, optional): Hours of occupancy inside the
+                evening window that trigger the hold until 09:00 local time (key
+                ``night_schedule_duration[h]``, default 1).
 
         Returns:
             dict: A dictionary with two keys:
@@ -133,7 +139,10 @@ class GeoMA(Method):
             night_schedule=night_schedule,
             night_schedule_start=night_schedule_start,
             night_schedule_end=night_schedule_end,
+            night_schedule_duration=night_schedule_duration,
         )
+        if night_schedule_duration is not None:
+            processed_obj[O.NIGHT_SCHEDULE_DURATION] = night_schedule_duration
 
         # Get input data
         processed_obj, processed_data = self._get_input_data(processed_obj, processed_data, results, ts_type)

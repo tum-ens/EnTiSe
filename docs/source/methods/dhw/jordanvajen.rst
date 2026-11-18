@@ -9,6 +9,16 @@ Jordan & Vajen (2005): "DHWcalc: PROGRAM TO GENERATE DOMESTIC HOT WATER PROFILES
 WITH STATISTICAL MEANS FOR USER DEFINED CONDITIONS". The implementation follows the
 Method pattern established in the project architecture.
 
+Water is drawn per local day of the object's ``timezone`` (UTC if unset):
+
+- Each event type (bath, shower, ...) has a share of the mean daily volume, from the weekly mean of its ``probability_day``. Within the type, ``probability_day`` gives a factor per weekday, normalised so that its weekly mean is 1; holidays use Sunday's factor. A day's expected volume is a draw from the dwelling's daily demand, scaled by the seasonal factor (using the actual length of the year) and by Σ share × factor of its weekday. Weekday totals therefore vary, and the annual event mix stays at the shares.
+
+- For each day and event type, the number of events is a Poisson draw around the expected volume over the type's mean event size, and each event keeps its own size. One factor over the whole run makes the total equal the sum of the days' expected volumes.
+
+- Events are placed at the activity times of the day's weekday. A time that does not exist on the day clocks go forward moves forward, and a time that happens twice on the day clocks go back takes its first occurrence.
+
+- ``power[W]`` is the energy of the interval that starts at the label divided by the interval's length.
+
 The module provides functionality to:
 
 - Process input parameters for DHW demand calculation
@@ -65,6 +75,7 @@ Optional keys (specify in objects)
 - ``seasonal_variation``
 - ``seasonal_peak_day``
 - ``seed``
+- ``timezone``
 
 
 

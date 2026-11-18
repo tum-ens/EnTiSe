@@ -8,13 +8,13 @@ Space heating demand using DistrictHeatingSim’s BDEW methodology.
 
 Purpose and scope:
 
-- Wraps the DistrictHeatingSim BDEW implementation to synthesize hourly heating energy profiles for a selected BDEW profile type (e.g., HEF03), scaled to an annual demand target and aligned to the requested timestep.
+- Wraps the DistrictHeatingSim BDEW implementation to synthesize hourly heating energy profiles for a selected BDEW profile type (e.g., HEF03), scaled so that the energy over the run equals ``Objects.DEMAND_KWH``.
 
 - Optionally splits the total load into space heating and DHW shares via the dhw_share parameter.
 
 Notes:
 
-- Provide weather with a datetime column and air temperature. The method derives wall‑clock timestamps and applies a power‑preserving alignment when your resolution differs from the hourly native resolution of the underlying model.
+- Provide weather with timestamps and air temperature. The model runs per calendar year on the hourly local wall clock of the object's ``timezone`` (UTC if unset). On the 23-hour day of the change to summer time the skipped hour is not read; on the 25-hour day the repeated hour is read twice. Each row is the mean power over the interval that starts at its label.
 
 - The first three characters of profile_type define the building group, the last two its subtype, e.g., "HEF03".
 
@@ -58,6 +58,7 @@ Optional keys (specify in objects)
 - ``demand[kWh]``
 - ``profile_type``
 - ``dhw_share``
+- ``timezone``
 
 
 
@@ -145,12 +146,13 @@ Public methods
            summary and timeseries.
 
            Args:
-               obj: Object dictionary with inputs like annual demand, profile type,
+               obj: Object dictionary with inputs like demand over the run, profile type,
                     DHW share, and weather key.
                data: Data dictionary containing the weather dataframe under O.WEATHER.
                results: Unused placeholder for interface compatibility.
                ts_type: Timeseries type, defaults to Types.HEATING.
-               annual_demand_kwh: Optional annual heat demand in kWh.
+               annual_demand_kwh: Optional heat demand in kWh over the simulated run (the
+                   keyword keeps its historical name).
                weather: Optional weather dataframe override with C.DATETIME and C.TEMP_AIR.
                profile_type: Optional BDEW profile type (e.g., "HEF03", "GBH01").
                              First three characters define building type, last two subtype.
@@ -178,5 +180,5 @@ Public methods
 
            logger.debug(f"[districtheatsim heat]: Generating {ts_type} data")
 
-           return self._format_output(ts_total_w, processed_obj)
+           return self._format_output(ts_total_w, processed_obj, processed_data)
 

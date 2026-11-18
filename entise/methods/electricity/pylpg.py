@@ -121,8 +121,8 @@ class PyLPG(Method):
             O.TIMEZONE: obj.get(O.TIMEZONE),
         }
         dts_key = Method.get_with_method_backup(obj, O.DATETIMES, method_type, O.DATETIMES)
-        table, step = time_table(data, dts_key)
-        data_out = {O.DATETIMES: table, "step": step, "run_data": data}
+        table, step, hours = time_table(data, dts_key, site_zone(obj_out))
+        data_out = {O.DATETIMES: table, "step": step, "hours": hours, "run_data": data}
 
         obj_out = {k: v for k, v in obj_out.items() if v is not None}
         return obj_out, data_out
@@ -132,8 +132,7 @@ class PyLPG(Method):
         out_col = f"{Types.ELECTRICITY}{SEP}{C.LOAD}[W]"
         ts.columns = [out_col]
 
-        hours = data["step"] / pd.Timedelta(1, unit="h")
-        demand_wh = int(round(float(ts[out_col].sum()) * hours))
+        demand_wh = int(round(float(np.dot(ts[out_col].to_numpy(dtype=float), data["hours"]))))
         load_max_w = int(round(float(ts[out_col].max())))
 
         summary = {
@@ -212,7 +211,14 @@ def calculate_timeseries(processed_obj: Dict[str, Any], processed_data: Dict[str
     # Minute energies [kWh] per household; their sum is the mean power of each minute.
     energy_kwh = extract_hh_electricity_columns(df_min_all, households).sum(axis=1)
     minutes = pd.date_range(start, end, freq="min", inclusive="left")
-    power_w = energy_kwh.groupby(level=0).sum().reindex(minutes).fillna(0.0) * 60_000.0
+    energy_kwh = energy_kwh.groupby(level=0).sum()
+    missing = minutes.difference(energy_kwh.index)
+    if len(missing):
+        raise ValueError(
+            f"[pylpg] The engine returned no value for {len(missing)} minutes of local time, "
+            f"the first at {missing[0]:%Y-%m-%d %H:%M}."
+        )
+    power_w = energy_kwh.reindex(minutes) * 60_000.0
 
     load_w = read_profile(power_w, axis, zone, step, name="pylpg")
     return pd.DataFrame({"pylpg": np.round(load_w).astype(int)}, index=axis)

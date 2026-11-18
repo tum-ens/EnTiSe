@@ -214,7 +214,7 @@ def test_heat_at_30_minutes_ending_between_two_hours_keeps_every_row():
 def test_a_gap_in_the_datetimes_raises():
     weather = _weather(0, 48).drop(index=10)
 
-    with pytest.raises(ValueError, match="regular time step"):
+    with pytest.raises(ValueError, match="time step that is regular"):
         _run([_electricity()], {O.WEATHER: weather})
 
 
@@ -336,3 +336,37 @@ def test_occupancy_runs_on_a_built_in_electricity_method(method):
     occupancy = timeseries["home"][Types.OCCUPANCY]
     assert occupancy.index.equals(timeseries["home"][Types.ELECTRICITY].index)
     assert str(occupancy.index.tz) == BERLIN
+
+
+# -- review fixes ---------------------------------------------------------------------------------------------------
+
+
+def test_daily_electricity_at_local_midnight_runs_across_clock_changes():
+    days = pd.date_range("2022-03-20", "2022-11-10", freq="D", tz=BERLIN)
+
+    summary, timeseries = _run([_electricity(demand_kwh=1000.0)], {O.WEATHER: pd.DataFrame({C.DATETIME: days})})
+
+    out = timeseries["electricity"][Types.ELECTRICITY]
+    assert len(out) == len(days)
+    hours = np.diff(np.append(days.as_unit("ns").asi8, pd.Timestamp("2022-11-11", tz=BERLIN).value)) / 3.6e12
+    assert abs(float((out[ELEC].to_numpy() * hours).sum()) - 1_000_000) <= 0.5 * hours.sum()
+    assert abs(summary.loc["electricity", ELEC_DEMAND] - 1_000_000) <= 0.5 * hours.sum()
+
+
+def test_a_time_step_irregular_on_both_clocks_names_the_instant():
+    index = pd.DatetimeIndex(["2022-01-01 00:00", "2022-01-01 01:00", "2022-01-01 03:00"]).tz_localize(BERLIN)
+
+    with pytest.raises(ValueError, match=r"'weather'.*2022-01-01 03:00"):
+        _run([_electricity()], {O.WEATHER: pd.DataFrame({C.DATETIME: index})})
+
+
+def test_pylpg_reports_missing_engine_output():
+    def with_a_hole(*args, **kwargs):
+        frame = _stub_lpg(*args, **kwargs)
+        return frame.drop(frame.index[100:160])
+
+    with (
+        patch("entise.methods.electricity.pylpg.run_year_chunk", with_a_hole),
+        pytest.raises(ValueError, match="2022-01-01 01:40"),
+    ):
+        _run([_pylpg()], {O.WEATHER: _weather(0, 24)})
