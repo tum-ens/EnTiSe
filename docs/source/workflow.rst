@@ -167,9 +167,7 @@ Decision Guide
 Data Contracts (Schemas)
 ------------------------
 
-- Time index and alignment:
-  - Timeseries DataFrames must include a ``datetime`` column; EnTiSe will set or expect it as the index in many methods.
-  - Use a regular frequency (e.g., 15min, 1h). Avoid gaps for best results. Timezone-aware indices (UTC recommended) reduce ambiguity.
+- Time index and alignment: see `Time Contract`_ below.
 - Weather data common columns (examples):
   - ``outdoor_temperature[C]``, ``global_horizontal_irradiance[W m-2]``, ``direct_normal_irradiance[W m-2]``, ``diffuse_horizontal_irradiance[W m-2]``, ``wind_speed[m s-1]``, ``relative_humidity[1]``.
   - Column names follow the pattern ``name[unit]`` (optionally with height ``@2m`` etc.).
@@ -177,6 +175,48 @@ Data Contracts (Schemas)
 - Method-specific keys (examples):
   - HVAC 1R1C: ``resistance[K W-1]``, ``capacitance[J K-1]``, optional ``power_heating[W]``, ``power_cooling[W]``, temperature setpoints.
   - PV pvlib: ``latitude[degree]``, ``longitude[degree]``, optional ``power[W]``, ``azimuth[degree]``, ``tilt[degree]``.
+
+Time Contract
+-------------
+
+.. note::
+
+   This is the time contract for EnTiSe 2.0.0. The methods adopt it before
+   the release; until then, some methods still read time in their own way.
+
+- **Timestamps identify instants.** A table carries its timestamps in a
+  ``datetime`` column or in its index. Accepted forms are typed datetime
+  values and ISO 8601 text, with a UTC offset or ``Z``
+  (``2022-07-01 12:00:00+02:00``) or without one. Other text formats and
+  numbers raise an error, so convert them with ``pandas.to_datetime`` first. If a table has both a ``datetime`` column and a datetime index, they
+  must identify the same instants.
+- **Naive timestamps are read as UTC.** EnTiSe logs one warning per table and
+  run. If a table holds local times, localize it before passing it:
+
+  .. code-block:: python
+
+      df["datetime"] = df["datetime"].dt.tz_localize("Europe/Berlin", ambiguous="infer")
+
+  ``ambiguous="infer"`` resolves the repeated hour when clocks go back.
+- **One axis per run.** Each table is read once per ``Generator.generate``
+  call, as a UTC ``DatetimeIndex`` in ``datetime64[us]``, sorted by instant.
+  A missing, unreadable or repeated timestamp raises an error that names the
+  table and the timestamp. Methods with a fixed time step also require a
+  regular step. EnTiSe never changes the frames you pass in.
+- **Each label marks the start of its interval.** Interval quantities, such
+  as irradiance or power, are means over ``[t, t + step)``. Instantaneous
+  quantities, such as air temperature, are values at ``t``. Open-Meteo labels
+  hourly irradiance at the end of the hour. If at least 14 days of hourly or
+  longer irradiance peak about one step after solar noon, EnTiSe warns and
+  suggests shifting those columns one row earlier.
+- **Site time zone.** The object key ``timezone`` (an IANA name such as
+  ``Europe/Berlin``) sets the local calendar of the object: local hour,
+  weekday, holidays and daylight saving days. It does not change how tables
+  are read. Without it, the calendar is UTC.
+- **Auxiliary tables** (internal gains, ventilation, ``file``) align with the
+  weather by timestamp. A table without timestamps is used row by row only if
+  it has one row per time step, with a warning; any other mismatch raises an
+  error.
 
 Performance and Reproducibility
 -------------------------------
@@ -189,6 +229,6 @@ Validation and Troubleshooting
 ------------------------------
 
 - Missing columns: Errors like “column not found” usually indicate a mismatch between expected names/units and your DataFrame. Check the column naming pattern and method docs.
-- Datetime issues: Ensure ``datetime`` can be parsed, is monotonic, and preferably timezone-aware. Non-regular indices may reduce accuracy or cause failures in some strategies.
+- Datetime issues: Ensure ``datetime`` can be parsed and identifies each instant once; see `Time Contract`_. Methods with a fixed time step reject irregular steps.
 - Dependency errors: If a required dependency is not provided as input data nor producible by a configured strategy, add the missing input or configure the upstream type.
 - Quick checks: Start with a single object and ``workers=1``; print the first few rows of inputs; use a shorter time window to iterate faster.

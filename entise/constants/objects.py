@@ -118,6 +118,7 @@ class Objects:
     TEMPERATURE_SERIES = "temperature_series"
     THERMAL_INERTIA = "thermal_inertia"  # Thermal inertia [0, 1]
     TILT = "tilt[degree]"  # Tilt (degrees; 0 = horizontal)
+    TIMEZONE = "timezone"  # Site time zone as an IANA name (e.g. Europe/Berlin)
     TRANSMITTANCE = "transmittance[W m-2 K-1]"  # Transmittance (W/m2/K)
     TURBINE_TYPE = "turbine_type"  # Turbine type (wind)
     VENTILATION = "ventilation[W K-1]"  # Ventilation losses (W/K)
