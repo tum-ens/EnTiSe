@@ -220,7 +220,8 @@ class RunTime:
     objects that do not need it.
     """
 
-    def __init__(self, data: Mapping[str, Any]):
+    def __init__(self, data: Mapping[str, Any], *, utc: bool = False):
+        self.utc = utc
         self._frames: dict[str, pd.DataFrame] = {}
         self._tables: dict[str, pd.DataFrame] = {}
         self._errors: dict[str, str] = {}
@@ -303,6 +304,15 @@ class RunTime:
         aligned = frame.copy()
         aligned.index = axis
         return aligned
+
+
+def output_index(axis: pd.DatetimeIndex, obj: Mapping[str, Any], data: Mapping[str, Any]) -> pd.DatetimeIndex:
+    """Return the index of a method's output: ``axis`` in the site zone, or in UTC if the run asks for it.
+
+    Every method of an object uses this, so all its outputs share one index.
+    """
+    zone = UTC if run_time(data).utc else site_zone(obj)
+    return pd.DatetimeIndex(axis, name=C.DATETIME).tz_convert(zone)
 
 
 def run_time(data: Mapping[str, Any]) -> RunTime:
