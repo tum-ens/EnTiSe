@@ -12,6 +12,7 @@ from tqdm import tqdm
 from entise.constants import VALID_TYPES
 from entise.constants import Keys as K
 from entise.constants import Objects as O
+from entise.core._time import RUN_TIME_KEY, RunTime
 from entise.core.runner import Runner
 from entise.perf import _get_accelerator_mode, _use_accelerator_mode
 
@@ -148,6 +149,9 @@ class Generator:
         """
         if self.objects.empty:
             raise ValueError("No objects have been added for processing.")
+
+        # Read every time table once for the whole run. The caller's mapping is not changed.
+        data = {**data, RUN_TIME_KEY: RunTime(data)}
 
         object_params = self.objects.to_dict("records")
 

@@ -10,6 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 ### Added
+- Added the time contract for 2.0.0 and the layer that implements it. Each run reads every table with timestamps once, as UTC instants in `datetime64[us]`; text timestamps must be ISO 8601. Naive timestamps are read as UTC with one warning per table, and errors name the table and timestamp. A new object key `timezone` sets the site's local calendar. Auxiliary tables align by timestamp, and a check warns when irradiance looks labelled at the interval end. The contract is documented in the workflow guide; the methods adopt it in later changes before the release. (`#116`)
 - Added a shared contribution workflow that records approval scope and review
   evidence, with GitLab verification jobs for merge requests. (`#112`)
 - Added contributor guidance for method contracts, offline testing, and method merge request review. (`#109`)

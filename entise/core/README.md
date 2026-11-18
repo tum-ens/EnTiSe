@@ -12,3 +12,7 @@ each object.
 - Preserve the result contract at the runner boundary. A strategy returns a
   dictionary containing `Keys.TIMESERIES`. The [generator](generator.py) merges
   any `Keys.SUMMARY` entries into the object's summary.
+- Read timestamps through the [time layer](_time.py). Use `run_time(data)` to
+  get the run's normalized tables, `site_zone(obj)` for the local calendar, and
+  `RunTime.align` for auxiliary tables. Do not parse `datetime` columns in a
+  method, and do not change the frames in `data`.
