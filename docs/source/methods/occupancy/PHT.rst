@@ -39,9 +39,9 @@ Key facts
 
 - Supported types:
 
-  
+
   - ``occupancy``
-  
+
 
 
 Requirements
@@ -101,10 +101,10 @@ Summary metrics
 
    * - Key
      - Description
-   
+
    * - ``occupancy:average_occupancy``
      - average occupancy
-   
+
 
 
 Timeseries columns
@@ -117,10 +117,10 @@ Timeseries columns
 
    * - Column
      - Description
-   
+
    * - ``occupancy:occupancy[1]``
      - binary occupancy schedule (0/1)
-   
+
 
 
 Public methods
@@ -222,4 +222,3 @@ Public methods
            occ_schedule = calculate_timeseries(processed_obj, processed_data)
 
            return self._format_output(occ_schedule, processed_obj, processed_data)
-
