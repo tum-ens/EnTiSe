@@ -181,8 +181,9 @@ Time Contract
 
 .. note::
 
-   This is the time contract for EnTiSe 2.0.0. The methods adopt it before
-   the release; until then, some methods still read time in their own way.
+   This is the time contract for EnTiSe 2.0.0. The RC models, Ruhnau, PV,
+   wind and their auxiliaries follow it. The calendar methods adopt it before
+   the release; until then, they still read time in their own way.
 
 - **Timestamps identify instants.** A table carries its timestamps in a
   ``datetime`` column or in its index. Accepted forms are typed datetime
@@ -208,7 +209,15 @@ Time Contract
   quantities, such as air temperature, are values at ``t``. Open-Meteo labels
   hourly irradiance at the end of the hour. If at least 14 days of hourly or
   longer irradiance peak about one step after solar noon, EnTiSe warns and
-  suggests shifting those columns one row earlier.
+  suggests shifting those columns one row earlier. The warning appears once
+  per run and longitude cell in each worker process.
+- **Outputs.** Every time series of an object is indexed by the weather's
+  instants in the object's ``timezone``, or in UTC with
+  ``Generator.generate(..., utc=True)``. Solar geometry is evaluated at the
+  midpoint of each interval. In the RC models, row ``t`` covers
+  ``[t, t + step)``: heating and cooling loads are means over that interval,
+  ``temperature_in`` is the indoor temperature at ``t`` (row 0 is the
+  initial temperature), and the summary demand is the sum of load times step.
 - **Site time zone.** The object key ``timezone`` (an IANA name such as
   ``Europe/Berlin``) sets the local calendar of the object: local hour,
   weekday, holidays and daylight saving days. It does not change how tables
@@ -216,7 +225,8 @@ Time Contract
 - **Auxiliary tables** (internal gains, ventilation, ``file``) align with the
   weather by timestamp. A table without timestamps is used row by row only if
   it has one row per time step, with a warning; any other mismatch raises an
-  error.
+  error. The positional warning appears once per table and run in each worker
+  process.
 
 Performance and Reproducibility
 -------------------------------

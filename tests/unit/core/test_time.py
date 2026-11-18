@@ -280,9 +280,10 @@ def _irradiance(first: int, rows: int, shift: int = 0) -> pd.DataFrame:
 
 
 def test_end_labelled_irradiance_is_reported(caplog):
-    # The example weather comes from Open-Meteo, which labels hourly means at the interval end.
+    # Shifting the start-labelled example weather one row later labels each mean at its interval end,
+    # as Open-Meteo does.
     with caplog.at_level(logging.WARNING, logger=T.__name__):
-        offset = T.check_irradiance_labels(_irradiance(4000, 24 * 14), LONGITUDE, table="weather")
+        offset = T.check_irradiance_labels(_irradiance(4000, 24 * 14, shift=-1), LONGITUDE, table="weather")
 
     assert offset > 0.5
     assert any("'weather'" in r.getMessage() and "shift" in r.getMessage() for r in caplog.records)
@@ -290,7 +291,7 @@ def test_end_labelled_irradiance_is_reported(caplog):
 
 def test_start_labelled_irradiance_is_not_reported(caplog):
     with caplog.at_level(logging.WARNING, logger=T.__name__):
-        offset = T.check_irradiance_labels(_irradiance(4000, 24 * 14, shift=1), LONGITUDE, table="weather")
+        offset = T.check_irradiance_labels(_irradiance(4000, 24 * 14), LONGITUDE, table="weather")
 
     assert abs(offset) < 0.25
     assert not caplog.records
@@ -380,3 +381,29 @@ def test_align_requires_an_aware_axis():
 
 def test_ten_days_of_irradiance_are_not_judged():
     assert T.check_irradiance_labels(_irradiance(4000, 24 * 10), LONGITUDE, table="weather") is None
+
+
+# -- output index -----------------------------------------------------------------------------------------------------
+
+
+def test_outputs_are_indexed_in_the_site_zone_by_default():
+    axis = _axis(3)
+    data = {"weather": _weather(0, 3)}
+
+    index = T.output_index(axis, {O.ID: 1, O.TIMEZONE: "Europe/Berlin"}, data)
+
+    assert str(index.tz) == "Europe/Berlin"
+    assert index.tz_convert("UTC").equals(axis)
+    assert index.name == C.DATETIME
+    assert str(T.output_index(axis, {O.ID: 1}, data).tz) == "UTC"
+
+
+def test_a_utc_run_indexes_every_output_in_utc():
+    axis = _axis(3)
+    data = {"weather": _weather(0, 3)}
+    data[T.RUN_TIME_KEY] = T.RunTime(data, utc=True)
+
+    index = T.output_index(axis, {O.ID: 1, O.TIMEZONE: "Europe/Berlin"}, data)
+
+    assert str(index.tz) == "UTC"
+    assert index.equals(axis)

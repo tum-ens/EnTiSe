@@ -50,7 +50,7 @@ def test_each_time_table_is_parsed_once_per_run_and_reaches_every_method():
         pd.testing.assert_frame_equal(frame, original[key])
 
 
-def test_methods_are_not_yet_affected():
+def test_hvac_returns_one_row_per_weather_row():
     objects, data = _inputs()
 
     generator = Generator(raise_on_error=True)
@@ -58,3 +58,21 @@ def test_methods_are_not_yet_affected():
     _, timeseries = generator.generate(data, workers=1, show_progress=False)
 
     assert len(timeseries[objects[0][O.ID]][Types.HVAC]) == len(data[O.WEATHER])
+
+
+def test_the_utc_option_reaches_the_methods():
+    objects, data = _inputs()
+    seen = []
+    runner_init = Runner.__init__
+
+    def record(self, keys, run_data, strategies):
+        seen.append(run_data[_time.RUN_TIME_KEY].utc)
+        runner_init(self, keys, run_data, strategies)
+
+    generator = Generator(raise_on_error=True)
+    generator.add_objects(objects[:1])
+    with patch.object(Runner, "__init__", record):
+        generator.generate(data, workers=1, show_progress=False)
+        generator.generate(data, workers=1, show_progress=False, utc=True)
+
+    assert seen == [False, True]

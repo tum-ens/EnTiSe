@@ -48,7 +48,7 @@ def test_windlib_initialization():
     assert windlib.types == [Types.WIND]
     assert windlib.name == "wplib"
     assert set(windlib.required_keys) == {O.WEATHER}
-    assert set(windlib.optional_keys) == {O.POWER, O.TURBINE_TYPE, O.HUB_HEIGHT, O.WIND_MODEL}
+    assert set(windlib.optional_keys) == {O.POWER, O.TURBINE_TYPE, O.HUB_HEIGHT, O.WIND_MODEL, O.TIMEZONE}
     assert windlib.required_data == [O.WEATHER]
     assert windlib.optional_data == [O.WIND_MODEL]
 

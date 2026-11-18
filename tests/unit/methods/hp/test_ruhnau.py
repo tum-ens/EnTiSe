@@ -59,6 +59,7 @@ def test_ruhnau_initialization():
         O.TEMP_WATER,
         O.CORRECTION_FACTOR,
         O.HP_SYSTEM,
+        O.TIMEZONE,
     }
     assert ruhnau.required_data == [O.WEATHER]
     assert ruhnau.optional_data == [O.HP_SYSTEM]

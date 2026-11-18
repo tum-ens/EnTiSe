@@ -10,12 +10,14 @@ from entise.constants import Columns as C
 from entise.constants import Constants as Const
 from entise.constants import Objects as O
 from entise.constants.constants import CP_AIR, RHO_AIR
+from entise.core._time import RUN_TIME_KEY, output_index, run_time
 from entise.core.base import Method
 from entise.core.utils import align_auxiliary_series, resolve_ts_or_scalar
 from entise.methods.auxiliary.internal.selector import InternalGains
 from entise.methods.auxiliary.solar.selector import SolarGains
 from entise.methods.auxiliary.ventilation.strategies import VentilationInactive, VentilationTimeSeries
 from entise.methods.hvac._latent_cooling import compute_latent_cooling
+from entise.methods.hvac._weather import check_window_irradiance, hvac_weather, step_seconds
 from entise.methods.hvac._windows import windows_table
 from entise.methods.hvac.defaults import (
     DEFAULT_ACTIVE_COOLING,
@@ -40,20 +42,8 @@ from entise.methods.hvac.defaults import (
     DEFAULT_VENTILATION,
     DEFAULT_VENTILATION_SPLIT,
 )
-from entise.methods.utils.weather_cache import WeatherCache
 
 logger = logging.getLogger(__name__)
-
-# Identity-keyed cache — see WeatherCache docstring for rationale.
-_WEATHER_CACHE = WeatherCache()
-
-
-def _preprocess_weather(weather: pd.DataFrame) -> pd.DataFrame:
-    w = weather.copy()
-    w = Method._strip_weather_height(w)
-    w[C.DATETIME] = pd.to_datetime(w[C.DATETIME])
-    w.set_index(C.DATETIME, inplace=True, drop=False)
-    return w
 
 
 class R7C2(Method):
@@ -109,6 +99,7 @@ class R7C2(Method):
 
     # Optional controls, splits, and auxiliaries
     optional_keys = [
+        O.TIMEZONE,
         # Controls
         O.POWER_HEATING,
         O.POWER_COOLING,
@@ -175,8 +166,10 @@ class R7C2(Method):
     ) -> dict:
         require_module("hvac-7r2c", "pvlib")
         obj, data = self._process_kwargs(obj, data, **kwargs)
-        obj, data = self._get_input_data(obj, data, ts_type)
-        data = self._prepare_inputs(obj, data)
+        # Read the tables once for this call; every helper below reuses this run.
+        data = {**data, RUN_TIME_KEY: run_time(data)}
+        obj, tables = self._get_input_data(obj, data, ts_type)
+        data = self._prepare_inputs(obj, tables)
 
         temp_in, p_heat, p_cool = calculate_timeseries_7r2c(**data)
 
@@ -187,7 +180,7 @@ class R7C2(Method):
             p_heat.round().astype(int),
             p_cool_sensible.round().astype(int),
             p_cool_latent.round().astype(int),
-            meta["index"],
+            output_index(meta["index"], obj, tables),
             meta["dt_s"],
         )
 
@@ -242,8 +235,6 @@ class R7C2(Method):
         return obj_out, data_out
 
     def _prepare_inputs(self, obj: dict, data: dict) -> dict:
-        data = self._prepare_weather_cache(obj, data)
-
         # Add data for computation
         data_out = {}
 
@@ -253,7 +244,7 @@ class R7C2(Method):
         meta = {
             O.WEATHER: weather,
             "index": index,
-            "dt_s": float((index[1] - index[0]) / np.timedelta64(1, "s")),
+            "dt_s": step_seconds(weather),
         }
         data_out["meta"] = meta
 
@@ -349,8 +340,9 @@ class R7C2(Method):
         # `cooling:load[W]` carries the TOTAL (sensible + latent) cooling load
         # per issue #103.
         p_cool_total = p_cool_sensible + p_cool_latent
-        E_h_Wh = float(np.trapezoid(p_heat.values, dx=dt_s) / 3600.0)
-        E_c_Wh = float(np.trapezoid(p_cool_total.values, dx=dt_s) / 3600.0)
+        # Each row is the mean power over its interval, so energy is the sum times the step.
+        E_h_Wh = float(p_heat.to_numpy(dtype=float).sum() * dt_s / 3600.0)
+        E_c_Wh = float(p_cool_total.to_numpy(dtype=float).sum() * dt_s / 3600.0)
         summary = {
             f"{Types.HEATING}{SEP}{C.DEMAND}[Wh]": E_h_Wh,
             f"{Types.HEATING}{SEP}{O.LOAD_MAX}[W]": float(max(p_heat.max(), 0.0)),
@@ -368,7 +360,6 @@ class R7C2(Method):
             },
             index=index,
         )
-        df.index.name = C.DATETIME
 
         return {"summary": summary, "timeseries": df}
 
@@ -377,6 +368,7 @@ class R7C2(Method):
         #   This probably also means changing the lists to dicts and having default values as the value
         obj_out = {
             O.ID: self.get_with_backup(obj, O.ID),
+            O.TIMEZONE: self.get_with_backup(obj, O.TIMEZONE),
             O.LAT: self.get_with_method_backup(obj, O.LAT, method_type),
             O.LON: self.get_with_method_backup(obj, O.LON, method_type),
             # Geometry (for air capacity)
@@ -452,17 +444,14 @@ class R7C2(Method):
         # for key in self.optional_keys:
         # obj_out[key] = obj_out.get(key)
 
+        # Keep legacy "<key>_COL" column names for table references (see resolve_table_and_column).
+        obj_out.update({k: v for k, v in obj.items() if isinstance(k, str) and k.endswith("_COL")})
         return {k: v for k, v in obj_out.items() if v is not None}
 
     def _prepare_data_tables(self, obj: dict, data: dict, method_type: str = Types.HVAC) -> dict:
-        data_out = {}
-
-        for key in self.required_data:
-            ts_key = self.get_with_method_backup(obj, key, method_type, key)
-            ts_data = self.get_with_backup(data, ts_key)
-            if ts_data is None:
-                raise ValueError(f"Required timeseries key '{ts_key}' for '{key}' not found in data.")
-            data_out[key] = ts_data
+        run, weather_key, weather = hvac_weather(obj, data, method_type)
+        data_out = {RUN_TIME_KEY: run, O.WEATHER: weather}
+        check_window_irradiance(run, weather_key, weather, obj, windows_table(obj, data, method_type), method_type)
 
         for key in self.optional_data:
             ts_key = self.get_with_method_backup(obj, key, method_type)
@@ -478,13 +467,6 @@ class R7C2(Method):
                     data_out.setdefault(ts_key, ts_data)
 
         return {k: v for k, v in data_out.items() if v is not None}
-
-    def _prepare_weather_cache(self, obj: dict, data: dict, method_type: str = Types.HVAC) -> dict:
-        # Cache preprocessed weather by DataFrame identity — different
-        # DataFrames get separate entries even under the same weather-key.
-        if O.WEATHER in data:
-            data[O.WEATHER] = _WEATHER_CACHE.get_or_build(data[O.WEATHER], _preprocess_weather)
-        return data
 
     @staticmethod
     def _compute_gains(obj: dict, data: dict) -> pd.DataFrame:
@@ -612,8 +594,6 @@ def calculate_timeseries_7r2c(
     Qc_arr = np.empty(n_len, dtype=float)
 
     T_in_arr[0] = Ta
-    Qh_arr[0] = 0.0
-    Qc_arr[0] = 0.0
 
     # Hysteresis state — see issue #102.
     heating_on = False
@@ -655,7 +635,9 @@ def calculate_timeseries_7r2c(
     else:
         Y_phiset_const = None
 
-    for t in range(1, n_len):
+    # Row t is the interval [t, t + step): it starts at T_in_arr[t], is driven by the
+    # forcing of row t and ends at T_in_arr[t + 1].
+    for t in range(n_len):
         T_out = T_out_arr[t]
         T_sup = T_sup_arr[t]
         T_eq = float(T_eq_arr[t])
@@ -867,7 +849,8 @@ def calculate_timeseries_7r2c(
             heating_on = False
             cooling_on = False
 
-        T_in_arr[t] = Ta
+        if t + 1 < n_len:
+            T_in_arr[t + 1] = Ta
         Qh_arr[t] = max(Q, 0.0)
         Qc_arr[t] = max(-Q, 0.0)
 

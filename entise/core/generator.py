@@ -115,6 +115,7 @@ class Generator:
         pre_dispatch: int | str = "2*n_jobs",
         backend: str = "loky",
         show_progress: bool = True,
+        utc: bool = False,
     ) -> Tuple[pd.DataFrame, Dict[str, pd.DataFrame]]:
         """
         Generates time series data by processing objects in parallel or sequentially
@@ -137,6 +138,9 @@ class Generator:
                 "threading" for threads). Defaults to "loky".
             show_progress (bool, optional): If True, display a progress bar. In
                 parallel mode, the bar updates on batch completion. Defaults to True.
+            utc (bool, optional): If True, every time series is indexed in UTC. By
+                default, each object's time series are indexed in its site time zone
+                (the ``timezone`` key, UTC if not set). Defaults to False.
 
         Returns:
             Tuple[pd.DataFrame, Dict[str, pd.DataFrame]]: A tuple containing the
@@ -151,7 +155,7 @@ class Generator:
             raise ValueError("No objects have been added for processing.")
 
         # Read every time table once for the whole run. The caller's mapping is not changed.
-        data = {**data, RUN_TIME_KEY: RunTime(data)}
+        data = {**data, RUN_TIME_KEY: RunTime(data, utc=utc)}
 
         object_params = self.objects.to_dict("records")
 

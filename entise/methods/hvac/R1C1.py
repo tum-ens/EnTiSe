@@ -8,12 +8,14 @@ from entise.constants import SEP, Types
 from entise.constants import Columns as C
 from entise.constants import Constants as Const
 from entise.constants import Objects as O
+from entise.core._time import RUN_TIME_KEY, output_index, run_time
 from entise.core.base import Method
 from entise.core.utils import resolve_ts_or_scalar
 from entise.methods.auxiliary.internal.selector import InternalGains
 from entise.methods.auxiliary.solar.selector import SolarGains
 from entise.methods.auxiliary.ventilation.selector import Ventilation
 from entise.methods.hvac._latent_cooling import compute_latent_cooling
+from entise.methods.hvac._weather import check_window_irradiance, hvac_weather, step_seconds
 from entise.methods.hvac._windows import windows_table
 from entise.methods.hvac.defaults import (
     DEFAULT_ACTIVE_COOLING,
@@ -28,20 +30,8 @@ from entise.methods.hvac.defaults import (
     DEFAULT_TEMP_MIN,
     DEFAULT_VENTILATION,
 )
-from entise.methods.utils.weather_cache import WeatherCache
 
 logger = logging.getLogger(__name__)
-
-# Identity-keyed cache — see WeatherCache docstring for rationale.
-_WEATHER_CACHE = WeatherCache()
-
-
-def _preprocess_weather(weather: pd.DataFrame) -> pd.DataFrame:
-    w = weather.copy()
-    w = Method._strip_weather_height(w)
-    w[C.DATETIME] = pd.to_datetime(w[C.DATETIME])
-    w.set_index(C.DATETIME, inplace=True, drop=False)
-    return w
 
 
 class R1C1(Method):
@@ -78,6 +68,7 @@ class R1C1(Method):
     name = "1R1C"
     required_keys = [O.CAPACITANCE, O.RESISTANCE, O.WEATHER]
     optional_keys = [
+        O.TIMEZONE,
         O.POWER_HEATING,
         O.POWER_COOLING,
         O.ACTIVE_HEATING,
@@ -200,15 +191,12 @@ class R1C1(Method):
             height=height,
         )
         require_module("hvac-1r1c", "pvlib")
+        # Read the tables once for this call; every helper below reuses this run.
+        data = {**data, RUN_TIME_KEY: run_time(data)}
         obj, data = self._get_input_data(obj, data, ts_type)
 
-        # Timestep in seconds (assuming a regular time grid). Compute from
-        # just the first two timestamps — casting the whole column via
-        # `.values.astype("datetime64[ns]")` costs ~20 ms/object on a
-        # timezone-aware DatetimeIndex because pandas materializes the object
-        # dtype first. Only the delta matters.
-        dt_col = data[O.WEATHER][C.DATETIME]
-        timestep = np.float32((dt_col.iloc[1] - dt_col.iloc[0]).total_seconds())
+        # Regular time step in seconds; each row is the interval [t, t + step).
+        timestep = np.float32(step_seconds(data[O.WEATHER]))
 
         # Precompute auxiliary data
         data[O.GAINS_INTERNAL] = InternalGains().generate(obj, data)
@@ -252,7 +240,7 @@ class R1C1(Method):
             f"cooling sensible {p_cool_sensible.max()}, latent {p_cool_latent.max()}"
         )
 
-        return self._format_output(temp_in, p_heat, p_cool_sensible, p_cool_latent, data, timestep)
+        return self._format_output(temp_in, p_heat, p_cool_sensible, p_cool_latent, obj, data, timestep)
 
     @staticmethod
     def _get_input_data(obj: dict, data: dict, method_type: str = Types.HVAC) -> tuple[dict, dict]:
@@ -279,6 +267,7 @@ class R1C1(Method):
         """
         obj_out = {
             O.ID: Method.get_with_backup(obj, O.ID),
+            O.TIMEZONE: Method.get_with_backup(obj, O.TIMEZONE),
             # Geometry
             O.AREA: Method.get_with_method_backup(obj, O.AREA, method_type, Const.DEFAULT_AREA.value),
             O.HEIGHT: Method.get_with_method_backup(obj, O.HEIGHT, method_type, Const.DEFAULT_HEIGHT.value),
@@ -316,28 +305,27 @@ class R1C1(Method):
             O.VENTILATION: Method.get_with_method_backup(obj, O.VENTILATION, method_type, DEFAULT_VENTILATION),
             O.VENTILATION_COL: Method.get_with_method_backup(obj, O.VENTILATION_COL, method_type),
         }
-        weather_key = Method.get_with_method_backup(obj, O.WEATHER, method_type, O.WEATHER)
-        weather = Method.get_with_backup(data, weather_key)
+        run, weather_key, weather = hvac_weather(obj, data, method_type)
         windows = windows_table(obj, data, method_type)
+        check_window_irradiance(run, weather_key, weather, obj, windows, method_type)
         internal_key = Method.get_with_method_backup(obj, O.GAINS_INTERNAL, method_type)
         internal_gains = Method.get_with_backup(data, internal_key) if isinstance(internal_key, str) else None
         ventilation_key = Method.get_with_method_backup(obj, O.VENTILATION, method_type)
         ventilation = Method.get_with_backup(data, ventilation_key) if isinstance(ventilation_key, str) else None
         data_out = {
+            RUN_TIME_KEY: run,
             O.WEATHER: weather,
             O.WINDOWS: windows,
             internal_key: internal_gains,
             ventilation_key: ventilation,
         }
 
+        # Keep legacy "<key>_COL" column names for table references (see resolve_table_and_column).
+        obj_out.update({k: v for k, v in obj.items() if isinstance(k, str) and k.endswith("_COL")})
+
         # Clean up
         obj_out = {k: v for k, v in obj_out.items() if v is not None}
         data_out = {k: v for k, v in data_out.items() if v is not None}
-
-        # Cache preprocessed weather by DataFrame identity — different
-        # DataFrames get separate entries even under the same weather-key.
-        if O.WEATHER in data_out:
-            data_out[O.WEATHER] = _WEATHER_CACHE.get_or_build(data_out[O.WEATHER], _preprocess_weather)
 
         return obj_out, data_out
 
@@ -417,7 +405,7 @@ class R1C1(Method):
     #     return obj_out, data_out
 
     @staticmethod
-    def _format_output(temp_in, p_heat, p_cool_sensible, p_cool_latent, data, timestep) -> dict:
+    def _format_output(temp_in, p_heat, p_cool_sensible, p_cool_latent, obj, data, timestep) -> dict:
         # NB: use ndarray.max() (C-level, single pass over the buffer), not
         # builtins.max() which iterates 8760 elements as Python objects.
         # `cooling:load[W]` and its summary counterparts carry the TOTAL
@@ -451,9 +439,8 @@ class R1C1(Method):
                 f"{Types.COOLING}{SEP}sensible_{C.LOAD}[W]": p_cool_sensible_int,
                 f"{Types.COOLING}{SEP}latent_{C.LOAD}[W]": p_cool_latent_int,
             },
-            index=data[O.WEATHER].index,
+            index=output_index(data[O.WEATHER].index, obj, data),
         )
-        df.index.name = C.DATETIME
 
         return {"summary": summary, "timeseries": df}
 
@@ -577,7 +564,9 @@ def _calculate_timeseries_numpy(obj: dict, data: dict, timestep: float) -> tuple
     temp_prev = temp_in[0]
     heating_on = False
     cooling_on = False
-    for t in range(1, n_steps):
+    # Row t is the interval [t, t + step): it starts at temp_in[t], is driven by
+    # the forcing of row t and ends at temp_in[t + 1].
+    for t in range(n_steps):
         d = decay[t]
         g = gain[t]
         t_ss = t_ss_pas[t]
@@ -623,6 +612,7 @@ def _calculate_timeseries_numpy(obj: dict, data: dict, timestep: float) -> tuple
         p_heat[t] = p_h
         p_cool[t] = p_c
         temp_prev = t_pas + g * (p_h - p_c)
-        temp_in[t] = temp_prev
+        if t + 1 < n_steps:
+            temp_in[t + 1] = temp_prev
 
     return temp_in, p_heat, p_cool

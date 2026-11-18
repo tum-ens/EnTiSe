@@ -7,6 +7,7 @@ from entise.constants import Objects as O
 from entise.constants import Types
 from entise.core.base import Method
 from entise.core.base_auxiliary import AuxiliaryMethod
+from entise.methods.auxiliary._align import align_to_weather
 
 log = logging.getLogger(__name__)
 
@@ -101,7 +102,7 @@ class InternalTimeSeries(AuxiliaryMethod):
 
     def get_input_data(self, obj, data):
         gains_key = obj.get(O.GAINS_INTERNAL)
-        gains_ts = data.get(gains_key)
+        gains_ts = align_to_weather(data, gains_key)
         input_data = {
             O.ID: obj.get(O.ID, None),
             O.GAINS_INTERNAL_COL: obj.get(O.GAINS_INTERNAL_COL, None),

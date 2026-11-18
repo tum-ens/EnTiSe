@@ -10,12 +10,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 ### Added
+- Added `Generator.generate(..., utc=False)`. By default every time series of an object is indexed in its site time zone (the `timezone` key, UTC if not set); `utc=True` indexes all of them in UTC. (`#116`)
 - Added the time contract for 2.0.0 and the layer that implements it. Each run reads every table with timestamps once, as UTC instants in `datetime64[us]`; text timestamps must be ISO 8601. Naive timestamps are read as UTC with one warning per table, and errors name the table and timestamp. A new object key `timezone` sets the site's local calendar. Auxiliary tables align by timestamp, and a check warns when irradiance looks labelled at the interval end. The contract is documented in the workflow guide; the methods adopt it in later changes before the release. (`#116`)
 - Added a shared contribution workflow that records approval scope and review
   evidence, with GitLab verification jobs for merge requests. (`#112`)
 - Added contributor guidance for method contracts, offline testing, and method merge request review. (`#109`)
 
 ### Fixed
+- **Behavior change**: the RC models (1R0C, 1R1C, 5R1C, 7R2C), the Ruhnau heat pump, PV and wind follow the time contract. (`#116`)
+  - They read the weather through the time layer, so mixed UTC offsets, named zones and typed or text timestamps give the same instants. The RC models, PV and wind require a regular time step.
+  - Every output is indexed by the weather's instants in the object's `timezone`, or in UTC with `Generator.generate(..., utc=True)`. Before, the index depended on the method and on how the timestamps were written.
+  - Each row is the interval that starts at its label. In the RC models, row 0 now holds the first interval's load and `temperature_in` is the temperature at the start of each interval, so row 0 is the initial temperature. A weather table with n rows gives n intervals instead of n − 1, and every RC model reports demand as the sum of load times step; 5R1C and 7R2C used the trapezoidal rule.
+  - PV and the solar gains of the RC models take the sun's position at the midpoint of each interval instead of at its label. A warning names the weather table when its irradiance peaks about one step after solar noon, which indicates labels at the interval end; it appears once per run and longitude cell in each worker process.
+  - Internal gains, ventilation and `table|column` references (also the legacy `<key>` with `<key>_COL` form) align with the weather by timestamp; before, a `table|column` power cap failed with `could not convert string to float`. A gains table read with `read_csv` gave NaN temperatures and 0 Wh heating in 5R1C and 7R2C; 1R0C and 1R1C used timestamped tables in row order and ignored their timestamps.
+  - PV and wind use the table named by the object's `weather` key. Before, they always read `weather`.
+  - Ruhnau's soil temperature estimate averages the last 24 hours of air temperature at any time step, not the last 24 rows.
+  - The example weather (`examples/common_data/weather.csv`) is relabelled to interval starts: its irradiance columns move one row earlier and `solar_elevation_angle[degree]` is given at each interval's midpoint.
 - Fixed outputs and examples that silently used the wrong values. (`#118`)
   - **Behavior change**: demandlib heat returned 2× the power at 30-minute steps and 4× at 15-minute steps, and half the power at 2-hour steps. Each step now carries the mean power of the hours it covers, starting at its own label, so a run over whole hours has the energy of the hourly run. Inputs at 30 or 15 minutes that end between two full hours no longer fail with a length mismatch; a run that starts or ends inside an hour still falls slightly short of the demand.
   - **Behavior change**: Jordan-Vajen DHW wrote the cold water temperature into `dhw:hot_water_temperature[C]`. The column now holds the hot water temperature.

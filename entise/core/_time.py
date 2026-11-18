@@ -26,7 +26,7 @@ from __future__ import annotations
 
 import logging
 import re
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from datetime import date
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -220,11 +220,14 @@ class RunTime:
     objects that do not need it.
     """
 
-    def __init__(self, data: Mapping[str, Any]):
+    def __init__(self, data: Mapping[str, Any], *, utc: bool = False):
+        self.utc = utc
         self._frames: dict[str, pd.DataFrame] = {}
         self._tables: dict[str, pd.DataFrame] = {}
         self._errors: dict[str, str] = {}
         self._positional_warned: set[str] = set()
+        self._derived: dict[tuple[str, str], Any] = {}
+        self._label_checks: set[tuple[str, float]] = set()
         for key, frame in data.items():
             if key == RUN_TIME_KEY or not isinstance(frame, pd.DataFrame):
                 continue
@@ -245,6 +248,29 @@ class RunTime:
                     "`df['datetime'] = df['datetime'].dt.tz_localize('Europe/Berlin', ambiguous=\"infer\")`.",
                     key,
                 )
+
+    def __contains__(self, key: object) -> bool:
+        return key in self._frames
+
+    def derived(self, key: str, name: str, build: Callable[[pd.DataFrame], Any]) -> Any:
+        """Return ``build(table(key))``, built once per run and process under ``name``.
+
+        Methods use it for preparation that every object repeats, such as
+        stripping column heights. The result is shared between objects, so do
+        not change it in place.
+        """
+        cache_key = (key, name)
+        if cache_key not in self._derived:
+            self._derived[cache_key] = build(self.table(key))
+        return self._derived[cache_key]
+
+    def check_irradiance(self, key: str, longitude: float) -> None:
+        """Run :func:`check_irradiance_labels` on table ``key`` once per run and location cell."""
+        check = (key, round(float(longitude), 1))
+        if check in self._label_checks:
+            return
+        self._label_checks.add(check)
+        check_irradiance_labels(self.table(key), float(longitude), table=key)
 
     def table(self, key: str) -> pd.DataFrame:
         """Return the normalized table ``key``.
@@ -303,6 +329,15 @@ class RunTime:
         aligned = frame.copy()
         aligned.index = axis
         return aligned
+
+
+def output_index(axis: pd.DatetimeIndex, obj: Mapping[str, Any], data: Mapping[str, Any]) -> pd.DatetimeIndex:
+    """Return the index of a method's output: ``axis`` in the site zone, or in UTC if the run asks for it.
+
+    Every method of an object uses this, so all its outputs share one index.
+    """
+    zone = UTC if run_time(data).utc else site_zone(obj)
+    return pd.DatetimeIndex(axis, name=C.DATETIME).tz_convert(zone)
 
 
 def run_time(data: Mapping[str, Any]) -> RunTime:
