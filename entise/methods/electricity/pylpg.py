@@ -11,9 +11,6 @@ from entise.methods.electricity.utils import extract_hh_electricity_columns, run
 
 logger = logging.getLogger(__name__)
 
-# Module-level caches (per process)
-_DTS_CACHE: dict[Any, pd.DataFrame] = {}
-
 
 class PyLPG(Method):
     """PyLPG electricity demand generation (EnTiSe standard interface)."""
@@ -122,16 +119,9 @@ class PyLPG(Method):
         obj_out = {k: v for k, v in obj_out.items() if v is not None}
         data_out = {k: v for k, v in data_out.items() if v is not None}
 
-        # Safe datetime handling
-        dts_cache_key = dts_key
-        dts_cached = _DTS_CACHE.get(dts_cache_key)
-        if dts_cached is None:
-            if O.DATETIMES in data_out:
-                dts = data_out[O.DATETIMES].copy()
-                data_out[O.DATETIMES] = dts
-                _DTS_CACHE[dts_key] = dts
-        else:
-            data_out[O.DATETIMES] = dts_cached
+        # Work on a copy: the time series code changes the index of this frame.
+        if O.DATETIMES in data_out:
+            data_out[O.DATETIMES] = data_out[O.DATETIMES].copy()
 
         return obj_out, data_out
 

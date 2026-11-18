@@ -9,14 +9,6 @@ from entise.methods.electricity.demandlib import Demandlib, calculate_timeseries
 OUT_COL = f"{Types.ELECTRICITY}{SEP}{C.LOAD}[W]"
 
 
-@pytest.fixture(autouse=True)
-def _clear_weather_cache():
-    """Clear the module-level DTS cache before each test to avoid cross-test state leakage."""
-    import entise.methods.electricity.demandlib as m
-
-    m._DTS_CACHE.clear()
-
-
 def _make_weather(start: str, periods: int, freq: str = "h", tz: str = "UTC") -> pd.DataFrame:
     """Helper to build a minimal datetimes dataframe with a single C.DATETIME column.
 
@@ -272,3 +264,15 @@ def test_generate_index_matches_input_datetimes():
 
     ts = res["timeseries"]
     assert (pd.DatetimeIndex(ts.index) == pd.DatetimeIndex(dts[C.DATETIME])).all()
+
+
+def test_second_frame_under_the_same_key_uses_its_own_datetimes():
+    """A new frame passed under a key already used in this process must not be replaced by the earlier one."""
+    obj = {O.ID: "obj_1", O.DEMAND_KWH: 1000.0, O.PROFILE: "h0", O.DATETIMES: O.DATETIMES}
+    march = _make_weather("2022-03-01", periods=24)
+    october = _make_weather("2022-10-01", periods=24)
+
+    Demandlib().generate(obj=obj, data={O.DATETIMES: march}, ts_type=Types.ELECTRICITY)
+    res = Demandlib().generate(obj=obj, data={O.DATETIMES: october}, ts_type=Types.ELECTRICITY)
+
+    assert pd.DatetimeIndex(res["timeseries"].index).equals(pd.DatetimeIndex(october[C.DATETIME]))

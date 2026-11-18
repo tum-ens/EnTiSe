@@ -9,14 +9,6 @@ from entise.methods.electricity.pylpg import PyLPG, calculate_timeseries
 OUT_COL = f"{Types.ELECTRICITY}{SEP}{C.LOAD}[W]"
 
 
-@pytest.fixture(autouse=True)
-def _clear_dts_cache():
-    """Clear the module-level DTS cache before each test to avoid cross-test state leakage."""
-    import entise.methods.electricity.pylpg as m
-
-    m._DTS_CACHE.clear()
-
-
 def _make_datetimes(start: str, periods: int, freq: str = "h", tz: str = "UTC") -> pd.DataFrame:
     """Helper to build a minimal datetimes dataframe with a single C.DATETIME column.
 
@@ -186,3 +178,16 @@ def test_unsupported_timestep_is_rejected(freq):
 
     with pytest.raises(ValueError, match="Unsupported timestep"):
         PyLPG().generate(obj=obj, data=data, ts_type=Types.ELECTRICITY)
+
+
+def test_second_frame_under_the_same_key_uses_its_own_datetimes():
+    """A new frame passed under a key already used in this process must not be replaced by the earlier one."""
+    obj = {O.ID: "obj_1", O.HOUSEHOLDS: 1, O.OCCUPANTS_PER_HOUSEHOLD: 2, O.DATETIMES: O.DATETIMES}
+    march = _make_datetimes("2022-03-01", periods=24)
+    october = _make_datetimes("2022-10-01", periods=24)
+
+    PyLPG()._get_input_data(obj, {O.DATETIMES: march}, Types.ELECTRICITY)
+    _, data_in = PyLPG()._get_input_data(obj, {O.DATETIMES: october}, Types.ELECTRICITY)
+
+    pd.testing.assert_series_equal(data_in[O.DATETIMES][C.DATETIME], october[C.DATETIME])
+    assert data_in[O.DATETIMES] is not october
