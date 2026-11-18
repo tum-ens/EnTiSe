@@ -218,7 +218,8 @@ class Ruhnau(Method):
             logger.warning("No weather provided")
             raise ValueError("Weather data is required but not provided")
         weather = self.get_with_backup(data, weather)
-        weather = self._strip_weather_height(weather)
+        # Work on a copy: other objects in the run share the caller's frame.
+        weather = self._strip_weather_height(weather.copy())
         data_out[O.WEATHER] = self._process_weather_data(weather)
 
         return obj_out, data_out

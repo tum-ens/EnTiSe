@@ -15,6 +15,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Added contributor guidance for method contracts, offline testing, and method merge request review. (`#109`)
 
 ### Fixed
+- Fixed four cases in which objects in one process affected each other or failed on shared input. (`#117`)
+  - The Ruhnau heat pump no longer changes the caller's weather frame. It used to strip the column heights and replace the index, so a later wind object on the same frame failed with duplicate column labels.
+  - The solar gains of the 1R1C, 5R1C and 7R2C HVAC models no longer fail with an `AttributeError` when the weather carries timestamps in a named time zone such as `Europe/Berlin`. The solar position is calculated from UTC instants, as before.
+  - demandlib electricity no longer leaves the process with an error filter for all warnings. demandlib 0.2.2 sets one while it builds a standard load profile, which made a later object fail on any warning, for example HVAC parsing weather across a daylight saving change. EnTiSe now ignores that call and restores the caller's warning filters after demandlib runs. With pandas 3, this also lets demandlib electricity run despite demandlib's own deprecation warnings.
+  - **Behavior change**: demandlib electricity and PyLPG read the datetimes frame passed in each call. They used to keep the first frame seen under a data key for the rest of the process, so a second run with different datetimes under the same key returned the earlier timestamps and values.
 - **Behavior change**: `Generator.generate()` process workers now honor the mode
   set by `entise.set_accelerator()` on each call, including when joblib reuses
   workers. A forced Numba mode reports a missing dependency when the solver runs. (`#115`)

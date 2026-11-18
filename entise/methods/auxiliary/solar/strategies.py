@@ -155,15 +155,14 @@ class SolarGainsPVLib(AuxiliaryMethod):
         import pvlib
 
         cache = _frame_cache(weather)
-        timezone_info = weather.index[0].tzinfo
-        tz_offset = 0 if timezone_info is None else timezone_info.utcoffset(None).total_seconds() / 3600
         cell = _cell_centre(latitude, longitude)
 
-        # Cache solar position (solpos)
-        sp_key = (cell, tz_offset)
+        # Cache solar position (solpos). It is calculated from UTC instants, so the
+        # time zone of the weather labels does not matter.
+        sp_key = cell
         solpos = cache.solpos.get(sp_key)
         if solpos is None:
-            location = pvlib.location.Location(cell[0], cell[1], tz=tz_offset)
+            location = pvlib.location.Location(cell[0], cell[1])
             solpos = location.get_solarposition(pd.to_datetime(weather.index, utc=True), method="nrel_numba")
             cache.solpos[sp_key] = solpos
 
@@ -178,7 +177,7 @@ class SolarGainsPVLib(AuxiliaryMethod):
         for _, window in windows.iterrows():
             tilt = float(window[C.TILT])
             orientation = float(window[C.ORIENTATION])
-            poa_key = (cell, tz_offset, round(tilt, 3), round(orientation, 3))
+            poa_key = (cell, round(tilt, 3), round(orientation, 3))
             poa = cache.poa.get(poa_key)
             if poa is None:
                 irr = pvlib.irradiance.get_total_irradiance(

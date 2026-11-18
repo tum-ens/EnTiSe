@@ -8,15 +8,13 @@ from entise.constants import SEP, Types
 from entise.constants import Columns as C
 from entise.constants import Objects as O
 from entise.core.base import Method
+from entise.methods.utils._demandlib import contain_warning_filters
 from entise.methods.utils.holidays import get_holidays
 
 logger = logging.getLogger(__name__)
 
 DEFAULT_PROFILE = "h0_dyn"
 DEFAULT_DEMAND = 1.0
-
-# Module-level caches (per process)
-_DTS_CACHE: dict[Any, pd.DataFrame] = {}
 
 
 class Demandlib(Method):
@@ -130,16 +128,9 @@ class Demandlib(Method):
         obj_out = {k: v for k, v in obj_out.items() if v is not None}
         data_out = {k: v for k, v in data_out.items() if v is not None}
 
-        # Safe datetime handling
-        dts_cache_key = dts_key
-        dts_cached = _DTS_CACHE.get(dts_cache_key)
-        if dts_cached is None:
-            if O.DATETIMES in data_out:
-                dts = data_out[O.DATETIMES].copy()
-                data_out[O.DATETIMES] = dts
-                _DTS_CACHE[dts_key] = dts
-        else:
-            data_out[O.DATETIMES] = dts_cached
+        # Work on a copy: other objects in the run share the caller's frame.
+        if O.DATETIMES in data_out:
+            data_out[O.DATETIMES] = data_out[O.DATETIMES].copy()
 
         return obj_out, data_out
 
@@ -210,11 +201,12 @@ def calculate_timeseries(processed_obj: Dict[str, Any], processed_data: Dict[str
 
     # Generate demand profile for every year that is required
     slps = []
-    for y in years:
-        slp = bdew.ElecSlp(y, holidays=holidays)
-        # Get scaled profile profile
-        demand = slp.get_scaled_power_profiles({profile_type: annual_demand_kwh})
-        slps.append(demand)
+    with contain_warning_filters():
+        for y in years:
+            slp = bdew.ElecSlp(y, holidays=holidays)
+            # Get scaled profile profile
+            demand = slp.get_scaled_power_profiles({profile_type: annual_demand_kwh})
+            slps.append(demand)
 
     slps = pd.concat(slps)
 
