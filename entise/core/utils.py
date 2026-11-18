@@ -25,6 +25,15 @@ def resolve_table_and_column(obj: dict, key: str):
     return table_key, col
 
 
+def _same_instants(given: pd.Index, index: pd.Index) -> bool:
+    """Whether two tz-aware indexes list the same instants, whatever their zone or unit."""
+    if not (isinstance(given, pd.DatetimeIndex) and isinstance(index, pd.DatetimeIndex)):
+        return False
+    if given.tz is None or index.tz is None or len(given) != len(index):
+        return False
+    return bool((given.tz_convert("UTC").as_unit("us") == index.tz_convert("UTC").as_unit("us")).all())
+
+
 def resolve_ts_or_scalar(obj: dict, data: dict, key: str, index, default=None) -> pd.Series:
     """
     Resolve:
@@ -45,24 +54,30 @@ def resolve_ts_or_scalar(obj: dict, data: dict, key: str, index, default=None) -
     if np.isscalar(val):
         return pd.Series(val, index=index)
 
-    # Raw pd.Series — must be aligned to the target index.
+    # Raw pd.Series — must identify the same instants as the target index.
     if isinstance(val, pd.Series):
-        if not val.index.equals(index):
-            raise ValueError(f"Series for '{key}' does not match the target index.")
-        return val
+        if val.index.equals(index):
+            return val
+        if _same_instants(val.index, index):
+            return val.set_axis(index)
+        raise ValueError(f"Series for '{key}' does not match the target index.")
 
     # Table/column reference
     if isinstance(val, str):
         table_key, col = resolve_table_and_column(obj, key)
 
-        df = data.get(table_key)
-        if df is None:
+        from entise.core._time import run_time
+
+        run = run_time(data)
+        if table_key not in run:
             raise KeyError(f"Data table '{table_key}' not found for key '{key}'.")
 
+        # Align by instant (or row by row for a table without timestamps), see entise.core._time.
+        df = run.align(table_key, index)
         if col not in df.columns:
             raise KeyError(f"Column '{col}' not found in table '{table_key}'.")
 
-        return df[col].reindex(index)
+        return df[col]
 
     raise TypeError(f"Unsupported type for key '{key}': {type(val)}.")
 

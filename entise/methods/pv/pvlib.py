@@ -7,6 +7,7 @@ from entise._optional import requires_extra
 from entise.constants import SEP, Types
 from entise.constants import Columns as C
 from entise.constants import Objects as O
+from entise.core._time import output_index, regular_step, run_time
 from entise.core.base import Method
 
 warnings.filterwarnings("ignore")
@@ -45,7 +46,7 @@ class PVLib(Method):
     types = [Types.PV]
     name = "pvlib"
     required_keys = [O.LAT, O.LON, O.WEATHER]
-    optional_keys = [O.POWER, O.AZIMUTH, O.TILT, O.ALTITUDE, O.PV_ARRAYS, O.PV_INVERTER]
+    optional_keys = [O.POWER, O.AZIMUTH, O.TILT, O.ALTITUDE, O.PV_ARRAYS, O.PV_INVERTER, O.TIMEZONE]
     required_data = [O.WEATHER]
     optional_data = [O.PV_ARRAYS]
     output_summary = {
@@ -133,9 +134,11 @@ class PVLib(Method):
         )
 
         # Continue with existing implementation
+        site_obj, run_data = processed_obj, processed_data
         processed_obj, processed_data = self._get_input_data(processed_obj, processed_data, ts_type)
 
         ts = calculate_timeseries(processed_obj, processed_data)
+        ts.index = output_index(ts.index, site_obj, run_data)
 
         logger.debug(f"[PV pvlib]: Generating {ts_type} data")
 
@@ -180,8 +183,10 @@ class PVLib(Method):
             O.PV_INVERTER: Method.get_with_method_backup(obj, O.PV_INVERTER, method_type),
             O.TILT: Method.get_with_method_backup(obj, O.TILT, method_type, TILT),
         }
+        weather_key = Method.get_with_method_backup(obj, O.WEATHER, method_type, O.WEATHER)
+        run = run_time(data)
         data_out = {
-            O.WEATHER: Method.get_with_backup(data, O.WEATHER),
+            O.WEATHER: run.table(weather_key) if weather_key in run else None,
             O.PV_ARRAYS: Method.get_with_backup(data, obj_out[O.PV_ARRAYS], PV_ARRAYS),
             O.PV_INVERTER: Method.get_with_backup(data, O.PV_INVERTER, PV_INVERTER),
         }
@@ -194,8 +199,8 @@ class PVLib(Method):
             obj_out[O.ALTITUDE] = pvlib.location.lookup_altitude(obj_out[O.LAT], obj_out[O.LON])
 
         if data_out[O.WEATHER] is not None:
-            weather = data_out[O.WEATHER].copy()
-            weather = self._strip_weather_height(weather)
+            # The run returns a copy indexed by UTC instants; each row is the interval [t, t + step).
+            weather = self._strip_weather_height(data_out[O.WEATHER])
             weather = weather.loc[:, ~weather.columns.duplicated()]
             weather.rename(
                 columns={
@@ -207,8 +212,9 @@ class PVLib(Method):
                 },
                 inplace=True,
             )
-            weather[C.DATETIME] = pd.to_datetime(weather[C.DATETIME], utc=False)
-            weather.index = pd.to_datetime(weather[C.DATETIME], utc=True)
+            regular_step(weather.index, table=weather_key)
+            if C.SOLAR_GHI in data_out[O.WEATHER].columns and obj_out[O.LON] is not None:
+                run.check_irradiance(weather_key, float(obj_out[O.LON]))
             data_out[O.WEATHER] = weather
         else:
             logger.error("[PV pvlib]: No weather data")
@@ -224,7 +230,7 @@ class PVLib(Method):
 
     @staticmethod
     def _format_output(ts, processed_obj, processed_data):
-        timestep = processed_data[O.WEATHER][C.DATETIME].diff().dt.total_seconds().dropna().mode()[0]
+        timestep = regular_step(processed_data[O.WEATHER].index, table=O.WEATHER).total_seconds()
         summary = {
             f"{Types.PV}{SEP}{C.GENERATION}": (ts.sum() * timestep / 3600).round().astype(int),
             f"{Types.PV}{SEP}{O.GEN_MAX}": ts.max().round().astype(int),
@@ -284,41 +290,16 @@ def calculate_timeseries(obj, data):
     pv_arrays = data[O.PV_ARRAYS]
     pv_inverter = data[O.PV_INVERTER]
 
-    # Extract timezone information from the weather data
-    tz = df_weather[C.DATETIME].iloc[0]
-    tz_offset = tz.tz
-    df_weather.index = df_weather.index.tz_convert(tz_offset)
-
-    # Convert UTC offset to Etc/GMT format
-    # This is needed as off pvlib==0.12.0 as it introduces breaking changes
-    tz_str = str(tz_offset)
-    if tz_str.startswith("UTC"):
-        # Extract the offset value and sign
-        offset_str = tz_str.replace("UTC", "")
-        if offset_str:  # If there's an offset (not just UTC)
-            sign = offset_str[0]  # Get + or -
-            # Reverse the sign for Etc/GMT format
-            new_sign = "-" if sign == "+" else "+"
-            # Extract hours from the offset (remove minutes)
-            hours = offset_str[1:3]
-            # Create the Etc/GMT timezone string with reversed sign
-            iana_tz = f"Etc/GMT{new_sign}{int(hours)}"
-        else:
-            # Plain UTC with no offset
-            iana_tz = "Etc/GMT"
-    else:
-        # If it's already an IANA timezone, use it as is
-        iana_tz = tz_str
-
-    logger.info(f"Original timezone: {tz_offset}, converted to IANA: {iana_tz}")
-
-    loc = pvlib.location.Location(latitude=lat, longitude=lon, altitude=altitude, tz=iana_tz)
+    loc = pvlib.location.Location(latitude=lat, longitude=lon, altitude=altitude)
 
     # Create the pv system
     array = pvsystem.Array(pvsystem.FixedMount(surface_tilt=tilt, surface_azimuth=azimuth), **pv_arrays)
     system = pvsystem.PVSystem(arrays=array, inverter_parameters=pv_inverter)
     mc = pvlib.modelchain.ModelChain(system, loc, aoi_model="physical", spectral_model="no_loss")
 
-    mc.run_model(df_weather)
+    # Each row is the mean over [t, t + step), so the model sees the sun at the interval midpoint.
+    axis = df_weather.index
+    step = axis[1] - axis[0]
+    mc.run_model(df_weather.set_axis(axis + step / 2))
 
-    return pd.DataFrame(mc.results.ac * power, index=df_weather.index)
+    return pd.DataFrame(mc.results.ac.to_numpy() * power, index=axis, columns=["p_mp"])

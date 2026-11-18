@@ -280,9 +280,10 @@ def _irradiance(first: int, rows: int, shift: int = 0) -> pd.DataFrame:
 
 
 def test_end_labelled_irradiance_is_reported(caplog):
-    # The example weather comes from Open-Meteo, which labels hourly means at the interval end.
+    # Shifting the start-labelled example weather one row later labels each mean at its interval end,
+    # as Open-Meteo does.
     with caplog.at_level(logging.WARNING, logger=T.__name__):
-        offset = T.check_irradiance_labels(_irradiance(4000, 24 * 14), LONGITUDE, table="weather")
+        offset = T.check_irradiance_labels(_irradiance(4000, 24 * 14, shift=-1), LONGITUDE, table="weather")
 
     assert offset > 0.5
     assert any("'weather'" in r.getMessage() and "shift" in r.getMessage() for r in caplog.records)
@@ -290,7 +291,7 @@ def test_end_labelled_irradiance_is_reported(caplog):
 
 def test_start_labelled_irradiance_is_not_reported(caplog):
     with caplog.at_level(logging.WARNING, logger=T.__name__):
-        offset = T.check_irradiance_labels(_irradiance(4000, 24 * 14, shift=1), LONGITUDE, table="weather")
+        offset = T.check_irradiance_labels(_irradiance(4000, 24 * 14), LONGITUDE, table="weather")
 
     assert abs(offset) < 0.25
     assert not caplog.records

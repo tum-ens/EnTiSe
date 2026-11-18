@@ -1290,7 +1290,10 @@ def test_r1c1_deadband_stays_off_when_entering_band_from_above():
 
     # Before that, at least one step must show T inside the band (proving
     # we did enter the band from above without firing).
-    entered_band = (temp[:first_fire] >= T_min) & (temp[:first_fire] <= T_min + deadband + 1e-3)
+    # temp[t] is the temperature at the start of interval t, so the temperature
+    # reached by the intervals before the first fire is temp[1 : first_fire + 1].
+    reached = temp[1 : first_fire + 1]
+    entered_band = (reached >= T_min) & (reached <= T_min + deadband + 1e-3)
     assert (
         entered_band.any()
     ), "T never crossed into the band before firing — cannot verify off-branch hysteresis with this scenario."

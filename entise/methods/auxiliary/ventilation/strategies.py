@@ -7,6 +7,7 @@ from entise.constants import Constants as Const
 from entise.constants import Objects as O
 from entise.constants.constants import CP_AIR, RHO_AIR
 from entise.core.base_auxiliary import AuxiliaryMethod
+from entise.methods.auxiliary._align import align_to_weather
 
 log = logging.getLogger(__name__)
 
@@ -108,7 +109,7 @@ class VentilationTimeSeries(AuxiliaryMethod):
 
     def get_input_data(self, obj, data):
         ventilation_key = obj.get(O.VENTILATION)
-        ventilation_ts = data.get(ventilation_key)
+        ventilation_ts = align_to_weather(data, ventilation_key)
         input_data = {
             O.ID: obj.get(O.ID, None),
             O.AREA: obj.get(O.AREA, Const.DEFAULT_AREA.value),

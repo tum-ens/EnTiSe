@@ -229,7 +229,7 @@ def test_ventilation_table_with_a_gap_raises_a_clear_error(models, model_key, hu
     data = {O.WEATHER: humid_weather, "vent_tbl": gapped}
     obj = dict(obj, **{O.VENTILATION: "vent_tbl", O.VENTILATION_COL: "typical[W/K]"})
 
-    with pytest.raises(ValueError, match="does not cover the model index"):
+    with pytest.raises(ValueError, match="does not cover the time axis"):
         method.generate(obj, data, Types.HVAC)
 
 
@@ -240,7 +240,7 @@ def test_positional_ventilation_table_of_wrong_length_raises(models, model_key, 
     data = {O.WEATHER: humid_weather, "vent_tbl": _vent_table(range(N - 5))}
     obj = dict(obj, **{O.VENTILATION: "vent_tbl", O.VENTILATION_COL: "typical"})
 
-    with pytest.raises(ValueError, match="steps but the model index has"):
+    with pytest.raises(ValueError, match="no timestamps and 43 rows, but the time axis has 48"):
         method.generate(obj, data, Types.HVAC)
 
 

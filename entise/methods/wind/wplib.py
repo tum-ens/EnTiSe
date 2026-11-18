@@ -7,6 +7,7 @@ from entise.constants import SEP, Types
 from entise.constants import Columns as C
 from entise.constants import Objects as O
 from entise.constants import UnitConversion as UConv
+from entise.core._time import output_index, regular_step, run_time
 from entise.core.base import Method
 
 logger = logging.getLogger(__name__)
@@ -54,7 +55,7 @@ class WPLib(Method):
     types = [Types.WIND]
     name = "wplib"
     required_keys = [O.WEATHER]
-    optional_keys = [O.POWER, O.TURBINE_TYPE, O.HUB_HEIGHT, O.WIND_MODEL]
+    optional_keys = [O.POWER, O.TURBINE_TYPE, O.HUB_HEIGHT, O.WIND_MODEL, O.TIMEZONE]
     required_data = [O.WEATHER]
     optional_data = [O.WIND_MODEL]
     output_summary = {
@@ -126,9 +127,11 @@ class WPLib(Method):
         )
 
         # Continue with existing implementation
+        site_obj, run_data = processed_obj, processed_data
         processed_obj, processed_data = self.get_input_data(processed_obj, processed_data, ts_type)
 
         ts = calculate_timeseries(processed_obj, processed_data)
+        ts.index = output_index(processed_data[O.WEATHER].index, site_obj, run_data)
 
         logger.debug(f"[WIND windlib]: Generating {ts_type} data")
 
@@ -226,16 +229,16 @@ class WPLib(Method):
             O.HUB_HEIGHT: Method.get_with_method_backup(obj, O.HUB_HEIGHT, method_type, DEFAULT_HUB_HEIGHT),
         }
 
+        weather_key = Method.get_with_method_backup(obj, O.WEATHER, method_type, O.WEATHER)
+        run = run_time(data)
         data_out = {
-            O.WEATHER: Method.get_with_backup(data, O.WEATHER),
+            O.WEATHER: run.table(weather_key) if weather_key in run else None,
         }
 
-        # Process weather data
+        # Process weather data. The run returns a copy indexed by UTC instants.
         if data_out[O.WEATHER] is not None:
-            weather = data_out[O.WEATHER].copy()
-            weather[C.DATETIME] = pd.to_datetime(weather[C.DATETIME], utc=False)
-            weather.index = pd.to_datetime(weather[C.DATETIME], utc=True)
-            data_out[O.WEATHER] = self.process_weather_data(weather)
+            regular_step(data_out[O.WEATHER].index, table=weather_key)
+            data_out[O.WEATHER] = self.process_weather_data(data_out[O.WEATHER])
         else:
             logger.error("[WIND windlib]: No weather data")
             raise Exception(f"{O.WEATHER} not available")
@@ -244,7 +247,7 @@ class WPLib(Method):
 
     @staticmethod
     def _format_output(processed_obj, processed_data, ts):
-        timestep = processed_data[O.WEATHER].index.diff().total_seconds().dropna()[0]
+        timestep = regular_step(processed_data[O.WEATHER].index, table=O.WEATHER).total_seconds()
         summary = {
             f"{Types.WIND}{SEP}{C.GENERATION}": (ts[O.POWER].sum() * timestep / 3600).round().astype(int),
             f"{Types.WIND}{SEP}{O.GEN_MAX}": ts[O.POWER].max().round().astype(int),

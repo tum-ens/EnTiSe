@@ -75,7 +75,9 @@ def _solve(
     heating_on = False
     cooling_on = False
 
-    for t in range(1, n):
+    # Row t is the interval [t, t + step): it starts at temp_in[t], is driven by
+    # the forcing of row t and ends at temp_in[t + 1].
+    for t in range(n):
         g_tot = inv_R + H_ve[t]
         if g_tot > _G_TOT_EPS:
             x = dt * g_tot / C_th
@@ -125,7 +127,8 @@ def _solve(
         p_heat[t] = p_h
         p_cool[t] = p_c
         temp_prev = t_pas + gain * (p_h - p_c)
-        temp_in[t] = temp_prev
+        if t + 1 < n:
+            temp_in[t + 1] = temp_prev
     return temp_in, p_heat, p_cool
 
 

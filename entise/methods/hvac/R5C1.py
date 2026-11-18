@@ -10,12 +10,14 @@ from entise.constants import Columns as C
 from entise.constants import Constants as Const
 from entise.constants import Objects as O
 from entise.constants.constants import CP_AIR, RHO_AIR
+from entise.core._time import RUN_TIME_KEY, output_index
 from entise.core.base import Method
 from entise.core.utils import align_auxiliary_series, resolve_ts_or_scalar
 from entise.methods.auxiliary.internal.selector import InternalGains
 from entise.methods.auxiliary.solar.strategies import SolarGainsInactive, SolarGainsISO13790
 from entise.methods.auxiliary.ventilation.strategies import VentilationInactive, VentilationTimeSeries
 from entise.methods.hvac._latent_cooling import compute_latent_cooling
+from entise.methods.hvac._weather import check_window_irradiance, hvac_weather, step_seconds
 from entise.methods.hvac._windows import windows_table
 from entise.methods.hvac.defaults import (
     DEFAULT_ACTIVE_COOLING,
@@ -38,20 +40,8 @@ from entise.methods.hvac.defaults import (
     DEFAULT_VENTILATION,
     DEFAULT_VENTILATION_SPLIT,
 )
-from entise.methods.utils.weather_cache import WeatherCache
 
 logger = logging.getLogger(__name__)
-
-# Identity-keyed cache — see WeatherCache docstring for rationale.
-_WEATHER_CACHE = WeatherCache()
-
-
-def _preprocess_weather(weather: pd.DataFrame) -> pd.DataFrame:
-    w = weather.copy()
-    w = Method._strip_weather_height(w)
-    w[C.DATETIME] = pd.to_datetime(w[C.DATETIME])
-    w.set_index(C.DATETIME, inplace=True, drop=False)
-    return w
 
 
 class R5C1(Method):
@@ -97,6 +87,7 @@ class R5C1(Method):
         O.WEATHER,
     ]
     optional_keys = [
+        O.TIMEZONE,
         # Controls
         O.POWER_HEATING,
         O.POWER_COOLING,
@@ -158,8 +149,8 @@ class R5C1(Method):
     ) -> dict:
         require_module("hvac-5r1c", "pvlib")
         obj, data = self._process_kwargs(obj, data, **kwargs)
-        obj, data = self._get_input_data(obj, data, ts_type)
-        data = self._prepare_inputs(obj, data)
+        obj, tables = self._get_input_data(obj, data, ts_type)
+        data = self._prepare_inputs(obj, tables)
 
         temp_in, p_heat, p_cool = calculate_timeseries_5r1c(**data)
         meta = data["meta"]
@@ -169,7 +160,7 @@ class R5C1(Method):
             p_heat.round().astype(int),
             p_cool_sensible.round().astype(int),
             p_cool_latent.round().astype(int),
-            meta["index"],
+            output_index(meta["index"], obj, tables),
             meta["dt_s"],
         )
 
@@ -247,8 +238,6 @@ class R5C1(Method):
           - splits: dict (sigma, f_conv, f_rad_surf, f_rad_mass)
         """
 
-        data = self._prepare_weather_cache(obj, data)
-
         # Add data for computation
         data_out = {}
 
@@ -258,7 +247,7 @@ class R5C1(Method):
         meta = {
             O.WEATHER: weather,
             "index": index,
-            "dt_s": float((index[1] - index[0]) / np.timedelta64(1, "s")),
+            "dt_s": step_seconds(weather),
         }
         data_out["meta"] = meta
 
@@ -349,8 +338,9 @@ class R5C1(Method):
         # per issue #103. When latent is zero everywhere, total == sensible
         # and the pre-latent regression is bit-preserved.
         p_cool_total = p_cool_sensible + p_cool_latent
-        E_h_Wh = float(np.trapezoid(p_heat.values, dx=dt_s) / 3600.0)
-        E_c_Wh = float(np.trapezoid(p_cool_total.values, dx=dt_s) / 3600.0)
+        # Each row is the mean power over its interval, so energy is the sum times the step.
+        E_h_Wh = float(p_heat.to_numpy(dtype=float).sum() * dt_s / 3600.0)
+        E_c_Wh = float(p_cool_total.to_numpy(dtype=float).sum() * dt_s / 3600.0)
         summary = {
             f"{Types.HEATING}{SEP}{C.DEMAND}[Wh]": E_h_Wh,
             f"{Types.HEATING}{SEP}{O.LOAD_MAX}[W]": float(max(p_heat.max(), 0.0)),
@@ -368,7 +358,6 @@ class R5C1(Method):
             },
             index=index,
         )
-        df.index.name = C.DATETIME
 
         return {"summary": summary, "timeseries": df}
 
@@ -378,6 +367,7 @@ class R5C1(Method):
         #  This probably also means changing the lists to dicts and having default values as the value
         obj_out = {
             O.ID: self.get_with_backup(obj, O.ID),
+            O.TIMEZONE: self.get_with_backup(obj, O.TIMEZONE),
             # Geometry
             O.AREA: self.get_with_method_backup(obj, O.AREA, method_type, Const.DEFAULT_AREA.value),
             O.AREA_M: self.get_with_method_backup(obj, O.AREA_M, method_type),
@@ -451,14 +441,9 @@ class R5C1(Method):
         return {k: v for k, v in obj_out.items() if v is not None}
 
     def _prepare_data_tables(self, obj: dict, data: dict, method_type: str = Types.HVAC) -> dict:
-        data_out = {}
-
-        for key in self.required_data:
-            ts_key = self.get_with_method_backup(obj, key, method_type, key)
-            ts_data = self.get_with_backup(data, ts_key)
-            if ts_data is None:
-                raise ValueError(f"Required timeseries key '{ts_key}' for '{key}' not found in data.")
-            data_out[key] = ts_data
+        run, weather_key, weather = hvac_weather(obj, data, method_type)
+        data_out = {RUN_TIME_KEY: run, O.WEATHER: weather}
+        check_window_irradiance(run, weather_key, weather, obj, windows_table(obj, data, method_type), method_type)
 
         for key in self.optional_data:
             ts_key = self.get_with_method_backup(obj, key, method_type)
@@ -476,14 +461,6 @@ class R5C1(Method):
                     data_out.setdefault(ts_key, ts_data)
 
         return {k: v for k, v in data_out.items() if v is not None}
-
-    def _prepare_weather_cache(self, obj: dict, data: dict, method_type: str = Types.HVAC) -> dict:
-        # Cache preprocessed weather by DataFrame identity — different
-        # DataFrames get separate entries even under the same weather-key.
-        if O.WEATHER in data:
-            data[O.WEATHER] = _WEATHER_CACHE.get_or_build(data[O.WEATHER], _preprocess_weather)
-
-        return data
 
     @staticmethod
     def _compute_gains(obj: dict, data: dict) -> pd.DataFrame:
@@ -558,8 +535,6 @@ def calculate_timeseries_5r1c(
     Qc_arr = np.empty(n_len, dtype=float)
 
     T_in_arr[0] = Ta
-    Qh_arr[0] = 0.0
-    Qc_arr[0] = 0.0
 
     # Hysteresis state — see issue #102 and the R1C1 solver for the
     # matching state-machine definition.
@@ -580,7 +555,9 @@ def calculate_timeseries_5r1c(
     else:
         Y_phiset_const = None
 
-    for t in range(1, n_len):
+    # Row t is the interval [t, t + step): it starts at T_in_arr[t], is driven by the
+    # forcing of row t and ends at T_in_arr[t + 1].
+    for t in range(n_len):
         T_out = T_out_arr[t]
         T_sup = T_sup_arr[t]
 
@@ -769,7 +746,8 @@ def calculate_timeseries_5r1c(
             heating_on = False
             cooling_on = False
 
-        T_in_arr[t] = Ta
+        if t + 1 < n_len:
+            T_in_arr[t + 1] = Ta
         Qh_arr[t] = max(Q_applied, 0.0)
         Qc_arr[t] = max(-Q_applied, 0.0)
 

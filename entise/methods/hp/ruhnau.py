@@ -6,6 +6,7 @@ import entise.methods.hp.defaults as defs
 from entise.constants import SEP, Types
 from entise.constants import Columns as C
 from entise.constants import Objects as O
+from entise.core._time import output_index, run_time
 from entise.core.base import Method
 
 logger = logging.getLogger(__name__)
@@ -81,6 +82,7 @@ class Ruhnau(Method):
         O.TEMP_WATER,
         O.CORRECTION_FACTOR,
         O.HP_SYSTEM,
+        O.TIMEZONE,
     ]
     required_data = [O.WEATHER]
     optional_data = [O.HP_SYSTEM]
@@ -152,6 +154,7 @@ class Ruhnau(Method):
         )
 
         # Get input data with validation
+        site_obj, run_data = processed_obj, processed_data
         processed_obj, processed_data = self._get_input_data(processed_obj, processed_data)
 
         # Calculate heating COP time series
@@ -160,7 +163,8 @@ class Ruhnau(Method):
         # Calculate DHW COP time series
         dhw_cop_series = _calculate_dhw_cop_series(processed_obj, processed_data)
 
-        return self._format_output(heating_cop_series, dhw_cop_series, processed_data)
+        index = output_index(processed_data[O.WEATHER].index, site_obj, run_data)
+        return self._format_output(heating_cop_series, dhw_cop_series, processed_data, index)
 
     def _get_input_data(self, obj, data):
         """Process and validate input parameters.
@@ -217,32 +221,14 @@ class Ruhnau(Method):
         if weather is None:
             logger.warning("No weather provided")
             raise ValueError("Weather data is required but not provided")
-        weather = self.get_with_backup(data, weather)
-        # Work on a copy: other objects in the run share the caller's frame.
-        weather = self._strip_weather_height(weather.copy())
-        data_out[O.WEATHER] = self._process_weather_data(weather)
+        run = run_time(data)
+        if weather not in run:
+            raise ValueError(f"Weather table '{weather}' is not in the data.")
+        # The run returns a copy indexed by UTC instants, so this cannot change the caller's frame.
+        weather = self._strip_weather_height(run.table(weather))
+        data_out[O.WEATHER] = self._add_missing_temperature_columns(weather)
 
         return obj_out, data_out
-
-    def _process_weather_data(self, df):
-        """Prepare weather data for COP calculation.
-
-        Args:
-            df (pd.DataFrame): Weather data
-
-        Returns:
-            pd.DataFrame: Processed weather data with required temperature columns
-        """
-        # Ensure datetime index
-        if C.DATETIME in df.columns:
-            df.index = pd.to_datetime(df[C.DATETIME])
-        else:
-            df.index = pd.to_datetime(df.index)
-
-        # Add missing temperature columns
-        df = self._add_missing_temperature_columns(df)
-
-        return df
 
     @staticmethod
     def _add_missing_temperature_columns(df):
@@ -262,7 +248,8 @@ class Ruhnau(Method):
         # Add soil temperature column if missing
         if C.TEMP_SOIL not in df.columns:
             logger.info("Calculating soil temperature from air temperature")
-            df["rolling_temp"] = df[C.TEMP_AIR].rolling(window=24, min_periods=1).mean()
+            # Mean air temperature of the last 24 hours, whatever the time step.
+            df["rolling_temp"] = df[C.TEMP_AIR].rolling("24h", min_periods=1).mean()
             df[C.TEMP_SOIL] = df["rolling_temp"].apply(_calc_soil_temp)
             df.drop(columns=["rolling_temp"], inplace=True)
 
@@ -274,7 +261,7 @@ class Ruhnau(Method):
         return df
 
     @staticmethod
-    def _format_output(heating_cop_series, dhw_cop_series, processed_data):
+    def _format_output(heating_cop_series, dhw_cop_series, processed_data, index):
         """Format the output dictionary for the method.
 
         Args:
@@ -300,8 +287,8 @@ class Ruhnau(Method):
                 f"{Types.HP}{SEP}{Types.HEATING}[1]": heating_cop_series,
                 f"{Types.HP}{SEP}{Types.DHW}[1]": dhw_cop_series,
             },
-            index=processed_data[O.WEATHER].index,
         )
+        timeseries.index = index
 
         return {
             "summary": summary,

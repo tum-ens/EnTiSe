@@ -49,6 +49,19 @@ def _cell_centre(lat: float, lon: float, nd: int = _CELL_DECIMALS) -> tuple:
     return (round(float(lat), nd), round(float(lon), nd))
 
 
+def _interval_midpoints(index: pd.Index) -> pd.DatetimeIndex:
+    """Return the UTC midpoint of each interval ``[t, t + step)``.
+
+    Labels mark the start of their interval (see ``entise.core._time``). A
+    single label is treated as an instant.
+    """
+    instants = pd.DatetimeIndex(pd.to_datetime(index, utc=True))
+    if len(instants) < 2:
+        return instants
+    step = instants[1] - instants[0]
+    return instants + step / 2
+
+
 class SolarGainsInactive(AuxiliaryMethod):
     """
     Handles the creation of solar gains data for cases where solar gains are inactive.
@@ -148,6 +161,8 @@ class SolarGainsPVLib(AuxiliaryMethod):
         - The solar position is calculated at the centre of the object's 0.1 degree grid cell,
           so all objects in a cell share it and the result does not depend on calculation order.
         - Window fingerprint for POA cache uses only tilt and orientation.
+        - Each row is the interval that starts at its label; the solar position is
+          taken at the interval midpoint.
         """
         if windows is None:
             return pd.DataFrame({O.GAINS_SOLAR: np.zeros(len(weather), dtype=np.float32)}, index=weather.index)
@@ -163,7 +178,10 @@ class SolarGainsPVLib(AuxiliaryMethod):
         solpos = cache.solpos.get(sp_key)
         if solpos is None:
             location = pvlib.location.Location(cell[0], cell[1])
-            solpos = location.get_solarposition(pd.to_datetime(weather.index, utc=True), method="nrel_numba")
+            solpos = location.get_solarposition(_interval_midpoints(weather.index), method="nrel_numba")
+            # Irradiance is a mean over each interval, so the sun is taken at its midpoint
+            # and the result is labelled like the weather row it belongs to.
+            solpos.index = weather.index
             cache.solpos[sp_key] = solpos
 
         total_solar_gains = np.zeros(len(weather), dtype=np.float32)
