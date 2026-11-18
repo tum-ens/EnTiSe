@@ -15,6 +15,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Added contributor guidance for method contracts, offline testing, and method merge request review. (`#109`)
 
 ### Fixed
+- Fixed outputs and examples that silently used the wrong values. (`#118`)
+  - **Behavior change**: demandlib heat returned 2× the power at 30-minute steps and 4× at 15-minute steps, and half the power at 2-hour steps. Each step now carries the mean power of the hours it covers, starting at its own label, so a run over whole hours has the energy of the hourly run. Inputs at 30 or 15 minutes that end between two full hours no longer fail with a length mismatch; a run that starts or ends inside an hour still falls slightly short of the demand.
+  - **Behavior change**: Jordan-Vajen DHW wrote the cold water temperature into `dhw:hot_water_temperature[C]`. The column now holds the hot water temperature.
+  - **Behavior change**: an HVAC object that names a windows table missing from the data now raises a `ValueError`. Before, its solar gains were silently zero.
+  - **Behavior change**: the 1R0C HVAC model dropped `latitude[degree]` and `longitude[degree]`, so its solar gains were always zero, even with windows. It now passes the location to the solar gains, as 1R1C does.
+  - The 1R0C, 1R1C and 5R1C examples referenced a windows table named `windows_9buildings`, which does not exist, so their solar gains were zero. They now use `windows`.
+  - The demandlib electricity example set `household_type`, which the method does not read, so every object used the default profile `h0_dyn`. It now sets `profile`.
+  - The Jordan-Vajen DHW example and test objects set `temp_cold[C]` and `temp_hot[C]`, which the method does not read, so they ran with the default temperatures. They now set `cold_water_temperature[C]` and `hot_water_temperature[C]`.
+  - The stored outputs of the 1R0C and Jordan-Vajen notebooks still show the old names until the notebooks are run again.
 - Fixed four cases in which objects in one process affected each other or failed on shared input. (`#117`)
   - The Ruhnau heat pump no longer changes the caller's weather frame. It used to strip the column heights and replace the index, so a later wind object on the same frame failed with duplicate column labels.
   - The solar gains of the 1R1C, 5R1C and 7R2C HVAC models no longer fail with an `AttributeError` when the weather carries timestamps in a named time zone such as `Europe/Berlin`. The solar position is calculated from UTC instants, as before.

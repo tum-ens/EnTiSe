@@ -1,4 +1,4 @@
-id,electricity,household_type,demand[kWh],datetimes,holidays_location
+id,electricity,profile,demand[kWh],datetimes,holidays_location
 1,demandlib_electricity,,3002,weather,
 2,demandlib_electricity,H0,4004,weather,"BY,DE"
 3,demandlib_electricity,,,weather,

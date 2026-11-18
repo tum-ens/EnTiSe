@@ -16,6 +16,7 @@ from entise.methods.auxiliary.internal.selector import InternalGains
 from entise.methods.auxiliary.solar.selector import SolarGains
 from entise.methods.auxiliary.ventilation.strategies import VentilationInactive, VentilationTimeSeries
 from entise.methods.hvac._latent_cooling import compute_latent_cooling
+from entise.methods.hvac._windows import windows_table
 from entise.methods.hvac.defaults import (
     DEFAULT_ACTIVE_COOLING,
     DEFAULT_ACTIVE_HEATING,
@@ -465,7 +466,10 @@ class R7C2(Method):
 
         for key in self.optional_data:
             ts_key = self.get_with_method_backup(obj, key, method_type)
-            ts_data = self.get_with_backup(data, ts_key)
+            if key == O.WINDOWS:
+                ts_data = windows_table(obj, data, method_type)
+            else:
+                ts_data = self.get_with_backup(data, ts_key)
             if ts_data is not None:
                 data_out[key] = ts_data
                 # Keep the table reachable under the user's own key too — the
