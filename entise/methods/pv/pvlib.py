@@ -7,7 +7,7 @@ from entise._optional import requires_extra
 from entise.constants import SEP, Types
 from entise.constants import Columns as C
 from entise.constants import Objects as O
-from entise.core._time import output_index, regular_step, run_time
+from entise.core._time import RUN_TIME_KEY, output_index, regular_step, run_time
 from entise.core.base import Method
 
 warnings.filterwarnings("ignore")
@@ -134,6 +134,8 @@ class PVLib(Method):
         )
 
         # Continue with existing implementation
+        # Read the tables once for this call; every helper below reuses this run.
+        processed_data = {**processed_data, RUN_TIME_KEY: run_time(processed_data)}
         site_obj, run_data = processed_obj, processed_data
         processed_obj, processed_data = self._get_input_data(processed_obj, processed_data, ts_type)
 
@@ -201,8 +203,8 @@ class PVLib(Method):
         if data_out[O.WEATHER] is not None:
             # The run returns a copy indexed by UTC instants; each row is the interval [t, t + step).
             weather = self._strip_weather_height(data_out[O.WEATHER])
-            weather = weather.loc[:, ~weather.columns.duplicated()]
-            weather.rename(
+            weather = weather.loc[:, ~weather.columns.duplicated()].copy()
+            weather = weather.rename(
                 columns={
                     f"{C.SOLAR_GHI}": "ghi",
                     f"{C.SOLAR_DNI}": "dni",
@@ -210,7 +212,6 @@ class PVLib(Method):
                     f"{C.TEMP_AIR}": "temp_air",
                     f"{C.WIND_SPEED}": "wind_speed",
                 },
-                inplace=True,
             )
             regular_step(weather.index, table=weather_key)
             if C.SOLAR_GHI in data_out[O.WEATHER].columns and obj_out[O.LON] is not None:

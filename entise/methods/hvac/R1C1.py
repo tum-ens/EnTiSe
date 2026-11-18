@@ -8,7 +8,7 @@ from entise.constants import SEP, Types
 from entise.constants import Columns as C
 from entise.constants import Constants as Const
 from entise.constants import Objects as O
-from entise.core._time import RUN_TIME_KEY, output_index
+from entise.core._time import RUN_TIME_KEY, output_index, run_time
 from entise.core.base import Method
 from entise.core.utils import resolve_ts_or_scalar
 from entise.methods.auxiliary.internal.selector import InternalGains
@@ -191,6 +191,8 @@ class R1C1(Method):
             height=height,
         )
         require_module("hvac-1r1c", "pvlib")
+        # Read the tables once for this call; every helper below reuses this run.
+        data = {**data, RUN_TIME_KEY: run_time(data)}
         obj, data = self._get_input_data(obj, data, ts_type)
 
         # Regular time step in seconds; each row is the interval [t, t + step).
@@ -317,6 +319,9 @@ class R1C1(Method):
             internal_key: internal_gains,
             ventilation_key: ventilation,
         }
+
+        # Keep legacy "<key>_COL" column names for table references (see resolve_table_and_column).
+        obj_out.update({k: v for k, v in obj.items() if isinstance(k, str) and k.endswith("_COL")})
 
         # Clean up
         obj_out = {k: v for k, v in obj_out.items() if v is not None}

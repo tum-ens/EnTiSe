@@ -50,7 +50,7 @@ def test_each_time_table_is_parsed_once_per_run_and_reaches_every_method():
         pd.testing.assert_frame_equal(frame, original[key])
 
 
-def test_methods_are_not_yet_affected():
+def test_hvac_returns_one_row_per_weather_row():
     objects, data = _inputs()
 
     generator = Generator(raise_on_error=True)

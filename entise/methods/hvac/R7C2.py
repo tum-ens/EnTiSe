@@ -10,7 +10,7 @@ from entise.constants import Columns as C
 from entise.constants import Constants as Const
 from entise.constants import Objects as O
 from entise.constants.constants import CP_AIR, RHO_AIR
-from entise.core._time import RUN_TIME_KEY, output_index
+from entise.core._time import RUN_TIME_KEY, output_index, run_time
 from entise.core.base import Method
 from entise.core.utils import align_auxiliary_series, resolve_ts_or_scalar
 from entise.methods.auxiliary.internal.selector import InternalGains
@@ -166,6 +166,8 @@ class R7C2(Method):
     ) -> dict:
         require_module("hvac-7r2c", "pvlib")
         obj, data = self._process_kwargs(obj, data, **kwargs)
+        # Read the tables once for this call; every helper below reuses this run.
+        data = {**data, RUN_TIME_KEY: run_time(data)}
         obj, tables = self._get_input_data(obj, data, ts_type)
         data = self._prepare_inputs(obj, tables)
 
@@ -442,6 +444,8 @@ class R7C2(Method):
         # for key in self.optional_keys:
         # obj_out[key] = obj_out.get(key)
 
+        # Keep legacy "<key>_COL" column names for table references (see resolve_table_and_column).
+        obj_out.update({k: v for k, v in obj.items() if isinstance(k, str) and k.endswith("_COL")})
         return {k: v for k, v in obj_out.items() if v is not None}
 
     def _prepare_data_tables(self, obj: dict, data: dict, method_type: str = Types.HVAC) -> dict:

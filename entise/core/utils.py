@@ -50,8 +50,15 @@ def resolve_ts_or_scalar(obj: dict, data: dict, key: str, index, default=None) -
 
     val = obj[key]
 
+    # Text is a table reference unless it is a number (object tables read from CSV can hold "2000").
+    if isinstance(val, str):
+        try:
+            val = float(val)
+        except ValueError:
+            pass
+
     # Scalar handling (Python + NumPy types + bool)
-    if np.isscalar(val):
+    if np.isscalar(val) and not isinstance(val, str):
         return pd.Series(val, index=index)
 
     # Raw pd.Series — must identify the same instants as the target index.

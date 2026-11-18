@@ -18,11 +18,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Fixed
 - **Behavior change**: the RC models (1R0C, 1R1C, 5R1C, 7R2C), the Ruhnau heat pump, PV and wind follow the time contract. (`#116`)
-  - They read the weather through the time layer, so mixed UTC offsets, named zones and typed or text timestamps give the same instants. The weather must have a regular step.
+  - They read the weather through the time layer, so mixed UTC offsets, named zones and typed or text timestamps give the same instants. The RC models, PV and wind require a regular time step.
   - Every output is indexed by the weather's instants in the object's `timezone`, or in UTC with `Generator.generate(..., utc=True)`. Before, the index depended on the method and on how the timestamps were written.
   - Each row is the interval that starts at its label. In the RC models, row 0 now holds the first interval's load and `temperature_in` is the temperature at the start of each interval, so row 0 is the initial temperature. A weather table with n rows gives n intervals instead of n − 1, and every RC model reports demand as the sum of load times step; 5R1C and 7R2C used the trapezoidal rule.
-  - PV and the solar gains of the RC models take the sun's position at the midpoint of each interval instead of at its label. A warning names the weather table when its irradiance peaks about one step after solar noon, which indicates labels at the interval end.
-  - Internal gains, ventilation and `table|column` references align with the weather by timestamp. A gains table read with `read_csv` gave NaN temperatures and 0 Wh heating in 5R1C and 7R2C; 1R0C and 1R1C used timestamped tables in row order and ignored their timestamps.
+  - PV and the solar gains of the RC models take the sun's position at the midpoint of each interval instead of at its label. A warning names the weather table when its irradiance peaks about one step after solar noon, which indicates labels at the interval end; it appears once per run and longitude cell in each worker process.
+  - Internal gains, ventilation and `table|column` references (also the legacy `<key>` with `<key>_COL` form) align with the weather by timestamp; before, a `table|column` power cap failed with `could not convert string to float`. A gains table read with `read_csv` gave NaN temperatures and 0 Wh heating in 5R1C and 7R2C; 1R0C and 1R1C used timestamped tables in row order and ignored their timestamps.
   - PV and wind use the table named by the object's `weather` key. Before, they always read `weather`.
   - Ruhnau's soil temperature estimate averages the last 24 hours of air temperature at any time step, not the last 24 rows.
   - The example weather (`examples/common_data/weather.csv`) is relabelled to interval starts: its irradiance columns move one row earlier and `solar_elevation_angle[degree]` is given at each interval's midpoint.

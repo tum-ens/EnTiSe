@@ -6,7 +6,7 @@ import entise.methods.hp.defaults as defs
 from entise.constants import SEP, Types
 from entise.constants import Columns as C
 from entise.constants import Objects as O
-from entise.core._time import output_index, run_time
+from entise.core._time import RUN_TIME_KEY, output_index, run_time
 from entise.core.base import Method
 
 logger = logging.getLogger(__name__)
@@ -154,6 +154,8 @@ class Ruhnau(Method):
         )
 
         # Get input data with validation
+        # Read the tables once for this call; every helper below reuses this run.
+        processed_data = {**processed_data, RUN_TIME_KEY: run_time(processed_data)}
         site_obj, run_data = processed_obj, processed_data
         processed_obj, processed_data = self._get_input_data(processed_obj, processed_data)
 
