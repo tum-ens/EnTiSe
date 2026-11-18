@@ -177,8 +177,9 @@ def calculate_timeseries(obj, data):
     Uses demandlib.bdew.HeatBuilding with given building parameters and
     temperature-driven SHLP to create an hourly-native profile, scales it to the
     requested annual demand, and aligns it to the target timestep. Subhourly
-    inputs are aggregated to hourly for temperature, then interpolated back to
-    the original dt_s using mean() and scaling to preserve power semantics.
+    inputs are aggregated to hourly for temperature; each subhourly step then
+    carries the mean power of its hour. Longer steps carry the mean power of
+    the hours they cover.
 
     Args:
         obj: Processed object mapping with O.DEMAND_KWH, O.BUILDING_TYPE,
@@ -203,7 +204,6 @@ def calculate_timeseries(obj, data):
     # Get time delta
     idx_utc = df_weather.index
     dt_s = (idx_utc[1] - idx_utc[0]).total_seconds()
-    steps_per_hour = 3600.0 / dt_s
 
     # Get local time
     df_weather[f"{C.DATETIME}_naive"] = pd.to_datetime(df_weather[f"{C.DATETIME}"].astype(str).str.slice(0, 19))
@@ -240,8 +240,11 @@ def calculate_timeseries(obj, data):
     # Ensure it was scaled properly and set to W
     heat = (heat / heat.sum()) * demand_kwh * 1000.0
 
-    # Interpolate back if dt_s is not 3600
-    if dt_s != 3600.0:
-        heat = heat.resample(f"{dt_s}s").mean().interpolate() * steps_per_hour  # Multiplication since it is power
+    # Return to the input time step. The values are mean power [W], so they are not scaled.
+    if dt_s < 3600.0:
+        # Every step of an hour carries that hour's mean power, which keeps the energy of each hour.
+        heat = heat.reindex(df_weather[f"{C.DATETIME}_naive"].to_numpy(), method="ffill")
+    elif dt_s > 3600.0:
+        heat = heat.resample(f"{dt_s}s", origin="start").mean()
 
     return heat.round().astype(int)

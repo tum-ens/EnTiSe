@@ -456,7 +456,7 @@ def _format_output(data, ts_volume, ts_energy, ts_power, water_temp, tank_durati
             f"{Types.DHW}{SEP}power_ewma[W]": ewma.astype(int),
             f"{Types.DHW}{SEP}power_gaussian[W]": gaussian.astype(int),
             f"{Types.DHW}{SEP}{O.TEMP_WATER_COLD}": water_temp.loc[:, O.TEMP_WATER_COLD],
-            f"{Types.DHW}{SEP}{O.TEMP_WATER_HOT}": water_temp.loc[:, O.TEMP_WATER_COLD],
+            f"{Types.DHW}{SEP}{O.TEMP_WATER_HOT}": water_temp.loc[:, O.TEMP_WATER_HOT],
         },
         index=time_index,
     )

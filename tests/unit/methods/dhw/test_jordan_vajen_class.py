@@ -222,6 +222,24 @@ def test_jordan_vajen_water_temperatures():
     assert result1["summary"][f"{Types.DHW}:energy_total[Wh]"] > result2["summary"][f"{Types.DHW}:energy_total[Wh]"]
 
 
+def test_jordan_vajen_reports_the_hot_water_temperature():
+    """The hot water column holds the hot temperature, not the cold one."""
+    weather = create_sample_weather()
+    obj = {
+        O.ID: "test_obj",
+        O.DWELLING_SIZE: 100,
+        O.TEMP_WATER_COLD: 10,
+        O.TEMP_WATER_HOT: 55,
+        O.DATETIMES: "weather",
+        O.SEED: 42,
+    }
+
+    timeseries = JordanVajen().generate(obj, {"weather": weather})["timeseries"]
+
+    assert (timeseries[f"{Types.DHW}{SEP}{O.TEMP_WATER_HOT}"] == 55).all()
+    assert (timeseries[f"{Types.DHW}{SEP}{O.TEMP_WATER_COLD}"] == 10).all()
+
+
 # Test with seasonal variation
 def test_jordan_vajen_seasonal_variation():
     """Test that the JordanVajen class handles seasonal variation correctly."""

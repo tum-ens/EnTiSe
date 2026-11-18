@@ -11,6 +11,7 @@ from entise.core.base import Method
 from entise.methods.auxiliary.internal.selector import InternalGains
 from entise.methods.auxiliary.solar.selector import SolarGains
 from entise.methods.auxiliary.ventilation.selector import Ventilation
+from entise.methods.hvac._windows import windows_table
 from entise.methods.hvac.defaults import (
     DEFAULT_ACTIVE_COOLING,
     DEFAULT_ACTIVE_HEATING,
@@ -82,6 +83,8 @@ class R1C0(Method):
         O.VENTILATION_COL,
         O.GAINS_SOLAR,
         O.WINDOWS,
+        O.LAT,
+        O.LON,
     ]
     required_timeseries = [O.WEATHER]
     optional_timeseries = [O.WINDOWS, O.GAINS_INTERNAL, O.GAINS_SOLAR, O.VENTILATION]
@@ -219,6 +222,9 @@ class R1C0(Method):
             O.GAINS_INTERNAL: Method.get_with_method_backup(obj, O.GAINS_INTERNAL, method_type),
             O.GAINS_INTERNAL_COL: Method.get_with_method_backup(obj, O.GAINS_INTERNAL_COL, method_type),
             O.GAINS_SOLAR: Method.get_with_method_backup(obj, O.GAINS_SOLAR, method_type),
+            # Location, needed for solar gains through windows
+            O.LAT: Method.get_with_method_backup(obj, O.LAT, method_type),
+            O.LON: Method.get_with_method_backup(obj, O.LON, method_type),
             # Power limits
             O.POWER_COOLING: Method.get_with_method_backup(obj, O.POWER_COOLING, method_type, DEFAULT_POWER_COOLING),
             O.POWER_HEATING: Method.get_with_method_backup(obj, O.POWER_HEATING, method_type, DEFAULT_POWER_HEATING),
@@ -234,8 +240,7 @@ class R1C0(Method):
         }
         weather_key = Method.get_with_method_backup(obj, O.WEATHER, method_type, O.WEATHER)
         weather = Method.get_with_backup(data, weather_key)
-        windows_key = Method.get_with_method_backup(obj, O.WINDOWS, method_type)
-        windows = Method.get_with_backup(data, windows_key) if isinstance(windows_key, str) else None
+        windows = windows_table(obj, data, method_type)
         internal_key = Method.get_with_method_backup(obj, O.GAINS_INTERNAL, method_type)
         internal_gains = Method.get_with_backup(data, internal_key) if isinstance(internal_key, str) else None
         ventilation_key = Method.get_with_method_backup(obj, O.VENTILATION, method_type)
