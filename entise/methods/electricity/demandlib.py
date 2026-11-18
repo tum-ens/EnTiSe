@@ -1,13 +1,16 @@
 import logging
 from typing import Any, Dict, Optional
 
+import numpy as np
 import pandas as pd
 
 from entise._optional import require_module, requires_extra
 from entise.constants import SEP, Types
 from entise.constants import Columns as C
 from entise.constants import Objects as O
+from entise.core._time import output_index, site_zone
 from entise.core.base import Method
+from entise.methods.utils._calendar import read_profile, scale_to_energy, time_table, wall_years
 from entise.methods.utils._demandlib import contain_warning_filters
 from entise.methods.utils.holidays import get_holidays
 
@@ -22,16 +25,20 @@ class Demandlib(Method):
 
     This method wraps demandlib's implementation of the German BDEW standard load
     profiles to generate high‑quality electricity demand time series. Given a
-    target time horizon (``Objects.DATETIMES``) and an annual energy demand in
-    kWh, it constructs the canonical 15‑minute SLP for the relevant calendar
-    year(s), scales it to the requested annual demand, and aligns it to the
-    target resolution using energy‑conserving resampling rules.
+    target time horizon (``Objects.DATETIMES``) and an energy demand in kWh over
+    that horizon, it constructs the canonical 15‑minute SLP for the relevant
+    calendar year(s) and reads it at the site's local wall clock.
 
     Key characteristics:
     - Profile families such as household (H0) and commercial (Gx) are supported
       via ``Objects.PROFILE``; defaults to an H0 dynamic profile.
     - Public holidays can be considered by providing ``Objects.HOLIDAYS_LOCATION``.
-    - Output power is provided in Watts and indexed like the provided datetimes.
+    - Output power is provided in Watts. Each row is the mean over the
+      interval that starts at its label; the energy over the run equals
+      ``Objects.DEMAND_KWH``.
+    - The local calendar comes from the object's ``timezone`` (UTC if unset).
+      On the 23-hour day of the change to summer time the skipped hour is not
+      read; on the 25-hour day the repeated hour is read twice.
 
     Reference:
     - demandlib documentation (BDEW SLPs): https://demandlib.readthedocs.io/
@@ -42,7 +49,7 @@ class Demandlib(Method):
     types = [Types.ELECTRICITY]
 
     required_keys = [O.DATETIMES]
-    optional_keys = [O.DEMAND_KWH, O.PROFILE, O.HOLIDAYS_LOCATION]
+    optional_keys = [O.DEMAND_KWH, O.PROFILE, O.HOLIDAYS_LOCATION, O.TIMEZONE]
 
     required_timeseries = [O.DATETIMES]
     optional_timeseries = []
@@ -81,7 +88,7 @@ class Demandlib(Method):
             ts_type: Timeseries type, defaults to Types.ELECTRICITY.
             profile: Optional BDEW profile key (e.g., "h0", "g0"); defaults to
                 method-level DEFAULT_PROFILE when not provided.
-            demand_kwh: Optional annual demand in kWh; defaults to 1.0 if not provided.
+            demand_kwh: Optional demand in kWh over the run; defaults to 1.0 if not provided.
             weather: Unused for this method; accepted for API symmetry.
             holidays_location: Optional holidays country/region code used by demandlib
                 to adjust profiles (e.g., "DE").
@@ -89,7 +96,7 @@ class Demandlib(Method):
         Returns:
             dict: A dictionary with keys:
                 - "summary": Mapping with total demand [Wh] and max load [W].
-                - "timeseries": DataFrame indexed like the input datetimes with one
+                - "timeseries": DataFrame indexed by the run's instants in the site time zone, with one
                   column "ELECTRICITY|load[W]" of integer W values.
         """
         processed_obj, processed_data = self._process_kwargs(
@@ -106,7 +113,7 @@ class Demandlib(Method):
 
         logger.debug("[demandlib elec]: Generated succesfully.")
 
-        return self._format_output(ts, processed_data)
+        return self._format_output(ts, processed_obj, processed_data)
 
     def _get_input_data(self, obj: dict, data: dict, method_type: str = Types.ELECTRICITY) -> tuple[dict, dict]:
         obj_out = {
@@ -114,34 +121,27 @@ class Demandlib(Method):
             O.PROFILE: Method.get_with_method_backup(obj, O.PROFILE, method_type, DEFAULT_PROFILE),
             O.DEMAND_KWH: Method.get_with_method_backup(obj, O.DEMAND_KWH, method_type, DEFAULT_DEMAND),
             O.HOLIDAYS_LOCATION: Method.get_with_method_backup(obj, O.HOLIDAYS_LOCATION, method_type, None),
+            O.TIMEZONE: obj.get(O.TIMEZONE),
         }
-
-        dts_key = Method.get_with_method_backup(obj, O.DATETIMES, method_type, O.DATETIMES)
-        dts = Method.get_with_backup(data, dts_key)
-
-        data_out = {O.DATETIMES: dts}
 
         if float(obj_out[O.DEMAND_KWH]) <= 0:
             raise ValueError("[demandlib_electricity] demand must be > 0 ")
 
-        # Clean up
+        dts_key = Method.get_with_method_backup(obj, O.DATETIMES, method_type, O.DATETIMES)
+        table, step = time_table(data, dts_key)
+        data_out = {O.DATETIMES: table, "step": step, "run_data": data}
+
         obj_out = {k: v for k, v in obj_out.items() if v is not None}
-        data_out = {k: v for k, v in data_out.items() if v is not None}
-
-        # Work on a copy: other objects in the run share the caller's frame.
-        if O.DATETIMES in data_out:
-            data_out[O.DATETIMES] = data_out[O.DATETIMES].copy()
-
         return obj_out, data_out
 
     @staticmethod
-    def _format_output(ts: pd.DataFrame, data: dict) -> dict:
+    def _format_output(ts: pd.DataFrame, obj: dict, data: dict) -> dict:
         out_col = f"{Types.ELECTRICITY}{SEP}{C.LOAD}[W]"
 
         ts.columns = [out_col]
 
-        dt_s = (ts.index[1] - ts.index[0]).total_seconds()
-        demand_wh = int(round(float(ts[out_col].sum()) * dt_s / 3600.0))
+        hours = data["step"] / pd.Timedelta(1, unit="h")
+        demand_wh = int(round(float(ts[out_col].sum()) * hours))
         load_max_w = int(round(float(ts[out_col].max())))
 
         summary = {
@@ -149,7 +149,7 @@ class Demandlib(Method):
             f"{Types.ELECTRICITY}{SEP}{O.LOAD_MAX}[W]": load_max_w,
         }
 
-        ts.index = data[O.DATETIMES][C.DATETIME]
+        ts.index = output_index(ts.index, obj, data["run_data"])
 
         return {"summary": summary, "timeseries": ts}
 
@@ -157,68 +157,47 @@ class Demandlib(Method):
 def calculate_timeseries(processed_obj: Dict[str, Any], processed_data: Dict[str, Any]) -> pd.DataFrame:
     """Compute the electricity load timeseries at the requested resolution.
 
-    The function builds BDEW standard load profiles (SLPs) for all calendar years
-    covered by the requested horizon, scales them to the specified annual demand
-    (kWh), stitches multiple years if needed, and aligns the resulting 15-minute
-    SLP to the target resolution using energy-conserving resampling rules:
-    - For dt_s >= 900s (downsampling), use mean() to aggregate power correctly.
-    - For dt_s < 900s (upsampling), use forward-fill to distribute step power.
+    The BDEW standard load profile is built for every calendar year that the
+    run's local wall clock touches. Each row of the run, which covers
+    ``[t, t + step)``, takes the mean of the profile over the same span of the
+    site's legal wall clock (see :mod:`entise.methods.utils._calendar`). On the
+    23-hour day the skipped hour is not read, and on the 25-hour day the
+    repeated hour is read twice. The result is scaled so that the energy over
+    the run equals the demand.
 
     Args:
         processed_obj: Validated object mapping (contains O.PROFILE, O.DEMAND_KWH,
-            and optional O.HOLIDAYS_LOCATION).
-        processed_data: Validated data mapping with O.DATETIMES dataframe that has
-            a C.DATETIME column.
+            and optional O.HOLIDAYS_LOCATION and O.TIMEZONE).
+        processed_data: Mapping with the run's normalized O.DATETIMES table and its step.
 
     Returns:
-        pandas.DataFrame: Single-column DataFrame of integer Watts indexed with
-        tz-naive, regular wall-clock timestamps matching the input horizon.
+        pandas.DataFrame: Single-column DataFrame of integer Watts indexed by
+        the run's UTC instants.
     """
-    # Get keys
     profile_type = processed_obj[O.PROFILE].lower()
-    annual_demand_kwh = processed_obj[O.DEMAND_KWH]
+    demand_kwh = float(processed_obj[O.DEMAND_KWH])
     holidays_location = processed_obj.get(O.HOLIDAYS_LOCATION)
+    zone = site_zone(processed_obj)
 
-    # Get data
-    df_dts = processed_data[O.DATETIMES]
+    axis = processed_data[O.DATETIMES].index
+    step = processed_data["step"]
 
-    # Get wall clock time (local time)
-    df_dts.index = pd.to_datetime(df_dts[C.DATETIME].astype(str).str.slice(0, 19))
-    dt_s = (df_dts.index[1] - df_dts.index[0]).total_seconds()
-
-    # Make sure that local time is consistent (no DST changes)
-    # NB: use ``pd.Timedelta(N, unit="s")`` — the keyword form ``pd.Timedelta(seconds=N)`` and the
-    # string form ``pd.Timedelta("Ns")`` both trigger the numpy 2.5 "generic unit" DeprecationWarning
-    # via pandas' internal Cython path, which pytest 9 escalates to a hard test failure.
-    df_dts.index = pd.date_range(start=df_dts.index[0], periods=len(df_dts), freq=pd.Timedelta(int(dt_s), unit="s"))
-
-    # Get years for which to compute
-    years = df_dts.index.year.unique().astype(int).sort_values()
+    years = wall_years(axis, zone, step)
     with requires_extra("electricity-demandlib", "demandlib"):
         from demandlib import bdew
     require_module("electricity-demandlib", "holidays")
     holidays = get_holidays(holidays_location=holidays_location, years=years)
 
-    # Generate demand profile for every year that is required
-    slps = []
+    # The profile's shape on the local calendar; the scale is set by the demand over the run.
     with contain_warning_filters():
-        for y in years:
-            slp = bdew.ElecSlp(y, holidays=holidays)
-            # Get scaled profile profile
-            demand = slp.get_scaled_power_profiles({profile_type: annual_demand_kwh})
-            slps.append(demand)
+        profile = pd.concat(
+            [
+                bdew.ElecSlp(y, holidays=holidays).get_scaled_power_profiles({profile_type: 1.0})[profile_type]
+                for y in years
+            ]
+        )
 
-    slps = pd.concat(slps)
+    power = read_profile(profile, axis, zone, step, name="demandlib_electricity")
+    power = scale_to_energy(power, step, demand_kwh * 1000.0)
 
-    # Align the generated SLP years to the naive weather index
-    # demandlib is 15min. If weather is 60min, mean() aggregates energy correctly.
-    # If weather is 1min, reindex(method='ffill') distributes power correctly.
-    if dt_s >= 900:  # 15 min or slower (Downsampling)
-        output = slps.resample(f"{dt_s}s").mean().reindex(df_dts.index)
-    else:  # Faster than 15 min (Upsampling)
-        output = slps.reindex(df_dts.index, method="ffill")
-
-    # Convert to W
-    output *= 1000
-
-    return output.round().astype(int)
+    return pd.DataFrame({profile_type: np.round(power).astype(int)}, index=axis)

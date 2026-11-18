@@ -32,7 +32,7 @@ def _energy_wh_from_power(power_w: pd.Series, dt_s: float) -> float:
 
 @pytest.mark.native_pylpg
 def test_calculate_timeseries_hourly_runs_and_no_nans():
-    """Hourly path: returns DataFrame with expected column, length match, tz-naive index, no NaNs, non-negative."""
+    """Hourly path: returns DataFrame with expected column, length match, UTC instants, no NaNs, non-negative."""
     dts = _make_datetimes("2022-01-01 00:00:00", periods=6, freq="h")
 
     obj = {
@@ -51,8 +51,8 @@ def test_calculate_timeseries_hourly_runs_and_no_nans():
     assert "pylpg" in ts.columns
 
     assert len(ts) == len(dts)
-    assert ts.index.tz is None
-    assert ts.index[0] == pd.Timestamp("2022-01-01 00:00:00")
+    assert str(ts.index.tz) == "UTC"
+    assert ts.index[0] == pd.Timestamp("2022-01-01 00:00:00", tz="UTC")
     assert ts["pylpg"].isna().sum() == 0
     assert (ts["pylpg"] >= 0).all()
 
@@ -91,7 +91,7 @@ def test_generate_end_to_end_schema_and_summary_consistency():
 
 @pytest.mark.native_pylpg
 def test_multiyear_concat_runs():
-    """Cross-year horizon: handles Dec→Jan boundary with correct length, tz-naive index, and no NaNs."""
+    """Cross-year horizon: handles Dec→Jan boundary with correct length, UTC instants, and no NaNs."""
     dts = _make_datetimes("2021-12-31 23:00:00", periods=5, freq="h")
 
     obj = {
@@ -108,8 +108,8 @@ def test_multiyear_concat_runs():
 
     assert len(ts) == 5
     assert "pylpg" in ts.columns
-    assert ts.index.tz is None
-    assert ts.index[0] == pd.Timestamp("2021-12-31 23:00:00")
+    assert str(ts.index.tz) == "UTC"
+    assert ts.index[0] == pd.Timestamp("2021-12-31 23:00:00", tz="UTC")
     assert ts["pylpg"].isna().sum() == 0
 
 
@@ -189,5 +189,5 @@ def test_second_frame_under_the_same_key_uses_its_own_datetimes():
     PyLPG()._get_input_data(obj, {O.DATETIMES: march}, Types.ELECTRICITY)
     _, data_in = PyLPG()._get_input_data(obj, {O.DATETIMES: october}, Types.ELECTRICITY)
 
-    pd.testing.assert_series_equal(data_in[O.DATETIMES][C.DATETIME], october[C.DATETIME])
+    assert (data_in[O.DATETIMES].index == pd.DatetimeIndex(october[C.DATETIME])).all()
     assert data_in[O.DATETIMES] is not october

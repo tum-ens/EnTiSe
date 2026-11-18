@@ -73,6 +73,7 @@ class Objects:
     NIGHT_SCHEDULE = "night_schedule"
     NIGHT_SCHEDULE_START = f"{NIGHT_SCHEDULE}_start"  # Start hour for detecting nightly occupancy schedule
     NIGHT_SCHEDULE_END = f"{NIGHT_SCHEDULE}_end"  # End hour for detecting nightly occupancy schedule
+    NIGHT_SCHEDULE_DURATION = f"{NIGHT_SCHEDULE}_duration[h]"  # Occupied duration that triggers the night hold
     OCCUPANCY = "occupancy"  # Occupancy (for timeseries files)
     OCCUPANCY_AVG = f"average_{OCCUPANCY}"  # Average occupancy over a certain timeseries
     OCCUPANTS = "occupants"  # Number of occupants

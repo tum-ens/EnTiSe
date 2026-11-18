@@ -36,7 +36,7 @@ def _profile_col(obj_in: dict) -> str:
 
 
 def test_calculate_timeseries_hourly_runs_and_no_nans():
-    """Hourly path: returns DataFrame with expected column, length match, tz-naive index, no NaNs, non-negative."""
+    """Hourly path: returns DataFrame with expected column, length match, UTC instants, no NaNs, non-negative."""
     weather = _make_weather("2022-01-01 00:00:00", periods=48, freq="h")
 
     obj = {
@@ -57,8 +57,8 @@ def test_calculate_timeseries_hourly_runs_and_no_nans():
     assert prof_col in ts.columns
 
     assert len(ts) == len(weather)
-    assert ts.index.tz is None
-    assert ts.index[0] == pd.Timestamp("2022-01-01 00:00:00")
+    assert str(ts.index.tz) == "UTC"
+    assert ts.index[0] == pd.Timestamp("2022-01-01 00:00:00", tz="UTC")
     assert ts[prof_col].isna().sum() == 0
     assert (ts[prof_col] >= 0).all()
 
@@ -111,7 +111,7 @@ def test_generate_end_to_end_schema_and_summary_consistency():
 
 
 def test_multiyear_concat_runs():
-    """Cross-year horizon: handles Dec→Jan boundary with correct length, tz-naive index, and no NaNs."""
+    """Cross-year horizon: handles Dec→Jan boundary with correct length, UTC instants, and no NaNs."""
     weather = _make_weather("2021-12-31 22:00:00", periods=6, freq="h")
 
     obj = {
@@ -130,8 +130,8 @@ def test_multiyear_concat_runs():
 
     assert len(ts) == 6
     assert prof_col in ts.columns
-    assert ts.index.tz is None
-    assert ts.index[0] == pd.Timestamp("2021-12-31 22:00:00")
+    assert str(ts.index.tz) == "UTC"
+    assert ts.index[0] == pd.Timestamp("2021-12-31 22:00:00", tz="UTC")
     assert ts[prof_col].isna().sum() == 0
 
 
@@ -160,8 +160,8 @@ def test_holidays_location_changes_profile_on_known_holiday():
     ts1 = calculate_timeseries(o1, d1)
     c1 = _profile_col(o1)
 
-    # CURRENT implementation produces tz-naive wall-clock index
-    t_check = pd.Timestamp("2022-10-03 12:00:00")
+    # Without a site time zone, the calendar and the instants are UTC.
+    t_check = pd.Timestamp("2022-10-03 12:00:00", tz="UTC")
 
     v0 = float(ts0.loc[t_check, c0])
     v1 = float(ts1.loc[t_check, c1])
@@ -275,4 +275,4 @@ def test_second_frame_under_the_same_key_uses_its_own_datetimes():
     Demandlib().generate(obj=obj, data={O.DATETIMES: march}, ts_type=Types.ELECTRICITY)
     res = Demandlib().generate(obj=obj, data={O.DATETIMES: october}, ts_type=Types.ELECTRICITY)
 
-    assert pd.DatetimeIndex(res["timeseries"].index).equals(pd.DatetimeIndex(october[C.DATETIME]))
+    assert (pd.DatetimeIndex(res["timeseries"].index) == pd.DatetimeIndex(october[C.DATETIME])).all()

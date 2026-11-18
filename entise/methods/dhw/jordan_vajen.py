@@ -3,20 +3,24 @@ import logging
 import numpy as np
 import pandas as pd
 
-from entise._optional import require_module, requires_extra
+from entise._optional import require_module
 from entise.constants import SEP, Types
 from entise.constants import Columns as C
 from entise.constants import Objects as O
+from entise.core._time import output_index, site_zone
 from entise.core.base import Method
 from entise.methods.dhw.defaults import (
+    DEFAULT_DENSITY_WATER,
     DEFAULT_SEASONAL_PEAK_DAY,
     DEFAULT_SEASONAL_VARIATION,
+    DEFAULT_SPECIFIC_HEAT_WATER,
     DEFAULT_TEMP_COLD,
     DEFAULT_TEMP_HOT,
 )
 from entise.methods.dhw.jordanvajen.activity import _get_activity_data, _get_demand_data
-from entise.methods.dhw.jordanvajen.calculation import _calculate_timeseries
+from entise.methods.dhw.jordanvajen.calculation import daily_volume, local_holidays, sample_volume
 from entise.methods.dhw.jordanvajen.temperature import _get_water_temperatures
+from entise.methods.utils._calendar import time_table, wall_window
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +30,18 @@ class JordanVajen(Method):
     Jordan & Vajen (2005): "DHWcalc: PROGRAM TO GENERATE DOMESTIC HOT WATER PROFILES
     WITH STATISTICAL MEANS FOR USER DEFINED CONDITIONS". The implementation follows the
     Method pattern established in the project architecture.
+
+    Water is drawn per local day of the object's ``timezone`` (UTC if unset):
+
+    - Each local day gets a volume drawn from the dwelling's daily demand, scaled by
+      the seasonal factor (using the actual length of the year) and by the
+      weekday's weight; holidays count as Sundays. The total over the run is the
+      sum of these daily volumes.
+    - The day's volume is drawn as events at the activity times of its weekday.
+      A time that does not exist on the day clocks go forward moves forward, and a
+      time that happens twice on the day clocks go back takes its first occurrence.
+    - ``power[W]`` is the energy of the interval that starts at the label divided
+      by the interval's length.
 
     The module provides functionality to:
     - Process input parameters for DHW demand calculation
@@ -54,6 +70,7 @@ class JordanVajen(Method):
         O.SEASONAL_VARIATION,
         O.SEASONAL_PEAK_DAY,
         O.SEED,
+        O.TIMEZONE,
     ]
     required_data = [O.DATETIMES]
     optional_data = [
@@ -224,6 +241,7 @@ def get_input_data(obj, data, method_type=Types.DHW):
             obj, O.SEASONAL_PEAK_DAY, method_type, DEFAULT_SEASONAL_PEAK_DAY
         ),
         O.HOLIDAYS_LOCATION: Method.get_with_method_backup(obj, O.HOLIDAYS_LOCATION, method_type),
+        O.TIMEZONE: obj.get(O.TIMEZONE),
     }
 
     # Process data
@@ -240,13 +258,11 @@ def get_input_data(obj, data, method_type=Types.DHW):
         logger.error("[DHW jordanvajen]: No datetime data")
         raise KeyError(f"Required data '{obj_out[O.DATETIMES]}' not found in input data")
 
-    # Process datetime data
-    datetimes = data_out[O.DATETIMES].copy()
-    datetimes[C.DATETIME] = pd.to_datetime(datetimes[C.DATETIME], utc=True).dt.tz_convert(
-        pd.to_datetime(datetimes[C.DATETIME].iloc[0]).tz
-    )
-    data_out[O.DATETIMES] = datetimes
-    data_out["datetimes_index"] = datetimes[C.DATETIME]
+    # The run's instants and the site's local calendar
+    table, step = time_table(data, obj_out[O.DATETIMES])
+    data_out[O.DATETIMES] = table
+    data_out["step"] = step
+    data_out["datetimes_index"] = output_index(table.index, obj_out, data).to_series()
 
     # Get activity data if not provided
     if data_out[O.DHW_ACTIVITY] is None:
@@ -288,52 +304,50 @@ def calculate_timeseries(obj, data):
         - It then distributes these values according to activity profiles
         - Finally, it calculates energy and power demand based on water temperatures
     """
-    # Get parameters
     dwelling_size = obj[O.DWELLING_SIZE]
-    datetimes = data[O.DATETIMES]
     activity_data = data[O.DHW_ACTIVITY]
     rng = data["rng"]
+    zone = site_zone(obj)
+    axis = data[O.DATETIMES].index
+    step = data["step"]
 
-    # Obtain statistical data for yearly demand
+    # Statistical demand of the dwelling size
     demand_data = _get_demand_data("jordan_vajen")
     sizes = demand_data[O.DWELLING_SIZE].values
     idx = np.abs(sizes - dwelling_size).argmin()
     m3_per_m2_a = demand_data.iloc[idx][O.YEARLY_DHW_DEMAND]
     sigma = demand_data.iloc[idx][O.SIGMA]
 
-    # Compute mean & std in litres/day
-    mean_daily_l = m3_per_m2_a * dwelling_size * 1e3 / 365
-    sd_daily_l = mean_daily_l * sigma
-
-    # Define truncation bounds (no negatives)
-    a, b = (0 - mean_daily_l) / sd_daily_l, np.inf
-
-    # Build a date index for each simulation day
-    start = datetimes[C.DATETIME].iloc[0].normalize()
-    end = datetimes[C.DATETIME].iloc[-1].normalize()
-    days = pd.date_range(start, end, freq="D")
-
-    with requires_extra("dhw-jordanvajen", "scipy"):
-        from scipy.stats import truncnorm
     require_module("dhw-jordanvajen", "holidays")
 
-    # Sample once per day from the truncated normal
-    dist = truncnorm(a, b, loc=mean_daily_l, scale=sd_daily_l)
-    daily_demand_l = pd.Series(dist.rvs(size=len(days), random_state=rng), index=days)
+    # Local days of the run and their volumes
+    start, end = wall_window(axis, zone, step)
+    days = pd.date_range(start.normalize(), (end - pd.Timedelta(1, unit="us")).normalize(), freq="D")
+    holidays = local_holidays(obj.get(O.HOLIDAYS_LOCATION), sorted(set(days.year)))
+    volume_per_day = daily_volume(
+        days,
+        m3_per_m2_a * dwelling_size * 1e3,
+        sigma,
+        activity_data,
+        obj[O.SEASONAL_VARIATION],
+        obj[O.SEASONAL_PEAK_DAY],
+        holidays,
+        rng,
+    )
+    ts_volume = sample_volume(axis, zone, step, activity_data, volume_per_day, rng, holidays)
 
-    # Get water temperatures
-    water_temp = _get_water_temperatures(obj, data, datetimes)
+    # Water temperatures by local month, and the energy to heat the water
+    local_times = pd.DataFrame({C.DATETIME: axis.tz_convert(zone)})
+    water_temp = _get_water_temperatures(obj, data, local_times)
+    delta_t = water_temp[O.TEMP_WATER_HOT].to_numpy(dtype=float) - water_temp[O.TEMP_WATER_COLD].to_numpy(dtype=float)
+    energy_factor = DEFAULT_DENSITY_WATER / 1000 * DEFAULT_SPECIFIC_HEAT_WATER * delta_t / 3600  # Wh per litre
 
-    # Generate volume and energy time series
-    ts_volume, ts_energy = _calculate_timeseries(datetimes, activity_data, daily_demand_l, water_temp, obj)
-
-    # Convert energy into power
-    # Calculate time interval in hours
-    time_diff = pd.Series(datetimes[C.DATETIME]).diff().dt.total_seconds() / 3600
-    # Use the median time difference for the first element
-    time_diff.iloc[0] = time_diff.median()
-    # Calculate power as energy divided by time
-    ts_power = ts_energy / time_diff.values
+    out_index = data["datetimes_index"].index
+    ts_energy = pd.Series(np.round(ts_volume.to_numpy() * energy_factor).astype(int), index=out_index)
+    ts_volume = pd.Series(ts_volume.to_numpy(), index=out_index).round(3)
+    # Power is the energy of the interval that starts at the label, divided by its length.
+    ts_power = ts_energy / (step / pd.Timedelta(1, unit="h"))
+    water_temp.index = out_index
 
     return ts_volume, ts_energy, ts_power, water_temp
 
