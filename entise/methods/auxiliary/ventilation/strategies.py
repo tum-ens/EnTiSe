@@ -146,7 +146,7 @@ class VentilationTimeSeries(AuxiliaryMethod):
                 ventilation = ts * area * height * AIR_DENSITY * HEAT_CAPACITY / 3600
         # Match the dtype of the constant/inactive paths so downstream
         # consumers (e.g. the R1C1 numba wrapper) get a zero-copy view.
-        return pd.DataFrame({O.VENTILATION: ventilation.astype(np.float32, copy=False)}, index=ventilation.index)
+        return pd.DataFrame({O.VENTILATION: ventilation.astype(np.float32)}, index=ventilation.index)
 
 
 __all__ = [

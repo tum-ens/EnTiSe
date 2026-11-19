@@ -43,6 +43,9 @@ lint:
 .test:
   <<: *python-job-template
   script:
+    # Each job pins one pandas line on top of the normal install.
+    - uv pip install "$PANDAS_SPEC"
+    - python -c "import pandas; print('pandas', pandas.__version__)"
     - pytest -m "not native_pylpg" --cov=entise --cov-report=xml tests/ --junitxml=junit/test-report.xml
   artifacts:
     reports:
@@ -54,6 +57,9 @@ lint:
 test:develop:
   extends: .test
   image: python:3.12
+  parallel:
+    matrix:
+      - PANDAS_SPEC: ["pandas>=2.3,<3", "pandas>=3,<4"]
   rules:
     - if: '$CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "develop" || $CI_COMMIT_BRANCH == "develop"'
 
@@ -62,7 +68,13 @@ test:main:
   image: python:$PYTHON_VERSION
   parallel:
     matrix:
-      - PYTHON_VERSION: ["3.10", "3.11", "3.12", "3.13"]
+      # pandas 3 needs Python 3.11 or later, so Python 3.10 tests the oldest supported pandas.
+      - PYTHON_VERSION: "3.10"
+        PANDAS_SPEC: "pandas==2.2.2"
+      - PYTHON_VERSION: "3.12"
+        PANDAS_SPEC: "pandas>=2.3,<3"
+      - PYTHON_VERSION: ["3.11", "3.12", "3.13"]
+        PANDAS_SPEC: "pandas>=3,<4"
   rules:
     - if: '$CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "main" || $CI_COMMIT_BRANCH == "main"'
 

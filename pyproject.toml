@@ -26,7 +26,7 @@ keywords = ["energy", "time series", "simulation"]
 dependencies = [
     "joblib>=1.0.0",
     "numpy>=2.0.0",
-    "pandas<3.0.0",
+    "pandas>=2.2.2,<4",
     "tqdm>=4.0.0",
 ]
 requires-python = ">=3.10,<3.14"
@@ -59,7 +59,7 @@ pv = ["entise[pv-pvlib,file]"]
 wind = ["entise[wind-wplib,file]"]
 all = ["entise[cooling,dhw,electricity,examples,heating,hp,hvac,mobility,occupancy,pv,weather,wind]"]
 
-examples = ["matplotlib>=3.1.0", "notebook>=7.5.4"]
+examples = ["matplotlib>=3.9", "notebook>=7.5.4"]
 weather = ["openmeteo-requests", "pint", "pvlib>=0.12.0", "requests-cache", "retry-requests"]
 dev = [
     "entise[dhw,electricity,heating,hp,hvac,occupancy,pv,weather,wind]",
