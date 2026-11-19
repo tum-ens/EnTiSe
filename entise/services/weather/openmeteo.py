@@ -245,8 +245,9 @@ FEATURES = {
         "default": False,
         "interval": True,
     },
+    # Solar radiation at the top of the atmosphere, not longwave radiation from the ground.
     "terrestrial_radiation": {
-        "cf": "surface_upwelling_longwave_flux_in_air",
+        "cf": "toa_incoming_shortwave_flux",
         "unit": "W m-2",
         "cf_unit": "W m-2",
         "default": True,
@@ -283,7 +284,7 @@ FEATURES = {
         "default": False,
     },
     "terrestrial_radiation_instant": {
-        "cf": "surface_upwelling_longwave_flux_in_air",
+        "cf": "toa_incoming_shortwave_flux_instant",
         "unit": "W m-2",
         "cf_unit": "W m-2",
         "default": False,

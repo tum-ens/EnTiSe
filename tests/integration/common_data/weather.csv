@@ -1,4 +1,4 @@
-datetime,air_temperature[C]@2m,relative_humidity[1]@2m,surface_air_pressure[Pa],wind_speed[m s-1]@10m,wind_speed[m s-1]@100m,wind_from_direction[degree]@10m,wind_from_direction[degree]@100m,soil_temperature[C]@2.55m,soil_moisture[m3 m-3]@2.55m,global_horizontal_irradiance[W m-2],diffuse_horizontal_irradiance[W m-2],direct_normal_irradiance[W m-2],surface_upwelling_longwave_flux_in_air[W m-2],solar_elevation_angle[degree]
+datetime,air_temperature[C]@2m,relative_humidity[1]@2m,surface_air_pressure[Pa],wind_speed[m s-1]@10m,wind_speed[m s-1]@100m,wind_from_direction[degree]@10m,wind_from_direction[degree]@100m,soil_temperature[C]@2.55m,soil_moisture[m3 m-3]@2.55m,global_horizontal_irradiance[W m-2],diffuse_horizontal_irradiance[W m-2],direct_normal_irradiance[W m-2],toa_incoming_shortwave_flux[W m-2],solar_elevation_angle[degree]
 2022-01-01 00:00:00+01:00,9.057,0.9409372,99336.34,3.5693135,6.6370173,258.6901,263.9459,7.507,0.248,0,0,0,0,0
 2022-01-01 01:00:00+01:00,10.457,0.9321295,99361.56,4.2296567,7.623647,263.21112,265.48608,7.507,0.248,0,0,0,0,0
 2022-01-01 02:00:00+01:00,10.457,0.93526685,99400.32,4.816638,8.400595,265.23645,269.31796,7.507,0.248,0,0,0,0,0
