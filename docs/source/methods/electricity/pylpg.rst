@@ -12,6 +12,9 @@ runs it over the local wall-clock span of the run in the object's ``timezone``
 its label. On the 23-hour day of the change to summer time the skipped hour is
 not read; on the 25-hour day the repeated hour is read twice.
 
+The engine draws its own random numbers, and EnTiSe does not seed it: the run
+seed of ``Generator.generate`` does not make PyLPG profiles reproducible.
+
 
 Key facts
 ---------

@@ -7,6 +7,7 @@ from entise._optional import require_module
 from entise.constants import SEP, Types
 from entise.constants import Columns as C
 from entise.constants import Objects as O
+from entise.core._random import method_rng
 from entise.core._time import output_index, site_zone
 from entise.core.base import Method
 from entise.methods.dhw.defaults import (
@@ -49,6 +50,10 @@ class JordanVajen(Method):
       happens twice on the day clocks go back takes its first occurrence.
     - ``power[W]`` is the energy of the interval that starts at the label divided
       by the interval's length.
+    - Random draws come from the object's ``seed`` if it has one, otherwise from
+      the run seed of ``Generator.generate`` combined with the object's ``id`` and
+      the type. Either makes the time series reproducible; without a seed every
+      run differs.
 
     The module provides functionality to:
     - Process input parameters for DHW demand calculation
@@ -146,7 +151,9 @@ class JordanVajen(Method):
             temp_water_hot (float, optional): Hot water temperature in degrees Celsius. Defaults to None.
             seasonal_variation (float, optional): Seasonal variation factor. Defaults to None.
             seasonal_peak_day (int, optional): Day of year with peak demand. Defaults to None.
-            seed (int, optional): Random seed for reproducibility. Defaults to None.
+            seed (int, optional): The object's random seed. With a seed the time series is
+                reproducible; it takes precedence over the run seed of ``Generator.generate``.
+                Without either, every call draws different numbers. Defaults to None.
 
         Returns:
             dict: Dictionary containing:
@@ -276,12 +283,8 @@ def get_input_data(obj, data, method_type=Types.DHW):
     if data_out[O.DHW_ACTIVITY] is None:
         data_out[O.DHW_ACTIVITY] = _get_activity_data("jordan_vajen")
 
-    # Create random number generator. An objects table read by pandas stores a seed
-    # as a float (1.0) when other objects leave it empty; numpy needs an integer.
-    seed = obj_out[O.SEED]
-    if isinstance(seed, (float, np.floating)) and float(seed).is_integer():
-        seed = int(seed)
-    data_out["rng"] = np.random.default_rng(seed)
+    # The object's seed wins; otherwise the run seed, the object's id and the type place its random stream.
+    data_out["rng"] = method_rng(data, obj.get(O.ID), method_type, seed=obj_out[O.SEED])
 
     return obj_out, data_out
 

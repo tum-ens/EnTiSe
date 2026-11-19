@@ -14,8 +14,9 @@ Each label marks the start of its interval. Interval quantities such as
 irradiance are means over ``[t, t + step)``. Instantaneous quantities such as
 air temperature are values at ``t``.
 
-:class:`RunTime` holds the normalized tables of one run. ``Generator.generate``
-builds it once and passes it to the methods under :data:`RUN_TIME_KEY`.
+:class:`RunTime` holds the normalized tables of one run, and the run's ``utc``
+and ``seed`` options. ``Generator.generate`` builds it once and passes it to the
+methods under :data:`RUN_TIME_KEY`.
 :func:`run_time` builds one for direct ``Method.generate`` calls.
 
 This module imports only pandas, numpy and the standard library, so a method
@@ -218,10 +219,14 @@ class RunTime:
     Tables are normalized when the run starts. A table that cannot be read
     raises when an object uses it, so one broken table does not stop the
     objects that do not need it.
+
+    ``utc`` and ``seed`` are the run's options of ``Generator.generate``. The
+    run seed is read by :func:`entise.core._random.method_rng`.
     """
 
-    def __init__(self, data: Mapping[str, Any], *, utc: bool = False):
+    def __init__(self, data: Mapping[str, Any], *, utc: bool = False, seed: int | None = None):
         self.utc = utc
+        self.seed = seed
         self._frames: dict[str, pd.DataFrame] = {}
         self._tables: dict[str, pd.DataFrame] = {}
         self._errors: dict[str, str] = {}
