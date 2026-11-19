@@ -4,9 +4,13 @@ pylpg
 Overview
 --------
 
-Electricity demand profiles using demandlib's BDEW standard load profiles (SLPs). Given a time horizon and an annual demand, the method builds BDEW SLPs (e.g., H0 household) for the covered years, optionally adjusts for holidays, and scales to the requested annual energy. The 15-minute SLP is then aligned to the target resolution using energy-conserving resampling.
+PyLPG electricity demand generation (EnTiSe standard interface).
 
-References: demandlib (BDEW SLPs): https://demandlib.readthedocs.io/.
+The Load Profile Generator simulates a plain local calendar in minutes. EnTiSe
+runs it over the local wall-clock span of the run in the object's ``timezone``
+(UTC if unset). Each row is the mean power over the interval that starts at
+its label. On the 23-hour day of the change to summer time the skipped hour is
+not read; on the 25-hour day the repeated hour is read twice.
 
 
 Key facts
@@ -41,6 +45,7 @@ Optional keys (specify in objects)
 
 
 - ``energy_intensity``
+- ``timezone``
 
 
 
@@ -126,11 +131,10 @@ Public methods
            timeseries dataframe.
 
            Notes:
-           - The temporal scaffold is derived from data[O.DATETIMES][C.DATETIME].
+           - The instants come from the O.DATETIMES table, and the local calendar
+             from the object's ``timezone`` (UTC if unset).
            - Timestep must be a multiple of 60 seconds (>= 60 s). Other steps are
              rejected because PyLPG natively produces minute energies.
-           - The method enforces a constant, DST-safe wall-clock grid internally.
-           - Final output index is aligned back to the original O.DATETIMES labels.
 
            Args:
                obj: Optional object dictionary providing inputs. Recognized keys:
@@ -173,5 +177,5 @@ Public methods
            ts = calculate_timeseries(processed_obj, processed_data)
 
            logger.debug("[pylpg]: Generated successfully.")
-           return self._format_output(ts, processed_data)
+           return self._format_output(ts, processed_obj, processed_data)
 

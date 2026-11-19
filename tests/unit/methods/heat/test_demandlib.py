@@ -103,7 +103,7 @@ def test_calculate_timeseries_hourly_returns_series_and_no_nans(_require_demandl
 
 
 def test_calculate_timeseries_subhourly_15min_length_and_no_nans(_require_demandlib):
-    """15‑min input follows resample→interpolate path, remains valid and int.
+    """15‑min input holds each hourly mean, remains valid and int.
 
     The demandlib heat algorithm is hourly-native. For subhourly inputs, we
     resample to hourly and back to the user timestep. This test ensures:
@@ -136,8 +136,8 @@ def test_calculate_timeseries_subhourly_15min_length_and_no_nans(_require_demand
     assert (s >= 0).all()
     assert pd.api.types.is_integer_dtype(s.dtype)
 
-    # Check naive start alignment
-    assert s.index[0] == pd.Timestamp("2022-01-01 00:00:00")
+    # The output is indexed by the run's instants
+    assert s.index[0] == pd.Timestamp("2022-01-01 00:00:00", tz="UTC")
 
 
 def test_demand_scaling_is_linear_for_fixed_horizon(_require_demandlib):
@@ -279,8 +279,8 @@ def test_too_short_weather_raises(_require_demandlib):
         O.BUILDING_CLASS: 1,
         O.WIND_CLASS: 0,
     }
-    o, d = m._get_input_data(obj, {O.WEATHER: weather}, Types.HEATING)
     with pytest.raises((IndexError, ValueError)):
+        o, d = m._get_input_data(obj, {O.WEATHER: weather}, Types.HEATING)
         calculate_timeseries(o, d)
 
 

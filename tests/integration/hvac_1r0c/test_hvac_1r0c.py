@@ -27,7 +27,7 @@ def inputs():
     return objects, data
 
 
-def test_hvac_rc_all_objects(inputs):
+def test_hvac_1r0c_all_objects(inputs):
     objects_df, shared_data = inputs
 
     for _, obj_row in objects_df.iterrows():

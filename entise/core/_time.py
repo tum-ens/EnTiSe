@@ -334,7 +334,8 @@ class RunTime:
 def output_index(axis: pd.DatetimeIndex, obj: Mapping[str, Any], data: Mapping[str, Any]) -> pd.DatetimeIndex:
     """Return the index of a method's output: ``axis`` in the site zone, or in UTC if the run asks for it.
 
-    Every method of an object uses this, so all its outputs share one index.
+    Methods index their outputs with this function, so the outputs of an object
+    that use it share one index.
     """
     zone = UTC if run_time(data).utc else site_zone(obj)
     return pd.DatetimeIndex(axis, name=C.DATETIME).tz_convert(zone)

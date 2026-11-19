@@ -12,7 +12,7 @@ from tqdm import tqdm
 from entise.constants import VALID_TYPES
 from entise.constants import Keys as K
 from entise.constants import Objects as O
-from entise.core._time import RUN_TIME_KEY, RunTime
+from entise.core._time import RUN_TIME_KEY, UTC, RunTime
 from entise.core.runner import Runner
 from entise.perf import _get_accelerator_mode, _use_accelerator_mode
 
@@ -138,9 +138,11 @@ class Generator:
                 "threading" for threads). Defaults to "loky".
             show_progress (bool, optional): If True, display a progress bar. In
                 parallel mode, the bar updates on batch completion. Defaults to True.
-            utc (bool, optional): If True, every time series is indexed in UTC. By
-                default, each object's time series are indexed in its site time zone
-                (the ``timezone`` key, UTC if not set). Defaults to False.
+            utc (bool, optional): Methods index their outputs with ``output_index``,
+                which uses each object's site time zone (the ``timezone`` key, UTC if
+                not set). If True, those outputs are indexed in UTC instead. Methods
+                that pass a table through, such as ``file``, keep its index.
+                Defaults to False.
 
         Returns:
             Tuple[pd.DataFrame, Dict[str, pd.DataFrame]]: A tuple containing the
@@ -158,6 +160,7 @@ class Generator:
         data = {**data, RUN_TIME_KEY: RunTime(data, utc=utc)}
 
         object_params = self.objects.to_dict("records")
+        self._warn_missing_time_zones(object_params)
 
         # Fast path: sequential
         if workers == 1:
@@ -209,6 +212,25 @@ class Generator:
             results = process(tasks)
 
         return self._collect_results(results)
+
+    def _warn_missing_time_zones(self, object_params: List[dict]) -> None:
+        """Warn once per run about objects whose local calendar falls back to UTC."""
+        missing = []
+        for obj in object_params:
+            value = obj.get(O.TIMEZONE)
+            if value is None or (not isinstance(value, str) and pd.isna(value)) or not str(value).strip():
+                missing.append(str(obj.get(O.ID)))
+        if not missing:
+            return
+        shown = ", ".join(missing[:10]) + (f" and {len(missing) - 10} more" if len(missing) > 10 else "")
+        self.logger.warning(
+            "Objects without '%s' use %s as their local calendar and output time zone: %s. "
+            "Set '%s' to an IANA name such as 'Europe/Berlin'.",
+            O.TIMEZONE,
+            UTC.key,
+            shown,
+            O.TIMEZONE,
+        )
 
     def _process_object(self, obj: dict, data: Dict[str, pd.DataFrame]) -> Dict[str, Any]:
         obj_id = obj.get(O.ID, None)

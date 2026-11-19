@@ -23,6 +23,14 @@ Page, E. S. (1954). Continuous Inspection Schemes. Biometrika.
 Hinkley, D. V. (1971). Inference about the change-point in a
 sequence of random variables.
 
+Night schedule
+The evening window (``night_schedule_start``–``night_schedule_end``) is
+read on the local clock of the object's ``timezone`` (UTC if unset). Once
+occupancy has lasted ``night_schedule_duration[h]`` hours without a break
+inside the window (default 1 h), it is held until 09:00 local time on the
+next day, also on the days when the clocks change. The output is indexed
+like the electricity input, in the site time zone.
+
 
 Key facts
 ---------
@@ -39,7 +47,9 @@ Key facts
 Requirements
 ------------
 
+
 Install this method with ``pip install "entise[occupancy-pht]"``.
+
 
 Required keys (specify in objects)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -57,7 +67,9 @@ Optional keys (specify in objects)
 - ``night_schedule``
 - ``night_schedule_start``
 - ``night_schedule_end``
+- ``night_schedule_duration[h]``
 - ``lambda_occ``
+- ``timezone``
 
 
 
@@ -132,6 +144,7 @@ Public methods
            night_schedule: bool = None,
            night_schedule_start: int = None,
            night_schedule_end: int = None,
+           night_schedule_duration: float = None,
        ):
            """
            Generate a binary occupancy schedule from electricity demand using PHT.
@@ -167,6 +180,9 @@ Public methods
                night_schedule (bool, optional): If True, apply nightly zeroing.
                night_schedule_start (int, optional): Hour marking the start of the nightly off period.
                night_schedule_end (int, optional): Hour marking the end of the nightly off period.
+               night_schedule_duration (float, optional): Hours of occupancy inside the evening
+                   window that trigger the hold until 09:00 local time (key
+                   ``night_schedule_duration[h]``, default 1).
 
            Returns:
                dict: A dictionary with two keys:
@@ -195,11 +211,14 @@ Public methods
                night_schedule=night_schedule,
                night_schedule_start=night_schedule_start,
                night_schedule_end=night_schedule_end,
+               night_schedule_duration=night_schedule_duration,
            )
+           if night_schedule_duration is not None:
+               processed_obj[O.NIGHT_SCHEDULE_DURATION] = night_schedule_duration
 
            # Get input data
            processed_obj, processed_data = self._get_input_data(processed_obj, processed_data, results, ts_type)
 
            occ_schedule = calculate_timeseries(processed_obj, processed_data)
 
-           return self._format_output(occ_schedule, processed_data)
+           return self._format_output(occ_schedule, processed_obj, processed_data)

@@ -8,10 +8,9 @@ Electricity demand using demandlib's BDEW standard load profiles (SLPs).
 
 This method wraps demandlib's implementation of the German BDEW standard load
 profiles to generate high‑quality electricity demand time series. Given a
-target time horizon (``Objects.DATETIMES``) and an annual energy demand in
-kWh, it constructs the canonical 15‑minute SLP for the relevant calendar
-year(s), scales it to the requested annual demand, and aligns it to the
-target resolution using energy‑conserving resampling rules.
+target time horizon (``Objects.DATETIMES``) and an energy demand in kWh over
+that horizon, it constructs the canonical 15‑minute SLP for the relevant
+calendar year(s) and reads it at the site's local wall clock.
 
 Key characteristics:
 
@@ -19,7 +18,9 @@ Key characteristics:
 
 - Public holidays can be considered by providing ``Objects.HOLIDAYS_LOCATION``.
 
-- Output power is provided in Watts and indexed like the provided datetimes.
+- Output power is provided in Watts. Each row is the mean over the interval that starts at its label; the energy over the run equals ``Objects.DEMAND_KWH``.
+
+- The local calendar comes from the object's ``timezone`` (UTC if unset). On the 23-hour day of the change to summer time the skipped hour is not read; on the 25-hour day the repeated hour is read twice.
 
 Reference:
 
@@ -60,6 +61,7 @@ Optional keys (specify in objects)
 - ``demand[kWh]``
 - ``profile``
 - ``holidays_location``
+- ``timezone``
 
 
 
@@ -149,7 +151,7 @@ Public methods
                ts_type: Timeseries type, defaults to Types.ELECTRICITY.
                profile: Optional BDEW profile key (e.g., "h0", "g0"); defaults to
                    method-level DEFAULT_PROFILE when not provided.
-               demand_kwh: Optional annual demand in kWh; defaults to 1.0 if not provided.
+               demand_kwh: Optional demand in kWh over the run; defaults to 1.0 if not provided.
                weather: Unused for this method; accepted for API symmetry.
                holidays_location: Optional holidays country/region code used by demandlib
                    to adjust profiles (e.g., "DE").
@@ -157,7 +159,7 @@ Public methods
            Returns:
                dict: A dictionary with keys:
                    - "summary": Mapping with total demand [Wh] and max load [W].
-                   - "timeseries": DataFrame indexed like the input datetimes with one
+                   - "timeseries": DataFrame indexed by the run's instants in the site time zone, with one
                      column "ELECTRICITY|load[W]" of integer W values.
            """
            processed_obj, processed_data = self._process_kwargs(
@@ -174,5 +176,5 @@ Public methods
 
            logger.debug("[demandlib elec]: Generated succesfully.")
 
-           return self._format_output(ts, processed_data)
+           return self._format_output(ts, processed_obj, processed_data)
 

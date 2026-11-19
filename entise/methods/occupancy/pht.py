@@ -9,9 +9,10 @@ from entise.constants import Keys as K
 from entise.constants import Objects as O
 from entise.constants import Types
 from entise.constants.general import SEP
+from entise.core._time import output_index, site_zone
 from entise.core.base import Method
 
-from .utils import apply_nightly_schedule
+from .utils import DEFAULT_NIGHT_SCHEDULE_DURATION_H, apply_nightly_schedule, electricity_table
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +36,14 @@ class PHT(Method):
         Page, E. S. (1954). Continuous Inspection Schemes. Biometrika.
         Hinkley, D. V. (1971). Inference about the change-point in a
         sequence of random variables.
+
+    Night schedule
+        The evening window (``night_schedule_start``–``night_schedule_end``) is
+        read on the local clock of the object's ``timezone`` (UTC if unset). Once
+        occupancy has lasted ``night_schedule_duration[h]`` hours without a break
+        inside the window (default 1 h), it is held until 09:00 local time on the
+        next day, also on the days when the clocks change. The output is indexed
+        like the electricity input, in the site time zone.
     """
 
     types = [Types.OCCUPANCY]
@@ -47,7 +56,9 @@ class PHT(Method):
         O.NIGHT_SCHEDULE,
         O.NIGHT_SCHEDULE_START,
         O.NIGHT_SCHEDULE_END,
+        O.NIGHT_SCHEDULE_DURATION,
         O.LAMBDA,
+        O.TIMEZONE,
     ]
     output_summary = {
         f"{Types.OCCUPANCY}{SEP}{O.OCCUPANCY_AVG}": "average occupancy",
@@ -69,6 +80,7 @@ class PHT(Method):
         night_schedule: bool = None,
         night_schedule_start: int = None,
         night_schedule_end: int = None,
+        night_schedule_duration: float = None,
     ):
         """
         Generate a binary occupancy schedule from electricity demand using PHT.
@@ -104,6 +116,9 @@ class PHT(Method):
             night_schedule (bool, optional): If True, apply nightly zeroing.
             night_schedule_start (int, optional): Hour marking the start of the nightly off period.
             night_schedule_end (int, optional): Hour marking the end of the nightly off period.
+            night_schedule_duration (float, optional): Hours of occupancy inside the evening
+                window that trigger the hold until 09:00 local time (key
+                ``night_schedule_duration[h]``, default 1).
 
         Returns:
             dict: A dictionary with two keys:
@@ -132,14 +147,17 @@ class PHT(Method):
             night_schedule=night_schedule,
             night_schedule_start=night_schedule_start,
             night_schedule_end=night_schedule_end,
+            night_schedule_duration=night_schedule_duration,
         )
+        if night_schedule_duration is not None:
+            processed_obj[O.NIGHT_SCHEDULE_DURATION] = night_schedule_duration
 
         # Get input data
         processed_obj, processed_data = self._get_input_data(processed_obj, processed_data, results, ts_type)
 
         occ_schedule = calculate_timeseries(processed_obj, processed_data)
 
-        return self._format_output(occ_schedule, processed_data)
+        return self._format_output(occ_schedule, processed_obj, processed_data)
 
     def _get_input_data(
         self, obj: dict, data: dict, results: dict, method_type: str = Types.OCCUPANCY
@@ -162,6 +180,10 @@ class PHT(Method):
             O.NIGHT_SCHEDULE_END: Method.get_with_method_backup(
                 obj, O.NIGHT_SCHEDULE_END, method_type, Const.DEFAULT_NIGHT_SCHEDULE_END.value
             ),
+            O.NIGHT_SCHEDULE_DURATION: Method.get_with_method_backup(
+                obj, O.NIGHT_SCHEDULE_DURATION, method_type, DEFAULT_NIGHT_SCHEDULE_DURATION_H
+            ),
+            O.TIMEZONE: obj.get(O.TIMEZONE),
         }
 
         # Store required results
@@ -171,26 +193,23 @@ class PHT(Method):
         obj_out = {k: v for k, v in obj_out.items() if v is not None}
         data_out = {k: v for k, v in data_out.items() if v is not None}
 
-        # Safe datetime handling
+        # The electricity series by instant, from a built-in method's index or a file's datetime column
         if Types.ELECTRICITY in data_out:
-            electricity_demand = data_out[Types.ELECTRICITY].copy()
-            electricity_demand[C.DATETIME] = pd.to_datetime(electricity_demand[C.DATETIME], utc=True)
-            electricity_demand.set_index(C.DATETIME, inplace=True, drop=True)
-            data_out[Types.ELECTRICITY] = electricity_demand
+            data_out[Types.ELECTRICITY] = electricity_table(data_out[Types.ELECTRICITY])
+        data_out["run_data"] = data if data is not None else {}
 
         return obj_out, data_out
 
     @staticmethod
-    def _format_output(occ_schedule, data):
+    def _format_output(occ_schedule, obj, data):
         summary = {
             f"{Types.OCCUPANCY}{SEP}{O.OCCUPANCY_AVG}": round(occ_schedule[O.OCCUPANCY].mean(), 2),
         }
 
         df = pd.DataFrame(
             {f"{Types.OCCUPANCY}{SEP}{C.OCCUPANCY}": occ_schedule[O.OCCUPANCY]},
-            index=data[Types.ELECTRICITY].index,
+            index=output_index(data[Types.ELECTRICITY].index, obj, data["run_data"]),
         )
-        df.index.name = C.DATETIME
 
         return {"summary": summary, "timeseries": df}
 
@@ -216,6 +235,8 @@ def calculate_timeseries(obj: dict, data: dict) -> pd.DataFrame:
             - O.NIGHT_SCHEDULE (bool): If True, enforce nightly off period.
             - O.NIGHT_SCHEDULE_START (int): Start hour [0-23] of the nightly off period.
             - O.NIGHT_SCHEDULE_END (int): End hour [0-23] of the nightly off period.
+            - O.NIGHT_SCHEDULE_DURATION (float): Hours of occupancy inside the evening
+              window that trigger the hold until 09:00 local time (default 1).
         data (dict):
             Dictionary containing the electricity demand DataFrame at key Types.ELECTRICITY.
             The DataFrame must be indexed by timezone-aware datetimes and include a power
@@ -295,6 +316,8 @@ def calculate_timeseries(obj: dict, data: dict) -> pd.DataFrame:
             df_occ_schedule,
             obj[O.NIGHT_SCHEDULE_START],
             obj[O.NIGHT_SCHEDULE_END],
+            zone=site_zone(obj),
+            duration_h=float(obj.get(O.NIGHT_SCHEDULE_DURATION, DEFAULT_NIGHT_SCHEDULE_DURATION_H)),
         )
 
     return df_occ_schedule

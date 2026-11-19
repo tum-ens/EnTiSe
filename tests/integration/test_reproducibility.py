@@ -36,7 +36,7 @@ def _weather() -> pd.DataFrame:
 
 
 def _hvac_1r1c():
-    folder = os.path.join(HERE, "hvac_rc")
+    folder = os.path.join(HERE, "hvac_1r1c")
     objects = pd.read_csv(os.path.join(folder, "objects.csv"))
     objects = objects.loc[objects["hvac"] == "1R1C"]
     data = {"weather": _weather()}
