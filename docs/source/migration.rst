@@ -102,7 +102,10 @@ labels its hourly aggregates at the end of the hour: radiation means,
 precipitation, rain and snowfall sums, evapotranspiration, sunshine duration
 and gusts. Shift exactly those columns one row earlier, and leave
 instantaneous values, including the ``*_instant`` radiation variables, at
-their labels. With EnTiSe's column names:
+their labels. A table saved from EnTiSe's weather service before 2.0.0 names
+the top-of-atmosphere radiation ``surface_upwelling_longwave_flux_in_air[W m-2]``;
+rename it to ``toa_incoming_shortwave_flux[W m-2]`` first (see `Other changes`_).
+With EnTiSe's column names:
 
 .. code-block:: python
 
@@ -112,9 +115,7 @@ their labels. With EnTiSe's column names:
         "diffuse_horizontal_irradiance[W m-2]",
         "direct_normal_irradiance[W m-2]",
         "global_tilted_irradiance[W m-2]",
-        # Open-Meteo's terrestrial_radiation; its _instant variant has the same name, so leave
-        # this one out if your table holds the instantaneous values.
-        "surface_upwelling_longwave_flux_in_air[W m-2]",
+        "toa_incoming_shortwave_flux[W m-2]",
         "precipitation_amount[kg m-2]",
         "rainfall_amount[kg m-2]",
         "thickness_of_snowfall_amount[m]",
@@ -209,6 +210,14 @@ an error; before, its solar gains were silently zero. 1R0C now uses its
 ``latitude[degree]`` and ``longitude[degree]`` for solar gains; before, they
 were dropped, so its solar gains were always zero.
 
+**Ventilation units.** A ventilation table column named with EnTiSe's unit
+spelling, such as ``typical[W K-1]``, ``typical[m3 h-1]`` or ``typical[h-1]``,
+is now read in that unit. Before, only ``W/K``, ``m3/h`` and ``1/h`` were
+recognised, and every other unit was read as air changes per hour. Both
+spellings are accepted. 1R0C now converts air changes per hour with the
+object's ``area[m2]`` and ``height[m]``; before, it always used the default
+zone of 1 m² and 2.5 m.
+
 **Weather key.** PV and wind now use the table named by the object's
 ``weather`` key, like the other methods. Before, they always read ``weather``.
 
@@ -265,6 +274,12 @@ Other changes
 - demandlib electricity and PyLPG read the datetimes passed in each call;
   before, a second run under the same data key reused the first run's
   timestamps.
+- The Open-Meteo service returns ``terrestrial_radiation`` as
+  ``toa_incoming_shortwave_flux[W m-2]`` and ``terrestrial_radiation_instant``
+  as ``toa_incoming_shortwave_flux_instant[W m-2]``: the solar radiation at the
+  top of the atmosphere. Before, both were named
+  ``surface_upwelling_longwave_flux_in_air[W m-2]``. Rename that column in
+  weather tables you saved from the service.
 - The heat pump (Ruhnau) no longer changes the weather frame you pass in, and
   its soil temperature estimate averages the last 24 hours rather than the last
   24 rows.

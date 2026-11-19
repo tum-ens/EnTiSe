@@ -1,4 +1,5 @@
 import logging
+import re
 
 import numpy as np
 import pandas as pd
@@ -6,6 +7,7 @@ import pandas as pd
 from entise.constants import Constants as Const
 from entise.constants import Objects as O
 from entise.constants.constants import CP_AIR, RHO_AIR
+from entise.constants.units import Units
 from entise.core.base_auxiliary import AuxiliaryMethod
 from entise.methods.auxiliary._align import align_to_weather
 
@@ -18,6 +20,30 @@ DEFAULT_VENTILATION_FACTOR = 0.5  # 1/h
 # from ``entise.constants.constants`` instead.
 AIR_DENSITY = RHO_AIR  # kg/m³
 HEAT_CAPACITY = CP_AIR  # J/(kg·K)
+
+# Spellings of the ventilation units, normalised (lower case, no spaces around "/", "m^3" and "m³" as "m3"),
+# mapped to the exponent spelling EnTiSe uses.
+_UNIT_ALIASES = {
+    "h-1": Units.PER_HOUR.value,
+    "1/h": Units.PER_HOUR.value,
+    "m3 h-1": Units.CUBIC_METER_PER_HOUR.value,
+    "m3h-1": Units.CUBIC_METER_PER_HOUR.value,
+    "m3/h": Units.CUBIC_METER_PER_HOUR.value,
+    "w k-1": Units.WATT_PER_KELVIN.value,
+    "w/k": Units.WATT_PER_KELVIN.value,
+}
+
+
+def _ventilation_unit(col: str) -> str | None:
+    """Return the unit in ``col`` in EnTiSe's exponent spelling, or None if ``col`` has no ``[unit]``.
+
+    An unknown unit is returned as written, with surrounding spaces removed.
+    """
+    if "[" not in col or "]" not in col:
+        return None
+    unit = " ".join(col.split("[")[-1].split("]")[0].split())
+    key = re.sub(r"\s*/\s*", "/", unit.replace("³", "3").replace("^", "")).lower()
+    return _UNIT_ALIASES.get(key, unit)
 
 
 class VentilationInactive(AuxiliaryMethod):
@@ -127,22 +153,28 @@ class VentilationTimeSeries(AuxiliaryMethod):
         ventilation = kwargs[O.VENTILATION]
         col = kwargs[O.VENTILATION_COL]
         col = col if isinstance(col, str) else str(object_id)
-        unit = col.split("[")[-1].split("]")[0]
+        unit = _ventilation_unit(col)
         try:
             ts = ventilation.loc[:, col]
         except KeyError as err:
             raise Warning(
-                f"Neither explicit (column name) or implicit (column id) are specified." f"Given input column: {col}"
+                f"Neither explicit (column name) or implicit (column id) are specified. Given input column: {col}"
             ) from err
         match unit:
-            case "1/h":
+            case Units.PER_HOUR.value:
                 ventilation = ts * area * height * AIR_DENSITY * HEAT_CAPACITY / 3600
-            case "m3/h":
+            case Units.CUBIC_METER_PER_HOUR.value:
                 ventilation = ts * AIR_DENSITY * HEAT_CAPACITY / 3600
-            case "W/K":
+            case Units.WATT_PER_KELVIN.value:
                 ventilation = ts
+            case None:
+                log.warning(f'Ventilation column "{col}" gives no unit; "h-1" (air changes per hour) assumed.')
+                ventilation = ts * area * height * AIR_DENSITY * HEAT_CAPACITY / 3600
             case _:
-                log.warning('No unit given. "1/h" assumed as unit.')
+                log.warning(
+                    f'Ventilation column "{col}" has the unrecognised unit "{unit}"; "h-1" (air changes per hour) '
+                    'assumed. Use "W K-1", "m3 h-1" or "h-1".'
+                )
                 ventilation = ts * area * height * AIR_DENSITY * HEAT_CAPACITY / 3600
         # Match the dtype of the constant/inactive paths so downstream
         # consumers (e.g. the R1C1 numba wrapper) get a zero-copy view.

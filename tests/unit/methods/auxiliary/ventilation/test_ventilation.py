@@ -146,3 +146,71 @@ def test_ventilation_timeseries_with_numeric_value(minimal_weather):
     assert isinstance(result, pd.DataFrame)
     assert O.VENTILATION in result.columns
     assert (result[O.VENTILATION] == 100).all()
+
+
+# Unit spellings in the ventilation column name (issue #107)
+AREA, HEIGHT = 140.0, 2.6
+AIR_CHANGE_TO_W_PER_K = AREA * HEIGHT * 1.2 * 1000 / 3600
+VOLUME_FLOW_TO_W_PER_K = 1.2 * 1000 / 3600
+
+
+def _run_with_column(col, value=61.0):
+    from entise.methods.auxiliary.ventilation.strategies import VentilationTimeSeries
+
+    index = pd.date_range("2025-01-01", periods=24, freq="h", tz="UTC")
+    table = pd.DataFrame({col: np.full(24, value)}, index=index)
+    return VentilationTimeSeries().run(
+        **{
+            O.ID: "x",
+            O.AREA: AREA,
+            O.HEIGHT: HEIGHT,
+            O.VENTILATION_COL: col,
+            O.VENTILATION: table,
+            O.VENTILATION_FACTOR: 0.5,
+        }
+    )[O.VENTILATION]
+
+
+@pytest.mark.parametrize(
+    "col, factor",
+    [
+        ("typical[W K-1]", 1.0),
+        ("typical[W/K]", 1.0),
+        ("typical[m3 h-1]", VOLUME_FLOW_TO_W_PER_K),
+        ("typical[m3/h]", VOLUME_FLOW_TO_W_PER_K),
+        ("typical[h-1]", AIR_CHANGE_TO_W_PER_K),
+        ("typical[1/h]", AIR_CHANGE_TO_W_PER_K),
+        ("typical[W / K]", 1.0),
+        ("typical[w/k]", 1.0),
+        ("typical[m3h-1]", VOLUME_FLOW_TO_W_PER_K),
+        ("typical[m³/h]", VOLUME_FLOW_TO_W_PER_K),
+        ("typical[m^3/h]", VOLUME_FLOW_TO_W_PER_K),
+        ("typical[1 / h]", AIR_CHANGE_TO_W_PER_K),
+        ("typical[1/H]", AIR_CHANGE_TO_W_PER_K),
+    ],
+)
+def test_ventilation_unit_spellings_are_equivalent(col, factor, caplog):
+    """Both the slash and the exponent spelling of each unit give the same conductance."""
+    with caplog.at_level("WARNING"):
+        result = _run_with_column(col)
+
+    np.testing.assert_allclose(result, 61.0 * factor, rtol=1e-6)
+    assert not caplog.records
+
+
+def test_an_unrecognised_ventilation_unit_is_named_in_the_warning(caplog):
+    """An unknown unit falls back to air changes per hour and the warning names it."""
+    with caplog.at_level("WARNING"):
+        result = _run_with_column("typical[l s-1]")
+
+    np.testing.assert_allclose(result, 61.0 * AIR_CHANGE_TO_W_PER_K, rtol=1e-6)
+    assert any("l s-1" in record.getMessage() for record in caplog.records)
+
+
+def test_a_column_without_unit_is_read_in_air_changes_per_hour(caplog):
+    """A bare column name, such as an object id, keeps the fallback to air changes per hour."""
+    with caplog.at_level("WARNING"):
+        result = _run_with_column("object_1")
+
+    np.testing.assert_allclose(result, 61.0 * AIR_CHANGE_TO_W_PER_K, rtol=1e-6)
+    assert caplog.records

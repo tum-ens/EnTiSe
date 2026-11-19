@@ -38,7 +38,13 @@ def _fake_client(response_zone: str | None = None):
         )
         labels = pd.date_range(start.tz_convert("UTC"), end.tz_convert("UTC"), freq="h", inclusive="left")
         i = np.arange(len(labels), dtype=float)
-        values = {"temperature_2m": 100.0 + i, "shortwave_radiation": i, "precipitation": i}
+        values = {
+            "temperature_2m": 100.0 + i,
+            "shortwave_radiation": i,
+            "precipitation": i,
+            "terrestrial_radiation": i,
+            "terrestrial_radiation_instant": 1000.0 + i,
+        }
 
         hourly = MagicMock()
         hourly.Time.return_value = int(labels[0].timestamp())
@@ -61,11 +67,11 @@ def _fake_client(response_zone: str | None = None):
     return client, calls
 
 
-def _get(timezone, start="2022-06-01", end="2022-06-01", response_zone=None):
+def _get(timezone, start="2022-06-01", end="2022-06-01", response_zone=None, features=FEATURES):
     provider = OpenMeteoProvider()
     provider.client, calls = _fake_client(response_zone)
     df = provider.get_weather_data(
-        latitude=LAT, longitude=LON, start_date=start, end_date=end, timezone=timezone, features=FEATURES
+        latitude=LAT, longitude=LON, start_date=start, end_date=end, timezone=timezone, features=features
     )
     return df, calls
 
@@ -78,6 +84,17 @@ def test_interval_means_move_to_the_start_of_their_interval():
     assert list(df[RAIN]) == list(np.arange(1.0, 25.0))
     # Instantaneous values stay at their label.
     assert list(df[TEMP]) == list(100.0 + np.arange(24.0))
+
+
+def test_top_of_atmosphere_radiation_keeps_its_aggregate_and_instant_columns_apart():
+    # Open-Meteo's terrestrial_radiation is the solar radiation at the top of the atmosphere.
+    df, _ = _get("Europe/Berlin", features=["terrestrial_radiation", "terrestrial_radiation_instant"])
+
+    toa, toa_instant = "toa_incoming_shortwave_flux[W m-2]", "toa_incoming_shortwave_flux_instant[W m-2]"
+    assert list(df.columns) == [C.DATETIME, toa, toa_instant, "solar_elevation_angle[degree]"]
+    # The hourly mean moves to the start of its hour; the instantaneous value stays at its label.
+    assert list(df[toa]) == list(np.arange(1.0, 25.0))
+    assert list(df[toa_instant]) == list(1000.0 + np.arange(24.0))
 
 
 def test_one_extra_day_is_requested_and_trimmed():
