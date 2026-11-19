@@ -68,12 +68,12 @@ test:main:
   image: python:$PYTHON_VERSION
   parallel:
     matrix:
-      # pandas 3 needs Python 3.11 or later, so Python 3.10 tests the oldest supported pandas.
-      - PYTHON_VERSION: "3.10"
+      # The oldest supported Python tests the oldest supported pandas.
+      - PYTHON_VERSION: "3.11"
         PANDAS_SPEC: "pandas==2.2.2"
       - PYTHON_VERSION: "3.12"
         PANDAS_SPEC: "pandas>=2.3,<3"
-      - PYTHON_VERSION: ["3.11", "3.12", "3.13"]
+      - PYTHON_VERSION: ["3.11", "3.12", "3.13", "3.14"]
         PANDAS_SPEC: "pandas>=3,<4"
   rules:
     - if: '$CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "main" || $CI_COMMIT_BRANCH == "main"'

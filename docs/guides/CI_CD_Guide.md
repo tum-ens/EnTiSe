@@ -6,7 +6,8 @@ targeting `develop` or `main` and pushes to those two branches.
 ## Verification jobs
 
 - **Test** runs on Python 3.12 for `develop`. Merge requests targeting
-  `main` and pushes to `main` test Python 3.10 through 3.13. Both include the
+  `main` and pushes to `main` test Python 3.11 through 3.14, with pandas 2.2.2
+  on Python 3.11 and pandas 2.3 and 3 on newer versions. Both include the
   installation check and exclude tests marked `native_pylpg`.
 - **Native PyLPG** runs the external engine tests on Python 3.12 and reports
   failures separately while the runner baseline is established. The local

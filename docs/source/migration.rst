@@ -23,6 +23,9 @@ as extras, or everything at once:
 A method whose optional package is missing tells you which extra to install.
 The weather service and the example tools have their own extras.
 
+**Python and pandas.** EnTiSe 2.0.0 runs on Python 3.11 to 3.14; Python 3.10
+is no longer supported. It works with pandas 2 (2.2.2 or newer) and pandas 3.
+
 Timestamps
 ----------
 
