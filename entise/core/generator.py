@@ -9,12 +9,14 @@ from joblib import Parallel, delayed
 from joblib import parallel as joblib_parallel
 from tqdm import tqdm
 
-from entise.constants import VALID_TYPES
+from entise.constants import SEP, VALID_TYPES
 from entise.constants import Keys as K
 from entise.constants import Objects as O
 from entise.core._time import RUN_TIME_KEY, UTC, RunTime
 from entise.core.runner import Runner
 from entise.perf import _get_accelerator_mode, _use_accelerator_mode
+
+logger = logging.getLogger(__name__)
 
 
 @contextmanager
@@ -64,6 +66,35 @@ def _process_with_accelerator(
         return process_object(obj, data)
     with _use_accelerator_mode(mode):
         return process_object(obj, data)
+
+
+def _merge_summaries(obj_id: Any, summaries: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
+    """Merge the summaries of an object's types into one mapping.
+
+    A key that two or more types write, such as ``heating:demand[Wh]`` from an
+    HVAC model and from a heat profile, is kept for each of them, prefixed with
+    the type that wrote it (``hvac:heating:demand[Wh]``). Keys written by one
+    type keep their names.
+    """
+    writers: Dict[str, List[str]] = {}
+    for ts_type, values in summaries.items():
+        for key in values:
+            writers.setdefault(key, []).append(ts_type)
+    shared = {key for key, types in writers.items() if len(types) > 1}
+    if shared:
+        example = min(shared)
+        logger.warning(
+            "Object '%s': the types %s all report %s; each value is kept with its type as a prefix, for example '%s'.",
+            obj_id,
+            sorted({ts_type for key in shared for ts_type in writers[key]}),
+            sorted(shared),
+            f"{writers[example][0]}{SEP}{example}",
+        )
+    merged: Dict[str, Any] = {}
+    for ts_type, values in summaries.items():
+        for key, value in values.items():
+            merged[f"{ts_type}{SEP}{key}" if key in shared else key] = value
+    return merged
 
 
 class Generator:
@@ -240,11 +271,9 @@ class Generator:
         executor = Runner(keys, data, strategies)
         main_outputs = executor.run_methods()
 
-        summary = {}
-        timeseries = {}
-        for ts_type, result in main_outputs.items():
-            summary.update(result.get(K.SUMMARY, {}))
-            timeseries[ts_type] = result.get(K.TIMESERIES, pd.DataFrame())
+        timeseries = {ts_type: result.get(K.TIMESERIES, pd.DataFrame()) for ts_type, result in main_outputs.items()}
+        summaries = {ts_type: result.get(K.SUMMARY, {}) for ts_type, result in main_outputs.items()}
+        summary = _merge_summaries(obj_id, summaries)
 
         return {O.ID: obj_id, K.SUMMARY: summary, K.TIMESERIES: timeseries}
 

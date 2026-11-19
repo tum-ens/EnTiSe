@@ -156,3 +156,27 @@ def test_a_finer_internal_gains_table_is_averaged_to_the_weather_step(caplog):
     pd.testing.assert_frame_equal(fine_series["SFH_low"]["hvac"], hourly_series["SFH_low"]["hvac"])
     pd.testing.assert_frame_equal(fine_summary, hourly_summary)
     assert any("'gains'" in r.getMessage() and "averag" in r.getMessage() for r in caplog.records)
+
+
+def test_summary_keys_written_by_two_types_are_kept_for_both(caplog):
+    hvac_only = {
+        key: value
+        for key, value in HOUSE.items()
+        if key.split(":")[0] not in {"pv", "electricity", "dhw", "hp", "wind", "mobility"}
+    }
+    heat_keys = {"heating": "demandlib_heat", "heating:demand[kWh]": 5578, "building_type": "EFH"}
+    heat_keys.update({"building_class": 1, "wind_class": 0})
+    both = {**hvac_only, **heat_keys, O.ID: "both"}
+    heat_only = {key: value for key, value in both.items() if key != "hvac"} | {O.ID: "heat_only"}
+
+    with caplog.at_level(logging.WARNING, logger="entise.core.generator"):
+        summary, _ = _run([both, {**hvac_only, O.ID: "hvac_only"}, heat_only])
+
+    combined = summary.loc["both"]
+    assert combined["hvac:heating:demand[Wh]"] == summary.loc["hvac_only", "heating:demand[Wh]"]
+    assert combined["heating:heating:demand[Wh]"] == summary.loc["heat_only", "heating:demand[Wh]"]
+    assert pd.isna(combined["heating:demand[Wh]"])
+    # Keys only one type writes keep their names.
+    assert combined["cooling:demand[Wh]"] == summary.loc["hvac_only", "cooling:demand[Wh]"]
+    assert "hvac:cooling:demand[Wh]" not in summary.columns
+    assert any("'both'" in r.getMessage() and "heating:demand[Wh]" in r.getMessage() for r in caplog.records)
