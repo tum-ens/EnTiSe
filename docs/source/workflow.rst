@@ -247,13 +247,14 @@ Performance and Reproducibility
   - ``Generator.generate(data, seed=42)`` sets a run seed. Each object and time series type draws its own stream,
     derived from the run seed, the object's ``id`` and the type. The same seed gives bit-identical time series,
     whatever the order of the objects, the number of workers, the batch size or the process. Objects with
-    different ids draw different numbers.
+    different ids draw different numbers. The id counts by its text, so ``1`` and ``"1"`` share a stream, while
+    ``1.0`` (an id column that pandas read as floats) does not.
   - An object's ``seed`` key (or ``<type>:seed``) takes precedence over the run seed and gives the same result
     with or without one. A direct call such as ``JordanVajen().generate(obj, data, seed=42)`` uses it as the
     object's seed.
   - Without either seed, such methods draw different numbers in every run.
-  - PyLPG is not seeded by EnTiSe: its engine draws its own random numbers, so its profiles can differ between
-    runs even with a seed.
+  - PyLPG is not seeded by EnTiSe: pylpg chooses the household members with Python's global random numbers, so
+    its profiles can differ between runs even with a seed.
 
 Validation and Troubleshooting
 ------------------------------

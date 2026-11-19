@@ -14,8 +14,8 @@ A method gets its generator from :func:`method_rng`:
 
 The run seed travels to the methods in the run's :class:`~entise.core._time.RunTime`.
 
-This module imports only numpy and the standard library, so a method that uses
-it still imports only its own extra.
+This module imports only numpy, the standard library and EnTiSe's core, so a
+method that uses it still imports only its own extra.
 """
 
 from __future__ import annotations

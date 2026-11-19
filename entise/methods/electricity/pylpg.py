@@ -24,8 +24,9 @@ class PyLPG(Method):
     its label. On the 23-hour day of the change to summer time the skipped hour is
     not read; on the 25-hour day the repeated hour is read twice.
 
-    The engine draws its own random numbers, and EnTiSe does not seed it: the run
-    seed of ``Generator.generate`` does not make PyLPG profiles reproducible.
+    pylpg chooses the household members' ages and genders with Python's global
+    random numbers, which EnTiSe does not seed: the run seed of
+    ``Generator.generate`` does not make PyLPG profiles reproducible.
     """
 
     name = "pylpg"
