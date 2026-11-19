@@ -1,4 +1,7 @@
-class Objects:
+from entise.constants._namespace import Namespace
+
+
+class Objects(metaclass=Namespace):
     """Keys used for identifying objects and their attributes.
     Sorted alphabetically for easy reference (except for ID).
     """

@@ -1,4 +1,7 @@
-class Keys:
+from entise.constants._namespace import Namespace
+
+
+class Keys(metaclass=Namespace):
     """General-purpose keys used in the tool.
     Sorted alphabetically for easy reference.
     """

@@ -1,4 +1,7 @@
-class Types:
+from entise.constants._namespace import Namespace
+
+
+class Types(metaclass=Namespace):
     """Valid timeseries types."""
 
     # Add new types here as needed, sorted alphabetically for easy reference.
@@ -21,4 +24,4 @@ class Types:
 
 
 # Export a set of all valid types for easy reference
-VALID_TYPES = {value for key, value in Types.__dict__.items() if not key.startswith("__") and not callable(value)}
+VALID_TYPES = set(Types)

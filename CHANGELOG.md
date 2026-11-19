@@ -77,6 +77,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   - `Generator.generate` warns once per run about objects without `timezone`. The examples now set `timezone` to the zone of each object's holidays location, `Europe/Berlin` for the German sites; the heat example's US object now uses German holidays, because its temperatures come from the German example weather.
 - **Behavior change**: the default install now provides the EnTiSe core. Install individual methods with extras such as `pip install "entise[pv-pvlib,hvac-1r1c]"`, or use `pip install "entise[all]"` for the previous feature coverage. Methods load on demand, and missing optional packages report the relevant install command. The weather service and example tools have their own extras. (`#111`)
 - Documented how to contribute time-series methods in the shared `add-method` skill. (`#110`)
+- `Columns`, `Objects`, `Types` and `Keys` in `entise.constants` can be iterated over their values in definition order and checked for membership, for example `"dhw" in Types`; `len()` counts their constants and `items()` gives each name with its value. The constants stay plain strings with the same values, and they cannot be reassigned after import. `VALID_TYPES` is built from `Types` and holds the same strings as before. (`#59`)
 
 ## [1.3.0] Latent cooling load and other HVAC improvements - 2026-07-05
 ### Added
