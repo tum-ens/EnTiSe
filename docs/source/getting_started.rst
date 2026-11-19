@@ -10,7 +10,7 @@ Prerequisites
 
 Before getting started, ensure you have:
 
-- Python 3.10 to 3.13 installed.
+- Python 3.11 to 3.14 installed.
 - EnTiSe installed. If not, refer to the :ref:`installation` guide.
 
 Quickstart Example

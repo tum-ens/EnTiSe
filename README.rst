@@ -33,7 +33,7 @@ To get started, follow these steps:
 
 Requirements
 -------------
-- `Python <https://www.python.org/>`_ (3.10 or newer)
+- `Python <https://www.python.org/>`_ (3.11 to 3.14)
 - `Git <https://git-scm.com/>`_ for version control (optional, only for development)
 
 Installation

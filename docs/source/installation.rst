@@ -8,7 +8,7 @@ This page provides instructions on how to install the EnTiSe package on your sys
 Supported Environments
 ----------------------
 
-- **Python Version**: 3.10 to 3.13
+- **Python Version**: 3.11 to 3.14
 - **Operating Systems**: Windows, Linux, macOS
 
 Installation Options
@@ -125,4 +125,4 @@ If you plan to contribute or need the latest development version, install from s
 Notes
 -----
 - If you encounter permission issues on Windows, run the terminal as Administrator or enable script execution for virtualenv activation (``Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`` in PowerShell).
-- The package supports Python 3.10–3.13 on Windows, Linux, and macOS.
+- The package supports Python 3.11–3.14 on Windows, Linux, and macOS.
