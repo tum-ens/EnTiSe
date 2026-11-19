@@ -168,6 +168,14 @@ warning. Without a ``weather`` key, such a table is returned unchanged, with a
 warning. A ``weather`` key that names a missing table raises an error. The ``datetime`` column becomes
 the index. Before, ``file`` returned the table unchanged.
 
+**Summary columns two types share.** If two types of one object report the
+same summary column, for example ``heating:demand[Wh]`` from an HVAC model and
+from a heat profile, both values are kept: each column is prefixed with the
+type that wrote it (``hvac:heating:demand[Wh]`` and
+``heating:heating:demand[Wh]``), and a warning names them. Before, the type that
+ran last overwrote the other's value. Columns that only one type reports keep
+their names.
+
 HVAC (1R0C, 1R1C, 5R1C, 7R2C)
 -----------------------------
 

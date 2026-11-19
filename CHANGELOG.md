@@ -18,6 +18,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Added contributor guidance for method contracts, offline testing, and method merge request review. (`#109`)
 
 ### Fixed
+- **Behavior change**: when two types of one object report the same summary column, such as `heating:demand[Wh]` from an HVAC model and from demandlib heat, both values are kept, each prefixed with its type (`hvac:heating:demand[Wh]`, `heating:heating:demand[Wh]`), with a warning. Before, the type that ran last silently overwrote the other. Columns that only one type reports keep their names. (`#116`)
 - Jordan-Vajen DHW no longer fails with `SeedSequence expects int` when a run mixes objects with and without `seed`. pandas stores the seed column as floats in that case; an integral float seed is now used as an integer. (`#116`)
 - **Behavior change**: the RC models (1R0C, 1R1C, 5R1C, 7R2C), the Ruhnau heat pump, PV and wind follow the time contract. (`#116`)
   - They read the weather through the time layer, so mixed UTC offsets, named zones and typed or text timestamps give the same instants. The RC models, PV and wind require a regular time step.
