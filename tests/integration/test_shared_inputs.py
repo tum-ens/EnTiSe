@@ -20,7 +20,7 @@ def _weather(start: int, rows: int) -> pd.DataFrame:
 
 
 def _hvac_inputs() -> tuple[dict, dict]:
-    folder = os.path.join(HERE, "hvac_rc")
+    folder = os.path.join(HERE, "hvac_1r1c")
     obj = pd.read_csv(os.path.join(folder, "objects.csv")).iloc[0].to_dict()
     data = {
         name: pd.read_csv(os.path.join(folder, "data", f"{name}.csv"))
@@ -72,7 +72,7 @@ def test_solar_gains_accept_weather_in_a_named_time_zone():
 
     utc_hvac = utc_run[obj[O.ID]][Types.HVAC]
     berlin_hvac = berlin_run[obj[O.ID]][Types.HVAC]
-    assert berlin_hvac.index.tz_convert("UTC").equals(utc_hvac.index)
+    assert berlin_hvac.index.tz_convert("UTC").equals(utc_hvac.index.tz_convert("UTC"))
     pd.testing.assert_frame_equal(berlin_hvac.reset_index(drop=True), utc_hvac.reset_index(drop=True))
 
 

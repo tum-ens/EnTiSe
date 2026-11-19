@@ -15,7 +15,7 @@ HERE = os.path.dirname(__file__)
 
 
 def _inputs() -> tuple[list[dict], dict]:
-    folder = os.path.join(HERE, "hvac_rc")
+    folder = os.path.join(HERE, "hvac_1r1c")
     objects = pd.read_csv(os.path.join(folder, "objects.csv")).iloc[:3].to_dict("records")
     data = {name: pd.read_csv(os.path.join(folder, "data", f"{name}.csv")) for name in ("windows", "internal_gains")}
     data[O.WEATHER] = pd.read_csv(os.path.join(HERE, "common_data", "weather.csv")).iloc[:24]

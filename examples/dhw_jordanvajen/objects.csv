@@ -1,9 +1,9 @@
 id,dhw,datetimes,dwelling_size[m2],cold_water_temperature[C],hot_water_temperature[C],holidays_location,timezone
-1,JordanVajen,weather,100,10,60,PT,Europe/Berlin
-2,JordanVajen,weather,150,10,60,"B,AR",Europe/Berlin
+1,JordanVajen,weather,100,10,60,PT,Europe/Lisbon
+2,JordanVajen,weather,150,10,60,"B,AR",America/Argentina/Buenos_Aires
 3,JordanVajen,weather,120,10,60,,Europe/Berlin
-4,JordanVajen,weather,80,10,60,"TO,IT",Europe/Berlin
-5,JordanVajen,weather,90,10,60,BR,Europe/Berlin
+4,JordanVajen,weather,80,10,60,"TO,IT",Europe/Rome
+5,JordanVajen,weather,90,10,60,BR,America/Sao_Paulo
 6,JordanVajen,weather,80,10,60,"BY,DE",Europe/Berlin
-7,JordanVajen,weather,90,10,60,MX,Europe/Berlin
-8,JordanVajen,weather,110,10,60,NL,Europe/Berlin
+7,JordanVajen,weather,90,10,60,MX,America/Mexico_City
+8,JordanVajen,weather,110,10,60,NL,Europe/Amsterdam

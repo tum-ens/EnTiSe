@@ -1,5 +1,5 @@
 id,heating,demand[kWh],weather,building_type,building_class,wind_class,holidays_location,timezone
-1,demandlib_heat,5578,weather,MFH,1,0,"CA,US",Europe/Berlin
+1,demandlib_heat,5578,weather,MFH,1,0,"BW,DE",Europe/Berlin
 2,demandlib_heat,1701,weather,EFH,1,0,"BY,DE",Europe/Berlin
 3,demandlib_heat,1073,weather,MFH,1,0,,Europe/Berlin
 4,demandlib_heat,11792,weather,EFH,1,0,"BY,DE",Europe/Berlin

@@ -5,6 +5,7 @@ import os
 import sys
 import types
 from unittest.mock import patch
+from zoneinfo import ZoneInfo
 
 import numpy as np
 import pandas as pd
@@ -321,7 +322,16 @@ def test_example_objects_declare_their_time_zone(example):
     objects = pd.read_csv(path)
 
     assert O.TIMEZONE in objects.columns
-    assert (objects[O.TIMEZONE] == BERLIN).all()
+    assert objects[O.TIMEZONE].notna().all()
+    zones = [ZoneInfo(zone) for zone in objects[O.TIMEZONE]]
+    # The weather of the examples is German, so objects without foreign holidays use its zone.
+    if O.HOLIDAYS_LOCATION in objects.columns:
+        locations = objects[O.HOLIDAYS_LOCATION].fillna("DE").str.split(",").str[-1].str.strip()
+    else:
+        locations = pd.Series("DE", index=objects.index)
+    for location, zone in zip(locations, zones, strict=True):
+        if location == "DE":
+            assert zone == ZoneInfo(BERLIN)
 
 
 # -- M15 and M6: occupancy after a built-in electricity method --------------------------------------------------------

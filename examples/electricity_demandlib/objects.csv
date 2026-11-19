@@ -3,9 +3,9 @@ id,electricity,profile,demand[kWh],datetimes,holidays_location,timezone
 2,demandlib_electricity,H0,4004,weather,"BY,DE",Europe/Berlin
 3,demandlib_electricity,,,weather,,Europe/Berlin
 4,demandlib_electricity,G2,50008,weather,,Europe/Berlin
-5,demandlib_electricity,G3,20012,weather,"CA,US",Europe/Berlin
+5,demandlib_electricity,G3,20012,weather,"CA,US",America/Los_Angeles
 6,demandlib_electricity,G3,2012,weather,"BY,DE",Europe/Berlin
 7,demandlib_electricity,G4,204512,weather,"BY,DE",Europe/Berlin
 8,demandlib_electricity,G5,201012,weather,"BW,DE",Europe/Berlin
-9,demandlib_electricity,G6,204513,weather,"TO,IT",Europe/Berlin
-10,demandlib_electricity,G6,278014,weather,PT,Europe/Berlin
+9,demandlib_electricity,G6,204513,weather,"TO,IT",Europe/Rome
+10,demandlib_electricity,G6,278014,weather,PT,Europe/Lisbon
