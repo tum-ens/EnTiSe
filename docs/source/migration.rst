@@ -164,9 +164,17 @@ still align.
 timestamps keeps its instants; if the object also names a ``weather`` table,
 the file is aligned to the weather's instants and must cover them. A table
 without timestamps is used row by row, one row per weather step, with a
-warning; without a ``weather`` key it raises an error, as it does when the
-``weather`` key names a table that is missing. The ``datetime`` column becomes
+warning. Without a ``weather`` key, such a table is returned unchanged, with a
+warning. A ``weather`` key that names a missing table raises an error. The ``datetime`` column becomes
 the index. Before, ``file`` returned the table unchanged.
+
+**Summary columns two types share.** If two types of one object report the
+same summary column, for example ``heating:demand[Wh]`` from an HVAC model and
+from a heat profile, both values are kept: each column is prefixed with the
+type that wrote it (``hvac:heating:demand[Wh]`` and
+``heating:heating:demand[Wh]``), and a warning names them. Before, the type that
+ran last overwrote the other's value. Columns that only one type reports keep
+their names.
 
 HVAC (1R0C, 1R1C, 5R1C, 7R2C)
 -----------------------------
@@ -185,10 +193,11 @@ and 7R2C used the trapezoidal rule.
 references align with the weather by timestamp. A table without timestamps is
 used row by row only if it has one row per weather step, with a warning; any
 other mismatch raises an error. A table that is finer than the weather, such as
-15-minute gains on hourly weather, raises an error too: resample it to the
-weather's time step first, for example ``gains.resample("1h").mean()``. Rows
-before the first or after the last weather step are ignored. Before, a finer
-table was sampled at the weather's steps, which changed its energy. Before, 5R1C and 7R2C gave NaN temperatures and
+15-minute gains on hourly weather, is averaged over each weather step, with a
+warning. It must still contain every weather instant, so a table shifted
+against the weather's steps raises an error. Rows before the first or after the
+last weather step are ignored. Before, a finer table was sampled at the
+weather's steps, which changed its energy. Before, 5R1C and 7R2C gave NaN temperatures and
 0 Wh heating for a gains table read with ``read_csv``, 1R0C and 1R1C ignored the
 timestamps of a table, and ``table|column`` power caps failed.
 

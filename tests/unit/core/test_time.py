@@ -407,3 +407,35 @@ def test_a_utc_run_indexes_every_output_in_utc():
 
     assert str(index.tz) == "UTC"
     assert index.equals(axis)
+
+
+# -- finer tables -----------------------------------------------------------------------------------------------------
+
+
+def test_a_finer_table_is_averaged_into_the_intervals_of_the_axis(caplog):
+    axis = pd.date_range("2022-01-01", periods=3, freq="h", tz="UTC").as_unit("us")
+    quarter_hours = pd.date_range("2022-01-01", periods=12, freq="15min", tz="UTC")
+    table = pd.DataFrame(
+        {C.DATETIME: quarter_hours, "x": np.arange(12, dtype=float), "label": [f"q{i}" for i in range(12)]}
+    )
+    run = T.RunTime({"t": table})
+
+    with caplog.at_level(logging.WARNING, logger=T.__name__):
+        aligned = run.align("t", axis)
+        run.align("t", axis)
+
+    assert aligned.index.equals(axis)
+    assert list(aligned["x"]) == [1.5, 5.5, 9.5]
+    assert list(aligned["label"]) == ["q0", "q4", "q8"]
+    assert len([r for r in caplog.records if "'t'" in r.getMessage()]) == 1
+
+
+def test_an_axis_aligned_table_is_not_averaged(caplog):
+    axis = pd.date_range("2022-01-01", periods=3, freq="h", tz="UTC").as_unit("us")
+    table = pd.DataFrame({C.DATETIME: pd.date_range("2021-12-31 23:00", periods=5, freq="h", tz="UTC"), "x": range(5)})
+
+    with caplog.at_level(logging.WARNING, logger=T.__name__):
+        aligned = T.RunTime({"t": table}).align("t", axis)
+
+    assert list(aligned["x"]) == [1, 2, 3]
+    assert not caplog.records

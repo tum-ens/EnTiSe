@@ -88,9 +88,14 @@ def test_with_weather_a_table_without_timestamps_and_another_length_raises():
         )
 
 
-def test_without_weather_a_table_without_timestamps_raises():
-    with pytest.raises(ValueError, match=r"'table'.*timestamps"):
-        FileLoader().generate(_object(), {"table": _table(timestamps=False)})
+def test_without_weather_a_table_without_timestamps_is_returned_as_is_with_a_warning(caplog):
+    table = _table(timestamps=False)
+
+    with caplog.at_level(logging.WARNING):
+        result = FileLoader().generate(_object(), {"table": table})["timeseries"]
+
+    pd.testing.assert_frame_equal(result, table)
+    assert any("'table'" in r.getMessage() and "timestamps" in r.getMessage() for r in caplog.records)
 
 
 def test_the_callers_table_is_unchanged():
@@ -107,12 +112,26 @@ def test_a_weather_key_that_names_a_missing_table_raises():
         FileLoader().generate(_object(**{O.WEATHER: "site_b"}), {"table": _table()})
 
 
-def test_a_finer_table_than_the_weather_raises_instead_of_being_sampled():
-    # A 15-minute table on hourly weather: keeping every fourth row would change the energy.
+def test_a_finer_table_is_averaged_to_the_weather_step_with_a_warning(caplog):
+    # A 15-minute table on hourly weather: each hour gets the mean of its four quarter hours.
     index = pd.date_range("2022-03-26 22:00", periods=24, freq="15min", tz="UTC")
     table = pd.DataFrame({C.DATETIME: index, "load[W]": np.arange(24, dtype=float)})
 
-    with pytest.raises(ValueError, match=r"'table'.*2022-03-26 22:15.*Resample"):
+    with caplog.at_level(logging.WARNING):
+        result = FileLoader().generate(_object(**{O.WEATHER: "weather"}), {"table": table, "weather": _weather(6)})[
+            "timeseries"
+        ]
+
+    assert list(result["load[W]"]) == [1.5, 5.5, 9.5, 13.5, 17.5, 21.5]
+    assert len([r for r in caplog.records if "'table'" in r.getMessage() and "averag" in r.getMessage()]) == 1
+
+
+def test_a_table_shifted_against_the_weather_steps_raises():
+    # Values at half past the hour would be moved by half a step if they were averaged.
+    index = pd.date_range("2022-03-26 22:30", periods=6, freq="h", tz="UTC")
+    table = pd.DataFrame({C.DATETIME: index, "load[W]": np.arange(6, dtype=float)})
+
+    with pytest.raises(ValueError, match=r"'table'.*does not cover"):
         FileLoader().generate(_object(**{O.WEATHER: "weather"}), {"table": table, "weather": _weather(6)})
 
 
