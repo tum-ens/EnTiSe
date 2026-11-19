@@ -148,7 +148,7 @@ class VentilationTimeSeries(AuxiliaryMethod):
             ts = ventilation.loc[:, col]
         except KeyError as err:
             raise Warning(
-                f"Neither explicit (column name) or implicit (column id) are specified.Given input column: {col}"
+                f"Neither explicit (column name) or implicit (column id) are specified. Given input column: {col}"
             ) from err
         match unit:
             case Units.PER_HOUR.value:
