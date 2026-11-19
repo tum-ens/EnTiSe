@@ -179,7 +179,7 @@ class TestOpenMeteoProvider:
         with patch.object(provider, "_response_to_dataframe") as mock_to_df:
             mock_df = pd.DataFrame(
                 {
-                    "datetime": pd.date_range("2022-01-01", periods=3, freq="h"),
+                    "datetime": pd.date_range("2022-01-01", periods=3, freq="h", tz="UTC"),
                     "temperature_2m": [10.0, 11.0, 12.0],
                     "relative_humidity_2m": [80.0, 75.0, 70.0],
                     "surface_pressure": [1013.0, 1012.0, 1011.0],
@@ -206,7 +206,8 @@ class TestOpenMeteoProvider:
                 assert kwargs["params"]["latitude"] == 49.71754
                 assert kwargs["params"]["longitude"] == 11.05877
                 assert kwargs["params"]["start_date"] == "2022-01-01"
-                assert kwargs["params"]["end_date"] == "2022-01-31"
+                # One more day is requested for the interval values of the last hour.
+                assert kwargs["params"]["end_date"] == "2022-02-01"
                 assert kwargs["params"]["timezone"] == "Europe/Berlin"
                 assert set(kwargs["params"]["hourly"]) == {"temperature_2m", "relative_humidity_2m", "surface_pressure"}
 
@@ -216,8 +217,9 @@ class TestOpenMeteoProvider:
                 # Check that the cache file removal is optional (not called here)
                 mock_remove_cache.assert_not_called()
 
-                # Check the result
-                assert result is mock_df
+                # The result is the response in the requested zone
+                assert str(result["datetime"].dt.tz) == "Europe/Berlin"
+                pd.testing.assert_series_equal(result["temperature_2m"], mock_df["temperature_2m"])
 
     def test_get_weather_data_error(self, mock_client):
         """Test handling of API errors."""

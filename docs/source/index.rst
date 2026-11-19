@@ -77,6 +77,7 @@ For those wanting to quickly get started with EnTiSe, here is a simple example o
    installation
    getting_started
    workflow
+   migration
    architecture
    methods/index
    services/index

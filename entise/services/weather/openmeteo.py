@@ -6,10 +6,15 @@ units. Additionally, it specifies the default inclusion state of each feature.
 The features encompassed in this module represent a wide range of meteorological
 parameters such as temperature, humidity, wind speed, precipitation, and radiation.
 Each feature includes metadata for compatibility with Open-Meteo and CF conventions.
+Features marked ``"interval": True`` are aggregates over the preceding interval in
+Open-Meteo, such as hourly mean radiation or hourly precipitation sums. The provider
+moves them to the start of their interval, as EnTiSe's time contract requires.
 """
 
 import os
+from datetime import date, timedelta
 from typing import Any, List, Optional
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import openmeteo_requests
 import pandas as pd
@@ -48,18 +53,21 @@ FEATURES = {
         "unit": "mm",
         "cf_unit": "kg m-2",
         "default": False,
+        "interval": True,
     },
     "rain": {
         "cf": "rainfall_amount",
         "unit": "mm",
         "cf_unit": "kg m-2",
         "default": False,
+        "interval": True,
     },
     "snowfall": {
         "cf": "thickness_of_snowfall_amount",
         "unit": "cm",
         "cf_unit": "m",
         "default": False,
+        "interval": True,
     },
     "snow_depth": {
         "cf": "surface_snow_thickness",
@@ -114,6 +122,7 @@ FEATURES = {
         "unit": "mm",
         "cf_unit": "kg m-2",
         "default": False,
+        "interval": True,
     },
     "vapour_pressure_deficit": {
         "cf": "vapour_pressure_deficit_in_air",
@@ -150,6 +159,7 @@ FEATURES = {
         "unit": "m s-1",
         "cf_unit": "m s-1",
         "default": False,
+        "interval": True,
     },
     "soil_temperature_0_to_7cm": {
         "cf": "soil_temperature",
@@ -204,36 +214,42 @@ FEATURES = {
         "unit": "W m-2",
         "cf_unit": "W m-2",
         "default": True,
+        "interval": True,
     },
     "direct_radiation": {
         "cf": "direct_horizontal_irradiance",
         "unit": "W m-2",
         "cf_unit": "W m-2",
         "default": False,
+        "interval": True,
     },
     "diffuse_radiation": {
         "cf": "diffuse_horizontal_irradiance",
         "unit": "W m-2",
         "cf_unit": "W m-2",
         "default": True,
+        "interval": True,
     },
     "direct_normal_irradiance": {
         "cf": "direct_normal_irradiance",
         "unit": "W m-2",
         "cf_unit": "W m-2",
         "default": True,
+        "interval": True,
     },
     "global_tilted_irradiance": {
         "cf": "global_tilted_irradiance",
         "unit": "W m-2",
         "cf_unit": "W m-2",
         "default": False,
+        "interval": True,
     },
     "terrestrial_radiation": {
         "cf": "surface_upwelling_longwave_flux_in_air",
         "unit": "W m-2",
         "cf_unit": "W m-2",
         "default": True,
+        "interval": True,
     },
     "shortwave_radiation_instant": {
         "cf": "global_horizontal_irradiance_instant",
@@ -282,6 +298,7 @@ FEATURES = {
         "unit": "s",
         "cf_unit": "s",
         "default": False,
+        "interval": True,
     },
 }
 
@@ -341,34 +358,34 @@ class OpenMeteoProvider(WeatherProvider):
         use_cf_names: bool = True,
         **kwargs,
     ) -> pd.DataFrame:
-        """Retrieve weather data from Open-Meteo API.
+        """Retrieve weather data from the Open-Meteo API.
 
-        This method retrieves weather data for a specific location and time period
-        from the Open-Meteo API. It can return the data with either the original
-        Open-Meteo variable names or with CF (Climate and Forecast) standard names.
-
-        The CF standard names conversion preserves height information and follows
-        these patterns:
-        - temperature_2m → air_temperature_2m
-        - soil_temperature_0_to_7cm → soil_temperature_0.07m
-        - shortwave_radiation → surface_downwelling_shortwave_flux_in_air
+        The result follows EnTiSe's time contract. Each row is labelled at the start
+        of its interval: interval quantities such as radiation or precipitation are
+        the mean or sum over ``[t, t + 1 h)``, and instantaneous quantities such as
+        air temperature are values at ``t``. Open-Meteo labels its interval
+        quantities at the end of the interval, so the provider requests one more
+        day, moves those columns one interval earlier and drops the extra day.
+        ``solar_elevation_angle[degree]`` is the elevation at the middle of each
+        interval.
 
         Args:
             latitude: Location latitude in degrees
             longitude: Location longitude in degrees
-            start_date: Start date in ISO format (YYYY-MM-DD)
-            end_date: End date in ISO format (YYYY-MM-DD)
-            timezone: Timezone name (e.g., 'UTC', 'Europe/Berlin')
+            start_date: First local day in ISO format (YYYY-MM-DD)
+            end_date: Last local day in ISO format (YYYY-MM-DD), included
+            timezone: IANA time zone of the days and of the returned timestamps,
+                for example ``"Europe/Berlin"``. ``None`` means UTC. ``"auto"`` uses
+                the zone Open-Meteo assigns to the location.
             features: List of weather parameters to retrieve
-            use_cf_names: Whether to convert Open-Meteo names to CF standard names.
-                          When True, column names in the returned DataFrame will use
-                          CF standard names. When False (default), the original
-                          Open-Meteo names will be used.
+            use_cf_names: Kept for compatibility; columns always use enriched CF names.
             **kwargs: Additional parameters for the API request
 
         Returns:
-            DataFrame with weather data using either original Open-Meteo names
-            or CF standard names based on the use_cf_names parameter
+            DataFrame with a tz-aware ``datetime`` column and enriched CF column names.
+
+        Raises:
+            ValueError: If ``timezone`` is neither an IANA name nor ``"auto"``.
         """
 
         if features is None:
@@ -377,13 +394,18 @@ class OpenMeteoProvider(WeatherProvider):
         # Validate features
         validated_features = self._validate_features(features)
 
-        # Set up API parameters
+        request_zone = "UTC" if timezone is None else timezone
+        if request_zone != "auto":
+            _zone(request_zone)
+
+        # One more day gives the interval values of the last requested hour.
+        last_day = date.fromisoformat(str(end_date))
         params = {
             "latitude": latitude,
             "longitude": longitude,
             "start_date": start_date,
-            "end_date": end_date,
-            "timezone": timezone or "auto",
+            "end_date": (last_day + timedelta(days=1)).isoformat(),
+            "timezone": request_zone,
             "hourly": validated_features,
             "wind_speed_unit": "ms",
             "temperature_unit": "celsius",
@@ -393,16 +415,14 @@ class OpenMeteoProvider(WeatherProvider):
         try:
             response = self.client.weather_api(self.url, params=params)[0]
             df = self._response_to_dataframe(response, params["hourly"])
-            if timezone and timezone.upper() != "UTC":
-                df["datetime"] = pd.to_datetime(df["datetime"], utc=True).dt.tz_convert(timezone)
-
-            # Remove the cache file after successful data retrieval
-            # self._remove_cache_file()
-
-            return df
         except Exception as e:
             logger.error(f"Error retrieving data from Open-Meteo API: {e}")
             raise
+
+        zone = _response_zone(response) if request_zone == "auto" else _zone(request_zone)
+        df["datetime"] = pd.DatetimeIndex(df["datetime"]).tz_convert(zone)
+        day_after = pd.Timestamp(last_day + timedelta(days=1)).tz_localize(zone)
+        return df[df["datetime"] < day_after].reset_index(drop=True)
 
     def _response_to_dataframe(self, response: Any, features: list) -> pd.DataFrame:
         """Convert API response to DataFrame.
@@ -433,16 +453,22 @@ class OpenMeteoProvider(WeatherProvider):
         # Create DataFrame
         df = pd.DataFrame(data=hourly_data)
 
-        # Add sun elevation angle if not already included
+        # Open-Meteo labels interval quantities at the end of their interval; EnTiSe labels them at the start.
+        # The last row has no following value and stays empty.
+        for feature in features:
+            if FEATURES.get(feature, {}).get("interval"):
+                df[feature] = df[feature].shift(-1)
+
+        # Add sun elevation angle at the middle of each interval
         if "solar_elevation_angle" not in df.columns:
-            elevation = response.Elevation()
+            step = pd.Timedelta(int(hourly.Interval()), unit="s")
             hs = self._calculate_sun_elevation(
-                pd.to_datetime(hourly.Time(), unit="s", utc=True),
-                pd.to_datetime(hourly.TimeEnd(), unit="s", utc=True),
-                pd.Timedelta(int(hourly.Interval()), unit="s"),
+                pd.to_datetime(hourly.Time(), unit="s", utc=True) + step / 2,
+                pd.to_datetime(hourly.TimeEnd(), unit="s", utc=True) + step / 2,
+                step,
                 response.Latitude(),
                 response.Longitude(),
-                elevation,
+                response.Elevation(),
             )
             df["solar_elevation_angle[degree]"] = hs.values
 
@@ -458,3 +484,25 @@ class OpenMeteoProvider(WeatherProvider):
             df.rename(columns=rename_map, inplace=True)
 
         return df
+
+
+def _zone(name: str) -> ZoneInfo:
+    """Return the IANA time zone ``name``."""
+    try:
+        return ZoneInfo(str(name).strip())
+    except (ZoneInfoNotFoundError, ValueError, OSError) as exc:
+        raise ValueError(
+            f"Unknown time zone {name!r}. Use an IANA name such as 'Europe/Berlin', 'UTC' or 'auto'."
+        ) from exc
+
+
+def _response_zone(response: Any) -> ZoneInfo:
+    """Return the time zone Open-Meteo resolved for ``timezone="auto"``."""
+    name = response.Timezone()
+    if isinstance(name, bytes):
+        name = name.decode()
+    try:
+        return _zone(name)
+    except ValueError:
+        logger.warning(f"Open-Meteo returned the time zone {name!r}, which is not an IANA name; using UTC.")
+        return ZoneInfo("UTC")
