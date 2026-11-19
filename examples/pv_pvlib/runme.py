@@ -158,11 +158,8 @@ def analyze_results(df: dict, objects: pd.DataFrame, save_figures: bool = False)
             tilt = system_configs[obj_id]["tilt"] if obj_id in system_configs else 0
 
             # Create a pivot table with hours as columns and days as rows
-            daily_data = ts.copy()
-            daily_data.index = pd.MultiIndex.from_arrays(
-                [daily_data.index.date, daily_data.index.hour], names=["date", "hour"]
-            )
-            daily_pivot = daily_data.unstack(level="hour")
+            # Average by local date and hour; the hour repeats when clocks go back.
+            daily_pivot = ts.iloc[:, 0].groupby([ts.index.date, ts.index.hour]).mean().unstack()
 
             # Create heatmap
             im = axes[i].imshow(daily_pivot, aspect="auto", cmap="viridis")

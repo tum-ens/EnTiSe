@@ -41,7 +41,7 @@ def analyze_results(df: dict, objects: pd.DataFrame, data: dict, save_figures: b
         # Create a boxplot for heating COP distribution
         plt.figure(figsize=(12, 6))
         plt.subplot(1, 2, 1)
-        plt.boxplot(heating_cop_data, labels=[f"ID {id}" for id in system_ids])
+        plt.boxplot(heating_cop_data, tick_labels=[f"ID {id}" for id in system_ids])
         plt.title("Heating COP Distribution by System")
         plt.ylabel("COP")
         plt.xticks(rotation=45)
@@ -49,7 +49,7 @@ def analyze_results(df: dict, objects: pd.DataFrame, data: dict, save_figures: b
 
         # Create a boxplot for DHW COP distribution
         plt.subplot(1, 2, 2)
-        plt.boxplot(dhw_cop_data, labels=[f"ID {id}" for id in system_ids])
+        plt.boxplot(dhw_cop_data, tick_labels=[f"ID {id}" for id in system_ids])
         plt.title("DHW COP Distribution by System")
         plt.ylabel("COP")
         plt.xticks(rotation=45)
@@ -294,7 +294,8 @@ def analyze_results(df: dict, objects: pd.DataFrame, data: dict, save_figures: b
                             continue
 
             # Get temperature column
-            temp_col = "air_temperature[C]"
+            # The weather keeps its column heights, for example "air_temperature[C]@2m".
+            temp_col = next(col for col in weather_data.columns if col.startswith("air_temperature[C]"))
 
             # Process heating COP
             heating_col = f"{Types.HP}{SEP}{Types.HEATING}[1]"

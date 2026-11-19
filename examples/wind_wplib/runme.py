@@ -93,7 +93,7 @@ def analyze_results(df: dict, objects: pd.DataFrame, data: dict, save_figures: b
 
             # Get the weather data
             weather_data = data["weather"].copy()
-            weather_data["datetime"] = pd.to_datetime(weather_data["datetime"])
+            weather_data["datetime"] = pd.to_datetime(weather_data["datetime"], utc=True)
             weather_data = weather_data.set_index("datetime")
 
             # Ensure the index is a DatetimeIndex
@@ -209,7 +209,7 @@ def analyze_results(df: dict, objects: pd.DataFrame, data: dict, save_figures: b
 
             # Get the weather data
             weather_data = data["weather"].copy()
-            weather_data["datetime"] = pd.to_datetime(weather_data["datetime"])
+            weather_data["datetime"] = pd.to_datetime(weather_data["datetime"], utc=True)
             weather_data = weather_data.set_index("datetime")
 
             # Ensure the index is a DatetimeIndex

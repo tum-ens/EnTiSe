@@ -271,7 +271,7 @@ Public methods
 
            weather = self._create_multiindex(weather, info)
 
-           weather.rename(
+           weather = weather.rename(
                columns={
                    C.TEMP_AIR.split("[")[0]: "temperature",
                    C.SURFACE_AIR_PRESSURE.split("[")[0]: "pressure",
@@ -279,7 +279,6 @@ Public methods
                    C.WIND_DIRECTION.split("[")[0]: "wind_direction",
                    C.ROUGHNESS_LENGTH.split("[")[0]: "roughness_length",
                },
-               inplace=True,
                level=0,
            )
 

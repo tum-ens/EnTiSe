@@ -1,6 +1,6 @@
 import logging
-import warnings
 
+import numpy as np
 import pandas as pd
 
 from entise._optional import requires_extra
@@ -10,7 +10,6 @@ from entise.constants import Objects as O
 from entise.core._time import RUN_TIME_KEY, output_index, regular_step, run_time
 from entise.core.base import Method
 
-warnings.filterwarnings("ignore")
 logger = logging.getLogger(__name__)
 
 # Default values for optional keys
@@ -232,10 +231,13 @@ class PVLib(Method):
     @staticmethod
     def _format_output(ts, processed_obj, processed_data):
         timestep = regular_step(processed_data[O.WEATHER].index, table=O.WEATHER).total_seconds()
+        # Scalars, so the summary table has numeric columns (a one-column frame's sum is a Series).
+        power = ts["p_mp"]
+        energy_wh = power.sum() * timestep / 3600
         summary = {
-            f"{Types.PV}{SEP}{C.GENERATION}": (ts.sum() * timestep / 3600).round().astype(int),
-            f"{Types.PV}{SEP}{O.GEN_MAX}": ts.max().round().astype(int),
-            f"{Types.PV}{SEP}{C.FLH}": (ts.sum() * timestep / 3600 / processed_obj[O.POWER]).round().astype(int),
+            f"{Types.PV}{SEP}{C.GENERATION}": int(np.round(energy_wh)),
+            f"{Types.PV}{SEP}{O.GEN_MAX}": int(np.round(power.max())),
+            f"{Types.PV}{SEP}{C.FLH}": int(np.round(energy_wh / processed_obj[O.POWER])),
         }
 
         ts = ts.rename(columns={"p_mp": f"{Types.PV}{SEP}{C.POWER}"})

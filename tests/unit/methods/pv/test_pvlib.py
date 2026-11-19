@@ -184,10 +184,11 @@ def test_generate_method(dummy_inputs):
     assert f"{Types.PV}{SEP}{O.GEN_MAX}" in summary
     assert f"{Types.PV}{SEP}{C.FLH}" in summary
 
-    # Check that generation values are non-negative
-    assert summary[f"{Types.PV}{SEP}{C.GENERATION}"].item() >= 0
-    assert summary[f"{Types.PV}{SEP}{O.GEN_MAX}"].item() >= 0
-    assert summary[f"{Types.PV}{SEP}{C.FLH}"].item() >= 0
+    # Check that generation values are non-negative integers
+    assert all(isinstance(value, int) for value in summary.values())
+    assert summary[f"{Types.PV}{SEP}{C.GENERATION}"] >= 0
+    assert summary[f"{Types.PV}{SEP}{O.GEN_MAX}"] >= 0
+    assert summary[f"{Types.PV}{SEP}{C.FLH}"] >= 0
 
     # Check timeseries values
     ts = result["timeseries"]
@@ -232,7 +233,7 @@ def test_edge_cases():
 
     # Check that generation occurs even with extreme tilt
     summary = result["summary"]
-    assert summary[f"{Types.PV}{SEP}{C.GENERATION}"].item() > 0
+    assert summary[f"{Types.PV}{SEP}{C.GENERATION}"] > 0
 
 
 def test_warning_for_invalid_azimuth(caplog):

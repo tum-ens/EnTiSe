@@ -9,7 +9,7 @@ Supported Environments
 ----------------------
 
 - **Python Version**: 3.10 to 3.13
-- **pandas**: 2.2.2 or newer, including pandas 3. pandas 3 needs Python 3.11 or newer, so Python 3.10 uses pandas 2.
+- **pandas**: 2.2.2 or newer, below 4, so pandas 2 and pandas 3 both work. pandas 3 needs Python 3.11 or newer, so Python 3.10 uses pandas 2.
 - **Operating Systems**: Windows, Linux, macOS
 
 Installation Options

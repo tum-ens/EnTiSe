@@ -83,7 +83,7 @@ def analyze_results(df: dict, objects: pd.DataFrame, save_figures: bool = False)
         axes = axes.flatten()
 
         # Plot daily profiles for each object
-        for i, (obj_id, object) in enumerate(objects.iterrows()):
+        for i, (obj_id, object) in enumerate(objects.set_index("id").iterrows()):
             plot_daily_profile(
                 axes[i], df[obj_id][Types.DHW], f"Building ID: {obj_id} - Dwelling Size: {object[O.DWELLING_SIZE]}"
             )
