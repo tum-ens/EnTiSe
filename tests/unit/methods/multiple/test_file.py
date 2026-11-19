@@ -19,8 +19,10 @@ def test_fileloader_success(sample_data):
     result = loader.generate(obj, data)
 
     assert "timeseries" in result
-    assert result["timeseries"].equals(sample_data)
     assert isinstance(result["timeseries"], pd.DataFrame)
+    # The values come back unchanged on the same instants (in UTC, as the object sets no time zone).
+    assert list(result["timeseries"]["value"]) == list(sample_data["value"])
+    assert result["timeseries"].index.equals(sample_data.index.as_unit("us"))
 
 
 def test_fileloader_missing_key():

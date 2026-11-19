@@ -176,14 +176,16 @@ Data Contracts (Schemas)
   - HVAC 1R1C: ``resistance[K W-1]``, ``capacitance[J K-1]``, optional ``power_heating[W]``, ``power_cooling[W]``, temperature setpoints.
   - PV pvlib: ``latitude[degree]``, ``longitude[degree]``, optional ``power[W]``, ``azimuth[degree]``, ``tilt[degree]``.
 
+.. _time-contract:
+
 Time Contract
 -------------
 
 .. note::
 
-   This is the time contract for EnTiSe 2.0.0. The RC models, Ruhnau, PV,
-   wind and their auxiliaries follow it. The calendar methods adopt it before
-   the release; until then, they still read time in their own way.
+   This is the time contract of EnTiSe 2.0.0, which every method and the
+   Open-Meteo weather service follow. For what changed against earlier
+   versions and how to adapt existing inputs, see :doc:`migration`.
 
 - **Timestamps identify instants.** A table carries its timestamps in a
   ``datetime`` column or in its index. Accepted forms are typed datetime
@@ -206,8 +208,10 @@ Time Contract
   regular step. EnTiSe never changes the frames you pass in.
 - **Each label marks the start of its interval.** Interval quantities, such
   as irradiance or power, are means over ``[t, t + step)``. Instantaneous
-  quantities, such as air temperature, are values at ``t``. Open-Meteo labels
-  hourly irradiance at the end of the hour. If at least 14 days of hourly or
+  quantities, such as air temperature, are values at ``t``. EnTiSe's
+  Open-Meteo service returns data labelled this way; data downloaded from
+  Open-Meteo directly labels hourly irradiance at the end of the hour. If at
+  least 14 days of hourly or
   longer irradiance peak about one step after solar noon, EnTiSe warns and
   suggests shifting those columns one row earlier. The warning appears once
   per run and longitude cell in each worker process.
@@ -225,8 +229,12 @@ Time Contract
 - **Auxiliary tables** (internal gains, ventilation, ``file``) align with the
   weather by timestamp. A table without timestamps is used row by row only if
   it has one row per time step, with a warning; any other mismatch raises an
-  error. The positional warning appears once per table and run in each worker
-  process.
+  error. Between the first and the last weather step, a table must not hold
+  instants the weather lacks: a finer table, such as 15-minute values on hourly
+  weather, raises an error asking you to resample it first; rows outside the
+  weather's span are ignored. The positional warning appears once per table
+  and run in each worker process. A ``file`` table for an object without a ``weather`` key keeps its
+  own timestamps and must have them.
 
 Performance and Reproducibility
 -------------------------------

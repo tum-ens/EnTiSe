@@ -276,8 +276,12 @@ def get_input_data(obj, data, method_type=Types.DHW):
     if data_out[O.DHW_ACTIVITY] is None:
         data_out[O.DHW_ACTIVITY] = _get_activity_data("jordan_vajen")
 
-    # Create random number generator
-    data_out["rng"] = np.random.default_rng(obj_out[O.SEED])
+    # Create random number generator. An objects table read by pandas stores a seed
+    # as a float (1.0) when other objects leave it empty; numpy needs an integer.
+    seed = obj_out[O.SEED]
+    if isinstance(seed, (float, np.floating)) and float(seed).is_integer():
+        seed = int(seed)
+    data_out["rng"] = np.random.default_rng(seed)
 
     return obj_out, data_out
 

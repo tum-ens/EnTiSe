@@ -292,11 +292,15 @@ class RunTime:
         """Return table ``key`` on ``axis``.
 
         A table with timestamps is aligned by instant and must cover every
-        instant of ``axis``. A table without timestamps must have one row per
-        instant. It is then aligned by position, with one warning per table.
+        instant of ``axis``. Rows before the first or after the last instant are
+        ignored, but between them the table may hold no instant that ``axis``
+        lacks: a finer table would otherwise be sampled, which changes its energy.
+        A table without timestamps must have one row per instant. It is then
+        aligned by position, with one warning per table.
 
         Raises:
-            ValueError: If the table does not cover the axis, or has another length.
+            ValueError: If the table does not cover the axis, holds instants
+                between the axis' instants, or has another length.
         """
         if axis.tz is None:
             raise ValueError(f"The time axis for table '{key}' must be tz-aware.")
@@ -307,6 +311,13 @@ class RunTime:
                 raise ValueError(
                     f"Table '{key}' does not cover the time axis: {int(missing.sum())} of {len(axis)} instants are "
                     f"missing, the first at {axis[missing][0]:%Y-%m-%d %H:%M:%S%z}."
+                )
+            inside = table.index[(table.index >= axis[0]) & (table.index <= axis[-1])]
+            between = inside[~inside.isin(axis)]
+            if len(between):
+                raise ValueError(
+                    f"Table '{key}' has instants between the time steps of the axis, the first at "
+                    f"{between[0]:%Y-%m-%d %H:%M:%S%z}. Resample the table to the weather's time step first."
                 )
             return table.reindex(axis)
 

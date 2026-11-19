@@ -52,17 +52,20 @@ For those wanting to quickly get started with EnTiSe, here is a simple example o
    gen.add_objects({
        "id": "building1",
        "hvac": "1R1C",
-       "resistance": 2.0,
-       "capacitance": 1e5,
-       "temp_min": 20.0,
-       "temp_max": 24.0,
+       "weather": "weather",
+       "timezone": "Europe/Berlin",
+       "resistance[K W-1]": 0.006,
+       "capacitance[J K-1]": 1.1e7,
+       "min_temperature[C]": 20.0,
+       "max_temperature[C]": 24.0,
    })
 
-   # Prepare input data (e.g., weather)
+   # Prepare input data (e.g., weather): timestamps with a UTC offset or time zone
    data = {
        "weather": pd.DataFrame({
-           "temp_out": [0.0] * 24,
-       }, index=pd.date_range("2025-01-01", periods=24, freq="h"))
+           "datetime": pd.date_range("2025-01-01", periods=24, freq="h", tz="Europe/Berlin"),
+           "air_temperature[C]": 0.0,
+       })
    }
 
    # Generate time series
@@ -77,6 +80,7 @@ For those wanting to quickly get started with EnTiSe, here is a simple example o
    installation
    getting_started
    workflow
+   migration
    architecture
    methods/index
    services/index
