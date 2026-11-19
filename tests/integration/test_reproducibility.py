@@ -1,7 +1,8 @@
 """Generating the same object again must give bit-identical time series.
 
 The result of an object may not depend on the order of the objects, on the number of
-workers, on the batch size, or on the process that happens to calculate it.
+workers, on the batch size, or on the process that happens to calculate it. Methods that
+draw random numbers are reproducible with an object ``seed`` or a run ``seed``.
 """
 
 import os
@@ -17,6 +18,7 @@ from entise.constants import Keys as K
 from entise.constants import Objects as O
 from entise.constants import Types
 from entise.core.generator import Generator
+from entise.methods.dhw.jordan_vajen import JordanVajen
 
 HERE = os.path.dirname(__file__)
 HOURS = 14 * 24
@@ -78,10 +80,10 @@ CASES = {
 }
 
 
-def _generate(objects: pd.DataFrame, data: dict, workers: int, batch_size, reverse: bool):
+def _generate(objects: pd.DataFrame, data: dict, workers: int, batch_size, reverse: bool, seed=None):
     gen = Generator(raise_on_error=True)
     gen.add_objects(objects.iloc[::-1] if reverse else objects)
-    return gen.generate(data, workers=workers, batch_size=batch_size, show_progress=False)
+    return gen.generate(data, workers=workers, batch_size=batch_size, show_progress=False, seed=seed)
 
 
 @pytest.mark.parametrize("case", CASES)
@@ -105,6 +107,88 @@ def test_timeseries_are_bit_identical_however_the_objects_are_run(case):
                     obj=f"{case} ({label}), object {obj_id}, {ts_type}",
                 )
         pd.testing.assert_frame_equal(summary.loc[ref_summary.index], ref_summary, check_exact=True, obj=label)
+
+
+# -- run seed ---------------------------------------------------------------------------------------------------------
+
+DHW_VOLUME = f"{Types.DHW}:volume[l]"
+
+
+def _dhw_without_object_seeds():
+    objects = pd.read_csv(os.path.join(HERE, "dhw_jordanvajen", "objects.csv"))
+    return objects, {"weather": _weather()}
+
+
+def _dhw_volumes(timeseries: dict) -> dict:
+    return {obj_id: by_type[Types.DHW][DHW_VOLUME] for obj_id, by_type in timeseries.items()}
+
+
+def test_run_seed_gives_bit_identical_dhw_however_the_objects_are_run():
+    objects, data = _dhw_without_object_seeds()
+    ref_summary, ref_timeseries = _generate(objects, data, *REFERENCE, seed=11)
+
+    for label, variant in {"same run again": REFERENCE, **VARIANTS}.items():
+        summary, timeseries = _generate(objects, data, *variant, seed=11)
+        assert set(timeseries) == set(ref_timeseries), label
+        for obj_id, by_type in ref_timeseries.items():
+            pd.testing.assert_frame_equal(
+                timeseries[obj_id][Types.DHW],
+                by_type[Types.DHW],
+                check_exact=True,
+                obj=f"run seed ({label}), object {obj_id}",
+            )
+        pd.testing.assert_frame_equal(summary.loc[ref_summary.index], ref_summary, check_exact=True, obj=label)
+
+
+def test_different_run_seeds_give_different_dhw():
+    objects, data = _dhw_without_object_seeds()
+    _, first = _generate(objects, data, *REFERENCE, seed=11)
+    _, second = _generate(objects, data, *REFERENCE, seed=12)
+
+    for obj_id, volume in _dhw_volumes(first).items():
+        assert not volume.equals(_dhw_volumes(second)[obj_id]), obj_id
+
+
+def test_object_seed_overrides_run_seed():
+    objects, data = _dhw_without_object_seeds()
+    objects[O.SEED] = [7, None, 7]
+
+    _, unseeded_run = _generate(objects, data, *REFERENCE)
+    _, first = _generate(objects, data, *REFERENCE, seed=11)
+    _, second = _generate(objects, data, *REFERENCE, seed=12)
+    unseeded_run, first, second = _dhw_volumes(unseeded_run), _dhw_volumes(first), _dhw_volumes(second)
+
+    for obj_id in (1, 3):
+        pd.testing.assert_series_equal(first[obj_id], second[obj_id], check_exact=True)
+        pd.testing.assert_series_equal(first[obj_id], unseeded_run[obj_id], check_exact=True)
+    # The object without its own seed follows the run seed.
+    assert not first[2].equals(second[2])
+
+
+def test_objects_with_different_ids_draw_different_streams():
+    objects, data = _dhw_without_object_seeds()
+    twins = pd.concat([objects.iloc[[0]]] * 2, ignore_index=True)
+    twins[O.ID] = ["a", "b"]
+
+    _, timeseries = _generate(twins, data, *REFERENCE, seed=11)
+    volumes = _dhw_volumes(timeseries)
+
+    assert not volumes["a"].equals(volumes["b"])
+
+
+def test_direct_call_with_seed_is_reproducible():
+    objects, data = _dhw_without_object_seeds()
+    obj = objects.iloc[0].to_dict()
+
+    first = JordanVajen().generate(obj, data, seed=5)[K.TIMESERIES]
+    again = JordanVajen().generate(obj, data, seed=5)[K.TIMESERIES]
+    other = JordanVajen().generate(obj, data, seed=6)[K.TIMESERIES]
+
+    pd.testing.assert_frame_equal(first, again, check_exact=True)
+    assert not first[DHW_VOLUME].equals(other[DHW_VOLUME])
+
+
+# -- accelerator in process workers ------------------------------------------------------------------------------------
 
 
 def _in_fresh_process(probe):

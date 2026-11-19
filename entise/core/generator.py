@@ -12,6 +12,7 @@ from tqdm import tqdm
 from entise.constants import SEP, VALID_TYPES
 from entise.constants import Keys as K
 from entise.constants import Objects as O
+from entise.core._random import check_run_seed
 from entise.core._time import RUN_TIME_KEY, UTC, RunTime
 from entise.core.runner import Runner
 from entise.perf import _get_accelerator_mode, _use_accelerator_mode
@@ -147,6 +148,7 @@ class Generator:
         backend: str = "loky",
         show_progress: bool = True,
         utc: bool = False,
+        seed: int | None = None,
     ) -> Tuple[pd.DataFrame, Dict[str, pd.DataFrame]]:
         """
         Generates time series data by processing objects in parallel or sequentially
@@ -174,6 +176,12 @@ class Generator:
                 not set). If True, those outputs are indexed in UTC instead. Methods
                 that pass a table through, such as ``file``, keep its index.
                 Defaults to False.
+            seed (int | None, optional): Run seed for methods that draw random numbers.
+                Each object and time series type draws from its own stream, derived
+                from the run seed, the object's ``id`` and the type, so results do not
+                depend on the order of the objects, the number of workers, the batch
+                size or the process. An object's own ``seed`` takes precedence. If
+                None, such methods draw different numbers in every run. Defaults to None.
 
         Returns:
             Tuple[pd.DataFrame, Dict[str, pd.DataFrame]]: A tuple containing the
@@ -182,13 +190,15 @@ class Generator:
 
         Raises:
             ValueError: If no objects are added to the processing pipeline before
-            calling this method.
+            calling this method, or if ``seed`` is negative.
+            TypeError: If ``seed`` is not an integer.
         """
         if self.objects.empty:
             raise ValueError("No objects have been added for processing.")
+        seed = check_run_seed(seed)
 
         # Read every time table once for the whole run. The caller's mapping is not changed.
-        data = {**data, RUN_TIME_KEY: RunTime(data, utc=utc)}
+        data = {**data, RUN_TIME_KEY: RunTime(data, utc=utc, seed=seed)}
 
         object_params = self.objects.to_dict("records")
         self._warn_missing_time_zones(object_params)

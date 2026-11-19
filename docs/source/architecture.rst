@@ -88,8 +88,8 @@ Execution model and performance
   (e.g., preprocessed weather). Use workers=1 for deterministic debugging or small jobs; use -1 to utilize all cores.
 - Error handling: By default, errors inside a method propagate. Configure raise_on_error on the Generator to adapt
   handling if you wish to catch/record errors (implementation may vary per version).
-- Determinism: Methods that include stochastic elements should accept a seed in the object metadata to make runs
-  reproducible.
+- Determinism: Methods that include stochastic elements should accept a seed in the object metadata and draw from
+  ``entise.core._random.method_rng``, which also applies the run seed of ``Generator.generate(..., seed=...)``.
 
 Extension points (how to add a new method)
 ------------------------------------------

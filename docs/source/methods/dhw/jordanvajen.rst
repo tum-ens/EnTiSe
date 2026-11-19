@@ -19,6 +19,8 @@ Water is drawn per local day of the object's ``timezone`` (UTC if unset):
 
 - ``power[W]`` is the energy of the interval that starts at the label divided by the interval's length.
 
+- Random draws come from the object's ``seed`` if it has one, otherwise from the run seed of ``Generator.generate`` combined with the object's ``id`` and the type. Either makes the time series reproducible; without a seed every run differs.
+
 The module provides functionality to:
 
 - Process input parameters for DHW demand calculation
@@ -224,7 +226,9 @@ Public methods
                temp_water_hot (float, optional): Hot water temperature in degrees Celsius. Defaults to None.
                seasonal_variation (float, optional): Seasonal variation factor. Defaults to None.
                seasonal_peak_day (int, optional): Day of year with peak demand. Defaults to None.
-               seed (int, optional): Random seed for reproducibility. Defaults to None.
+               seed (int, optional): The object's random seed. With a seed the time series is
+                   reproducible; it takes precedence over the run seed of ``Generator.generate``.
+                   Without either, every call draws different numbers. Defaults to None.
 
            Returns:
                dict: Dictionary containing:

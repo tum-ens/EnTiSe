@@ -23,6 +23,10 @@ class PyLPG(Method):
     (UTC if unset). Each row is the mean power over the interval that starts at
     its label. On the 23-hour day of the change to summer time the skipped hour is
     not read; on the 25-hour day the repeated hour is read twice.
+
+    pylpg chooses the household members' ages and genders with Python's global
+    random numbers, which EnTiSe does not seed: the run seed of
+    ``Generator.generate`` does not make PyLPG profiles reproducible.
     """
 
     name = "pylpg"
