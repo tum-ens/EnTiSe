@@ -1,4 +1,5 @@
 import logging
+import re
 
 import numpy as np
 import pandas as pd
@@ -20,20 +21,29 @@ DEFAULT_VENTILATION_FACTOR = 0.5  # 1/h
 AIR_DENSITY = RHO_AIR  # kg/m³
 HEAT_CAPACITY = CP_AIR  # J/(kg·K)
 
-# Slash spellings of the ventilation units, mapped to the exponent spelling EnTiSe uses.
+# Spellings of the ventilation units, normalised (lower case, no spaces around "/", "m^3" and "m³" as "m3"),
+# mapped to the exponent spelling EnTiSe uses.
 _UNIT_ALIASES = {
+    "h-1": Units.PER_HOUR.value,
     "1/h": Units.PER_HOUR.value,
+    "m3 h-1": Units.CUBIC_METER_PER_HOUR.value,
+    "m3h-1": Units.CUBIC_METER_PER_HOUR.value,
     "m3/h": Units.CUBIC_METER_PER_HOUR.value,
-    "W/K": Units.WATT_PER_KELVIN.value,
+    "w k-1": Units.WATT_PER_KELVIN.value,
+    "w/k": Units.WATT_PER_KELVIN.value,
 }
 
 
 def _ventilation_unit(col: str) -> str | None:
-    """Return the unit in ``col`` in EnTiSe's exponent spelling, or None if ``col`` has no ``[unit]``."""
+    """Return the unit in ``col`` in EnTiSe's exponent spelling, or None if ``col`` has no ``[unit]``.
+
+    An unknown unit is returned as written, with surrounding spaces removed.
+    """
     if "[" not in col or "]" not in col:
         return None
     unit = " ".join(col.split("[")[-1].split("]")[0].split())
-    return _UNIT_ALIASES.get(unit, unit)
+    key = re.sub(r"\s*/\s*", "/", unit.replace("³", "3").replace("^", "")).lower()
+    return _UNIT_ALIASES.get(key, unit)
 
 
 class VentilationInactive(AuxiliaryMethod):

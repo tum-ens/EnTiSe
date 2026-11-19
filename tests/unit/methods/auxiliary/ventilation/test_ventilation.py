@@ -180,6 +180,13 @@ def _run_with_column(col, value=61.0):
         ("typical[m3/h]", VOLUME_FLOW_TO_W_PER_K),
         ("typical[h-1]", AIR_CHANGE_TO_W_PER_K),
         ("typical[1/h]", AIR_CHANGE_TO_W_PER_K),
+        ("typical[W / K]", 1.0),
+        ("typical[w/k]", 1.0),
+        ("typical[m3h-1]", VOLUME_FLOW_TO_W_PER_K),
+        ("typical[m³/h]", VOLUME_FLOW_TO_W_PER_K),
+        ("typical[m^3/h]", VOLUME_FLOW_TO_W_PER_K),
+        ("typical[1 / h]", AIR_CHANGE_TO_W_PER_K),
+        ("typical[1/H]", AIR_CHANGE_TO_W_PER_K),
     ],
 )
 def test_ventilation_unit_spellings_are_equivalent(col, factor, caplog):

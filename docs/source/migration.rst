@@ -99,7 +99,10 @@ labels its hourly aggregates at the end of the hour: radiation means,
 precipitation, rain and snowfall sums, evapotranspiration, sunshine duration
 and gusts. Shift exactly those columns one row earlier, and leave
 instantaneous values, including the ``*_instant`` radiation variables, at
-their labels. With EnTiSe's column names:
+their labels. A table saved from EnTiSe's weather service before 2.0.0 names
+the top-of-atmosphere radiation ``surface_upwelling_longwave_flux_in_air[W m-2]``;
+rename it to ``toa_incoming_shortwave_flux[W m-2]`` first (see `Other changes`_).
+With EnTiSe's column names:
 
 .. code-block:: python
 
