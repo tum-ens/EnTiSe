@@ -6,6 +6,7 @@ import pandas as pd
 from entise._optional import require_module
 from entise.constants import SEP, Types
 from entise.constants import Columns as C
+from entise.constants import Constants as Const
 from entise.constants import Objects as O
 from entise.core._time import RUN_TIME_KEY, output_index, run_time
 from entise.core.base import Method
@@ -68,6 +69,8 @@ class R1C0(Method):
         O.TEMP_INIT,
         O.TEMP_MIN,
         O.TEMP_MAX,
+        O.AREA,
+        O.HEIGHT,
         O.GAINS_INTERNAL,
         O.GAINS_INTERNAL_COL,
         O.VENTILATION,
@@ -206,6 +209,9 @@ class R1C0(Method):
         obj_out = {
             O.ID: Method.get_with_backup(obj, O.ID),
             O.TIMEZONE: Method.get_with_backup(obj, O.TIMEZONE),
+            # Geometry, needed for ventilation given in air changes per hour
+            O.AREA: Method.get_with_method_backup(obj, O.AREA, method_type, Const.DEFAULT_AREA.value),
+            O.HEIGHT: Method.get_with_method_backup(obj, O.HEIGHT, method_type, Const.DEFAULT_HEIGHT.value),
             # Controls
             O.ACTIVE_COOLING: Method.get_with_method_backup(obj, O.ACTIVE_COOLING, method_type, DEFAULT_ACTIVE_COOLING),
             O.ACTIVE_HEATING: Method.get_with_method_backup(obj, O.ACTIVE_HEATING, method_type, DEFAULT_ACTIVE_HEATING),

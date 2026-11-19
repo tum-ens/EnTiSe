@@ -108,3 +108,41 @@ def test_r1c0_constant_internal_gains(minimal_weather, dummy_windows):
     assert K.TIMESERIES in result
     assert isinstance(result[K.TIMESERIES], pd.DataFrame)
     assert C.TEMP_IN in result[K.TIMESERIES]
+
+
+def _air_change_heating_load(minimal_weather, **geometry):
+    """Mean heating load of a 1R0C zone at 0 °C outside whose ventilation is 0.5 air changes per hour."""
+    vent = pd.DataFrame({"rate[1/h]": np.full(24, 0.5)}, index=minimal_weather.index)
+    obj = {
+        O.ID: "obj1",
+        O.RESISTANCE: 1.0,
+        O.TEMP_INIT: 20.0,
+        O.TEMP_MIN: 20.0,
+        O.TEMP_MAX: 24.0,
+        O.POWER_HEATING: 1e6,
+        O.VENTILATION: "vent",
+        O.VENTILATION_COL: "rate[1/h]",
+        **geometry,
+    }
+    data = {O.WEATHER: minimal_weather, "vent": vent}
+    result = R1C0().generate(obj, data, Types.HVAC)
+    return result[K.TIMESERIES][f"{Types.HEATING}{SEP}{C.LOAD}[W]"].mean()
+
+
+@pytest.mark.parametrize("area", [100.0, 200.0])
+def test_r1c0_air_changes_use_the_zone_volume(minimal_weather, area):
+    """Ventilation in air changes per hour scales with the object's area and height."""
+    h_ve = 0.5 * area * 2.6 * 1.2 * 1000 / 3600
+    expected = 20.0 * (1.0 + h_ve)
+
+    load = _air_change_heating_load(minimal_weather, **{O.AREA: area, O.HEIGHT: 2.6})
+
+    assert load == pytest.approx(expected, abs=1.0)
+
+
+def test_r1c0_air_changes_without_geometry_use_the_default_volume(minimal_weather):
+    """Without area and height, the default zone volume applies."""
+    from entise.constants import Constants as Const
+
+    h_ve = 0.5 * Const.DEFAULT_AREA.value * Const.DEFAULT_HEIGHT.value * 1.2 * 1000 / 3600
+    assert _air_change_heating_load(minimal_weather) == pytest.approx(20.0 * (1.0 + h_ve), abs=1.0)
