@@ -174,7 +174,8 @@ def load_timeseries(obj: dict, data: dict) -> pd.DataFrame:
     Raises:
         TypeError: If the loaded data is not a DataFrame.
         ValueError: If the table has no timestamps and the object names no weather,
-            or if it does not fit the weather (see ``RunTime.align``).
+            if the named weather table is missing, or if the table does not fit the
+            weather (see ``RunTime.align``).
     """
     key = obj[O.FILE]
     df = data[key]
@@ -184,7 +185,11 @@ def load_timeseries(obj: dict, data: dict) -> pd.DataFrame:
 
     run = run_time(data)
     weather_key = obj.get(O.WEATHER)
-    if isinstance(weather_key, str) and weather_key in run:
+    if isinstance(weather_key, str) and weather_key.strip():
+        if weather_key not in run:
+            raise ValueError(
+                f"Object '{obj.get(O.ID)}' names the weather table '{weather_key}', which is not in the data."
+            )
         table = run.align(key, run.table(weather_key).index)
     else:
         try:

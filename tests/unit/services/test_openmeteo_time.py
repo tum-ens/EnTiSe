@@ -31,8 +31,11 @@ def _fake_client(response_zone: str | None = None):
         calls.append(params)
         zone_name = response_zone if params["timezone"] == "auto" else params["timezone"]
         zone = ZoneInfo(zone_name)
-        start = pd.Timestamp(params["start_date"]).tz_localize(zone)
-        end = (pd.Timestamp(params["end_date"]) + pd.Timedelta(days=1)).tz_localize(zone)
+        # A local day can start at a skipped or repeated midnight; take the first instant of the day.
+        start = pd.Timestamp(params["start_date"]).tz_localize(zone, nonexistent="shift_forward", ambiguous=True)
+        end = (pd.Timestamp(params["end_date"]) + pd.Timedelta(days=1)).tz_localize(
+            zone, nonexistent="shift_forward", ambiguous=True
+        )
         labels = pd.date_range(start.tz_convert("UTC"), end.tz_convert("UTC"), freq="h", inclusive="left")
         i = np.arange(len(labels), dtype=float)
         values = {"temperature_2m": 100.0 + i, "shortwave_radiation": i, "precipitation": i}
@@ -138,3 +141,48 @@ def test_an_unknown_time_zone_raises_before_the_request(timezone):
             latitude=LAT, longitude=LON, start_date="2022-06-01", end_date="2022-06-01", timezone=timezone
         )
     assert calls == []
+
+
+# The day after the last requested day starts with a clock change at local midnight.
+MIDNIGHT_CHANGES = [
+    ("America/Santiago", "2022-09-10"),  # 2022-09-11 00:00 does not exist
+    ("Asia/Beirut", "2022-03-26"),  # 2022-03-27 00:00 does not exist
+    ("America/Havana", "2022-11-05"),  # 2022-11-06 00:00 occurs twice
+]
+
+
+@pytest.mark.parametrize("zone, day", MIDNIGHT_CHANGES, ids=[z for z, _ in MIDNIGHT_CHANGES])
+def test_the_last_day_is_trimmed_by_its_local_date_across_a_midnight_clock_change(zone, day):
+    df, _ = _get(zone, start=day, end=day)
+
+    local = df[C.DATETIME].dt.tz_convert(zone)
+    assert (local.dt.date == date.fromisoformat(day)).all()
+    assert len(df) == 24
+    assert df[GHI].notna().all()
+
+
+def test_auto_trims_across_a_midnight_clock_change():
+    df, _ = _get("auto", start="2022-09-10", end="2022-09-10", response_zone="America/Santiago")
+
+    assert str(df[C.DATETIME].dt.tz) == "America/Santiago"
+    assert len(df) == 24
+
+
+@pytest.mark.parametrize(
+    "given, canonical", [("utc", "UTC"), ("europe/berlin", "Europe/Berlin"), ("  Europe/Berlin ", "Europe/Berlin")]
+)
+def test_zone_names_are_matched_without_case_and_whitespace(given, canonical):
+    df, calls = _get(given)
+
+    assert calls[0]["timezone"] == canonical
+    assert str(df[C.DATETIME].dt.tz) == canonical
+
+
+def test_the_service_emits_no_pandas_deprecation_warnings():
+    import warnings
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", FutureWarning)
+        if hasattr(pd.errors, "Pandas4Warning"):
+            warnings.simplefilter("error", pd.errors.Pandas4Warning)
+        _get("Europe/Berlin")

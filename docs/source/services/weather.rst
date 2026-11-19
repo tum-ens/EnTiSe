@@ -18,6 +18,32 @@ The Weather Service is designed with a modular architecture:
 
 3. **WeatherService Facade**: A facade that provides a simple interface for accessing weather data from different providers.
 
+Time Labels and Time Zones
+--------------------------
+
+The service returns data on EnTiSe's :ref:`time contract <time-contract>`:
+
+* **Start labels.** Each row is labelled at the start of its hour. Open-Meteo
+  labels its hourly aggregates (radiation means, precipitation, rain and
+  snowfall sums, evapotranspiration, sunshine duration and gusts) at the end of
+  the hour, so the service moves them one hour earlier. Instantaneous values,
+  such as air temperature, wind speed or the ``*_instant`` radiation variables,
+  keep their labels.
+* **One extra day.** To fill the last requested hour, the service requests one
+  more day than ``end_date`` and drops it again, so the result covers the local
+  days from ``start_date`` to ``end_date``, both included.
+* **Solar elevation.** ``solar_elevation_angle[degree]`` is the sun's elevation
+  at the middle of each hour.
+* **Time zones.** ``timezone`` sets both the local days of the request and the
+  zone of the returned timestamps:
+
+  * ``None`` (default): UTC days and UTC timestamps;
+  * an IANA name, such as ``"Europe/Berlin"``: that zone's local days and
+    timestamps. Case and surrounding spaces are ignored;
+  * ``"auto"``: the zone Open-Meteo assigns to the location.
+
+  Any other value raises a ``ValueError`` before the request.
+
 Usage Examples
 --------------
 

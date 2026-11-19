@@ -122,3 +122,30 @@ def test_a_seed_stays_an_integer_when_other_objects_have_no_seed():
     mixed, _ = _run([HOUSE, HEAT])
 
     assert alone.loc["SFH_low", "dhw:volume_total[l]"] == mixed.loc["SFH_low", "dhw:volume_total[l]"]
+
+
+def test_a_finer_internal_gains_table_than_the_weather_raises():
+    weather = _weather().iloc[:6]
+    instants = pd.to_datetime(weather["datetime"], utc=True)
+    gains = pd.DataFrame(
+        {
+            "datetime": pd.date_range(instants.iloc[0], periods=24, freq="15min"),
+            "residential": np.full(24, 150.0),
+        }
+    )
+    house = {
+        O.ID: "SFH_low",
+        O.TIMEZONE: BERLIN,
+        O.WEATHER: "weather",
+        "hvac": "1R1C",
+        "resistance[K W-1]": 0.005952381,
+        "capacitance[J K-1]": 11200000,
+        "ventilation[W K-1]": 61,
+        "gains_internal[W]": "gains",
+        "gains_internal_column": "residential",
+    }
+    generator = Generator(raise_on_error=True)
+    generator.add_objects([house])
+
+    with pytest.raises(ValueError, match=r"'gains'.*Resample"):
+        generator.generate({"weather": weather, "gains": gains}, workers=1, show_progress=False)

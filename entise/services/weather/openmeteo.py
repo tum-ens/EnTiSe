@@ -13,8 +13,9 @@ moves them to the start of their interval, as EnTiSe's time contract requires.
 
 import os
 from datetime import date, timedelta
+from functools import lru_cache
 from typing import Any, List, Optional
-from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+from zoneinfo import ZoneInfo, available_timezones
 
 import openmeteo_requests
 import pandas as pd
@@ -394,9 +395,7 @@ class OpenMeteoProvider(WeatherProvider):
         # Validate features
         validated_features = self._validate_features(features)
 
-        request_zone = "UTC" if timezone is None else timezone
-        if request_zone != "auto":
-            _zone(request_zone)
+        request_zone = "UTC" if timezone is None else _zone_name(timezone)
 
         # One more day gives the interval values of the last requested hour.
         last_day = date.fromisoformat(str(end_date))
@@ -419,10 +418,10 @@ class OpenMeteoProvider(WeatherProvider):
             logger.error(f"Error retrieving data from Open-Meteo API: {e}")
             raise
 
-        zone = _response_zone(response) if request_zone == "auto" else _zone(request_zone)
+        zone = _response_zone(response) if request_zone == "auto" else ZoneInfo(request_zone)
         df["datetime"] = pd.DatetimeIndex(df["datetime"]).tz_convert(zone)
-        day_after = pd.Timestamp(last_day + timedelta(days=1)).tz_localize(zone)
-        return df[df["datetime"] < day_after].reset_index(drop=True)
+        # Trim by the local calendar date, so a day that starts with a clock change at midnight needs no wall time.
+        return df[df["datetime"].dt.date <= last_day].reset_index(drop=True)
 
     def _response_to_dataframe(self, response: Any, features: list) -> pd.DataFrame:
         """Convert API response to DataFrame.
@@ -481,19 +480,30 @@ class OpenMeteoProvider(WeatherProvider):
                 continue
             rename_map[col] = self._convert_to_enriched_name(col, FEATURES)
         if rename_map:
-            df.rename(columns=rename_map, inplace=True)
+            df = df.rename(columns=rename_map)
 
         return df
 
 
-def _zone(name: str) -> ZoneInfo:
-    """Return the IANA time zone ``name``."""
-    try:
-        return ZoneInfo(str(name).strip())
-    except (ZoneInfoNotFoundError, ValueError, OSError) as exc:
-        raise ValueError(
-            f"Unknown time zone {name!r}. Use an IANA name such as 'Europe/Berlin', 'UTC' or 'auto'."
-        ) from exc
+@lru_cache(maxsize=1)
+def _zone_names() -> dict[str, str]:
+    """Map lower-case IANA names to their canonical spelling."""
+    return {name.lower(): name for name in available_timezones() | {"UTC"}}
+
+
+def _zone_name(name: str) -> str:
+    """Return the canonical IANA name for ``name``, ignoring case and surrounding whitespace, or ``"auto"``.
+
+    Raises:
+        ValueError: If ``name`` is neither an IANA time zone name nor ``"auto"``.
+    """
+    key = str(name).strip().lower()
+    if key == "auto":
+        return "auto"
+    canonical = _zone_names().get(key)
+    if canonical is None:
+        raise ValueError(f"Unknown time zone {name!r}. Use an IANA name such as 'Europe/Berlin', 'UTC' or 'auto'.")
+    return canonical
 
 
 def _response_zone(response: Any) -> ZoneInfo:
@@ -502,7 +512,10 @@ def _response_zone(response: Any) -> ZoneInfo:
     if isinstance(name, bytes):
         name = name.decode()
     try:
-        return _zone(name)
+        canonical = _zone_name(name)
+        if canonical == "auto":
+            raise ValueError(name)
+        return ZoneInfo(canonical)
     except ValueError:
         logger.warning(f"Open-Meteo returned the time zone {name!r}, which is not an IANA name; using UTC.")
         return ZoneInfo("UTC")

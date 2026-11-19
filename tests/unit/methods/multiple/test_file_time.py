@@ -100,3 +100,28 @@ def test_the_callers_table_is_unchanged():
     FileLoader().generate(_object(), {"table": table})
 
     pd.testing.assert_frame_equal(table, original)
+
+
+def test_a_weather_key_that_names_a_missing_table_raises():
+    with pytest.raises(ValueError, match=r"'house'.*'site_b'"):
+        FileLoader().generate(_object(**{O.WEATHER: "site_b"}), {"table": _table()})
+
+
+def test_a_finer_table_than_the_weather_raises_instead_of_being_sampled():
+    # A 15-minute table on hourly weather: keeping every fourth row would change the energy.
+    index = pd.date_range("2022-03-26 22:00", periods=24, freq="15min", tz="UTC")
+    table = pd.DataFrame({C.DATETIME: index, "load[W]": np.arange(24, dtype=float)})
+
+    with pytest.raises(ValueError, match=r"'table'.*2022-03-26 22:15.*Resample"):
+        FileLoader().generate(_object(**{O.WEATHER: "weather"}), {"table": table, "weather": _weather(6)})
+
+
+def test_rows_outside_the_weather_span_are_ignored():
+    index = pd.date_range("2022-03-26 18:00", periods=16, freq="h", tz="UTC")
+    table = pd.DataFrame({C.DATETIME: index, "load[W]": np.arange(16, dtype=float)})
+
+    result = FileLoader().generate(_object(**{O.WEATHER: "weather"}), {"table": table, "weather": _weather(6)})[
+        "timeseries"
+    ]
+
+    assert list(result["load[W]"]) == [4.0, 5.0, 6.0, 7.0, 8.0, 9.0]

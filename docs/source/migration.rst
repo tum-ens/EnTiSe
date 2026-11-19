@@ -45,8 +45,20 @@ it:
     df["datetime"] = df["datetime"].dt.tz_localize("Europe/Berlin", ambiguous="infer")
 
 **A repeated or missing timestamp raises an error** that names the table and
-the timestamp. Rows out of order are sorted by time. Methods with a fixed time
-step (the RC models, PV and wind) also reject gaps.
+the timestamp. Rows out of order are sorted by time.
+
+**Gaps raise an error** in the methods that need a regular time step:
+
+- the RC models (1R0C, 1R1C, 5R1C, 7R2C), PV and wind need a step that is
+  regular in elapsed time;
+- demandlib electricity and heat, DistrictHeatingSim, PyLPG and Jordan-Vajen
+  accept a step that is regular in elapsed time or on the object's local
+  clock. Daily data labelled at local midnight therefore works across daylight
+  saving changes, although those days last 23 or 25 hours.
+
+Ruhnau, GeoMA, PHT and ``file`` do not check the step. Before, gaps were
+accepted and most calendar methods shifted every later row onto a regular
+grid.
 
 The site time zone
 ------------------
@@ -82,13 +94,38 @@ such as irradiance, precipitation or power, are means or sums over
 ``[t, t + step)``. Instantaneous quantities, such as air temperature, are
 values at ``t``.
 
-**Weather from Open-Meteo or a similar source** labels hourly irradiance at the
-end of the hour. Shift those columns one row earlier:
+**Weather downloaded from Open-Meteo directly, or from a similar source,**
+labels its hourly aggregates at the end of the hour: radiation means,
+precipitation, rain and snowfall sums, evapotranspiration, sunshine duration
+and gusts. Shift exactly those columns one row earlier, and leave
+instantaneous values, including the ``*_instant`` radiation variables, at
+their labels. With EnTiSe's column names:
 
 .. code-block:: python
 
-    columns = [c for c in weather.columns if c.endswith("[W m-2]")]
+    aggregates = [
+        "global_horizontal_irradiance[W m-2]",
+        "direct_horizontal_irradiance[W m-2]",
+        "diffuse_horizontal_irradiance[W m-2]",
+        "direct_normal_irradiance[W m-2]",
+        "global_tilted_irradiance[W m-2]",
+        # Open-Meteo's terrestrial_radiation; its _instant variant has the same name, so leave
+        # this one out if your table holds the instantaneous values.
+        "surface_upwelling_longwave_flux_in_air[W m-2]",
+        "precipitation_amount[kg m-2]",
+        "rainfall_amount[kg m-2]",
+        "thickness_of_snowfall_amount[m]",
+        "water_evapotranspiration_amount[kg m-2]",
+        "duration_of_sunshine[s]",
+        "wind_speed_of_gust[m s-1]@10m",
+    ]
+    columns = [c for c in aggregates if c in weather.columns]
     weather[columns] = weather[columns].shift(-1)
+
+The last row then has no value for those columns; drop it, or fetch one more
+hour. For your own data, the rule is the same: shift every column that holds a
+mean, sum or maximum over the interval that ends at its label; values measured
+at the label stay where they are.
 
 EnTiSe warns when irradiance in a weather table peaks about one step after
 solar noon, which indicates end labels. The check needs at least 14 days of
@@ -127,8 +164,9 @@ still align.
 timestamps keeps its instants; if the object also names a ``weather`` table,
 the file is aligned to the weather's instants and must cover them. A table
 without timestamps is used row by row, one row per weather step, with a
-warning; without a ``weather`` key it raises an error. The ``datetime`` column
-becomes the index. Before, ``file`` returned the table unchanged.
+warning; without a ``weather`` key it raises an error, as it does when the
+``weather`` key names a table that is missing. The ``datetime`` column becomes
+the index. Before, ``file`` returned the table unchanged.
 
 HVAC (1R0C, 1R1C, 5R1C, 7R2C)
 -----------------------------
@@ -146,7 +184,11 @@ and 7R2C used the trapezoidal rule.
 **Auxiliary tables.** Internal gains, ventilation and ``table|column``
 references align with the weather by timestamp. A table without timestamps is
 used row by row only if it has one row per weather step, with a warning; any
-other mismatch raises an error. Before, 5R1C and 7R2C gave NaN temperatures and
+other mismatch raises an error. A table that is finer than the weather, such as
+15-minute gains on hourly weather, raises an error too: resample it to the
+weather's time step first, for example ``gains.resample("1h").mean()``. Rows
+before the first or after the last weather step are ignored. Before, a finer
+table was sampled at the weather's steps, which changed its energy. Before, 5R1C and 7R2C gave NaN temperatures and
 0 Wh heating for a gains table read with ``read_csv``, 1R0C and 1R1C ignored the
 timestamps of a table, and ``table|column`` power caps failed.
 
@@ -164,7 +206,9 @@ Demand and calendars
 ``demand[kWh]`` **is the demand over the simulated run.** demandlib
 electricity and DistrictHeatingSim now scale so that the series over the run
 adds up to ``demand[kWh]``, as demandlib heat already did. Before, electricity
-took the run's share of a yearly profile scaled to ``demand[kWh]``. For a run
+took the run's share of a yearly profile scaled to ``demand[kWh]``, and
+DistrictHeatingSim scaled each calendar year of the run to the full
+``demand[kWh]``. For a run
 that is not one calendar year, scale your input:
 
 .. code-block:: python
@@ -198,7 +242,11 @@ Other changes
 -------------
 
 - ``entise.set_accelerator()`` now applies to process workers on every call,
-  including reused ones.
+  including reused ones. A forced ``"numba"`` mode reports a missing Numba
+  when the accelerated solver runs, also in workers; before, workers could fall
+  back to NumPy silently.
+- PyLPG raises an error if the engine leaves minutes of the run without
+  output. Before, they were filled with zero.
 - Solar gains of objects in the same 0.1° cell share one solar position, taken
   at the cell centre, so results no longer depend on object order. Gains change
   slightly for objects away from a cell centre.

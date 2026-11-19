@@ -229,8 +229,11 @@ Time Contract
 - **Auxiliary tables** (internal gains, ventilation, ``file``) align with the
   weather by timestamp. A table without timestamps is used row by row only if
   it has one row per time step, with a warning; any other mismatch raises an
-  error. The positional warning appears once per table and run in each worker
-  process. A ``file`` table for an object without a ``weather`` key keeps its
+  error. Between the first and the last weather step, a table must not hold
+  instants the weather lacks: a finer table, such as 15-minute values on hourly
+  weather, raises an error asking you to resample it first; rows outside the
+  weather's span are ignored. The positional warning appears once per table
+  and run in each worker process. A ``file`` table for an object without a ``weather`` key keeps its
   own timestamps and must have them.
 
 Performance and Reproducibility
