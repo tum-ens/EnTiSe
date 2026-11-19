@@ -1,5 +1,6 @@
 """All time series of one object share one index, and their energy matches the summary."""
 
+import logging
 import os
 
 import numpy as np
@@ -124,15 +125,13 @@ def test_a_seed_stays_an_integer_when_other_objects_have_no_seed():
     assert alone.loc["SFH_low", "dhw:volume_total[l]"] == mixed.loc["SFH_low", "dhw:volume_total[l]"]
 
 
-def test_a_finer_internal_gains_table_than_the_weather_raises():
+def test_a_finer_internal_gains_table_is_averaged_to_the_weather_step(caplog):
     weather = _weather().iloc[:6]
     instants = pd.to_datetime(weather["datetime"], utc=True)
-    gains = pd.DataFrame(
-        {
-            "datetime": pd.date_range(instants.iloc[0], periods=24, freq="15min"),
-            "residential": np.full(24, 150.0),
-        }
-    )
+    quarter_hours = pd.date_range(instants.iloc[0], periods=24, freq="15min")
+    values = np.arange(24, dtype=float) * 10.0
+    fine = pd.DataFrame({"datetime": quarter_hours, "residential": values})
+    hourly = pd.DataFrame({"datetime": instants.to_numpy(), "residential": values.reshape(6, 4).mean(axis=1)})
     house = {
         O.ID: "SFH_low",
         O.TIMEZONE: BERLIN,
@@ -144,8 +143,16 @@ def test_a_finer_internal_gains_table_than_the_weather_raises():
         "gains_internal[W]": "gains",
         "gains_internal_column": "residential",
     }
-    generator = Generator(raise_on_error=True)
-    generator.add_objects([house])
 
-    with pytest.raises(ValueError, match=r"'gains'.*Resample"):
-        generator.generate({"weather": weather, "gains": gains}, workers=1, show_progress=False)
+    def run(gains):
+        generator = Generator(raise_on_error=True)
+        generator.add_objects([house])
+        return generator.generate({"weather": weather, "gains": gains}, workers=1, show_progress=False)
+
+    with caplog.at_level(logging.WARNING, logger="entise.core._time"):
+        fine_summary, fine_series = run(fine)
+    hourly_summary, hourly_series = run(hourly)
+
+    pd.testing.assert_frame_equal(fine_series["SFH_low"]["hvac"], hourly_series["SFH_low"]["hvac"])
+    pd.testing.assert_frame_equal(fine_summary, hourly_summary)
+    assert any("'gains'" in r.getMessage() and "averag" in r.getMessage() for r in caplog.records)

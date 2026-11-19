@@ -226,6 +226,7 @@ class RunTime:
         self._tables: dict[str, pd.DataFrame] = {}
         self._errors: dict[str, str] = {}
         self._positional_warned: set[str] = set()
+        self._averaged_warned: set[str] = set()
         self._derived: dict[tuple[str, str], Any] = {}
         self._label_checks: set[tuple[str, float]] = set()
         for key, frame in data.items():
@@ -272,6 +273,10 @@ class RunTime:
         self._label_checks.add(check)
         check_irradiance_labels(self.table(key), float(longitude), table=key)
 
+    def has_timestamps(self, key: str) -> bool:
+        """Return whether table ``key`` carries timestamps. A table that cannot be read counts as one."""
+        return key in self._tables or key in self._errors
+
     def table(self, key: str) -> pd.DataFrame:
         """Return the normalized table ``key``.
 
@@ -288,19 +293,35 @@ class RunTime:
             raise ValueError(f"Table '{key}' has no timestamps.")
         raise ValueError(f"Table '{key}' is not in the data.")
 
+    def _average(self, key: str, rows: pd.DataFrame, axis: pd.DatetimeIndex) -> pd.DataFrame:
+        """Average the rows of a finer table into the interval that starts at each instant of ``axis``."""
+        if key not in self._averaged_warned:
+            self._averaged_warned.add(key)
+            logger.warning(
+                "Table '%s' has a finer time step than the time axis; EnTiSe averages its rows over each time step.",
+                key,
+            )
+        starts = axis[axis.searchsorted(rows.index, side="right") - 1]
+        numeric = rows.select_dtypes("number").columns
+        how = {column: ("mean" if column in numeric else "first") for column in rows.columns}
+        averaged = rows.groupby(starts, sort=True).agg(how)[list(rows.columns)]
+        averaged.index = axis
+        return averaged
+
     def align(self, key: str, axis: pd.DatetimeIndex) -> pd.DataFrame:
         """Return table ``key`` on ``axis``.
 
         A table with timestamps is aligned by instant and must cover every
-        instant of ``axis``. Rows before the first or after the last instant are
-        ignored, but between them the table may hold no instant that ``axis``
-        lacks: a finer table would otherwise be sampled, which changes its energy.
+        instant of ``axis``. Rows before the first instant or after the last
+        interval are ignored. A finer table, with rows between the instants of
+        ``axis``, is averaged into the interval that starts at each instant
+        (numeric columns; other columns keep their value at the instant), with
+        one warning per table.
         A table without timestamps must have one row per instant. It is then
         aligned by position, with one warning per table.
 
         Raises:
-            ValueError: If the table does not cover the axis, holds instants
-                between the axis' instants, or has another length.
+            ValueError: If the table does not cover the axis or has another length.
         """
         if axis.tz is None:
             raise ValueError(f"The time axis for table '{key}' must be tz-aware.")
@@ -312,13 +333,10 @@ class RunTime:
                     f"Table '{key}' does not cover the time axis: {int(missing.sum())} of {len(axis)} instants are "
                     f"missing, the first at {axis[missing][0]:%Y-%m-%d %H:%M:%S%z}."
                 )
-            inside = table.index[(table.index >= axis[0]) & (table.index <= axis[-1])]
-            between = inside[~inside.isin(axis)]
-            if len(between):
-                raise ValueError(
-                    f"Table '{key}' has instants between the time steps of the axis, the first at "
-                    f"{between[0]:%Y-%m-%d %H:%M:%S%z}. Resample the table to the weather's time step first."
-                )
+            end = axis[-1] + (axis[-1] - axis[-2]) if len(axis) > 1 else axis[-1]
+            inside = table[(table.index >= axis[0]) & (table.index < end)] if len(axis) > 1 else table.iloc[:0]
+            if not inside.index.isin(axis).all():
+                return self._average(key, inside, axis)
             return table.reindex(axis)
 
         frame = self._frames.get(key)

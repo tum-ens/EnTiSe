@@ -12,18 +12,24 @@ The table follows EnTiSe's time contract. A table with timestamps is read as
 instants. If the object names a weather table, the file is aligned to the
 weather's instants; a table without timestamps is then used row by row, one row
 per weather step, with a warning. The output is indexed in the object's
-``timezone``, or in UTC when the run asks for it.
+``timezone``, or in UTC when the run asks for it. A table without timestamps for
+an object without weather is returned unchanged, with a warning.
 
 The main class, FileLoader, inherits from the Method base class and implements the
 required interface for integration with the EnTiSe framework.
 """
 
+import logging
+
 import pandas as pd
 
 from entise.constants import VALID_TYPES
+from entise.constants import Columns as C
 from entise.constants import Objects as O
 from entise.core._time import RUN_TIME_KEY, output_index, run_time
 from entise.core.base import Method
+
+logger = logging.getLogger(__name__)
 
 
 class FileLoader(Method):
@@ -173,9 +179,8 @@ def load_timeseries(obj: dict, data: dict) -> pd.DataFrame:
 
     Raises:
         TypeError: If the loaded data is not a DataFrame.
-        ValueError: If the table has no timestamps and the object names no weather,
-            if the named weather table is missing, or if the table does not fit the
-            weather (see ``RunTime.align``).
+        ValueError: If the named weather table is missing, if the table cannot be
+            read, or if it does not fit the weather (see ``RunTime.align``).
     """
     key = obj[O.FILE]
     df = data[key]
@@ -191,14 +196,18 @@ def load_timeseries(obj: dict, data: dict) -> pd.DataFrame:
                 f"Object '{obj.get(O.ID)}' names the weather table '{weather_key}', which is not in the data."
             )
         table = run.align(key, run.table(weather_key).index)
+    elif run.has_timestamps(key):
+        table = run.table(key)
     else:
-        try:
-            table = run.table(key)
-        except ValueError as exc:
-            raise ValueError(
-                f"{exc} Give the table a 'datetime' column, or name a weather table in the object's "
-                f"'{O.WEATHER}' key to use its rows in the weather's order."
-            ) from exc
+        logger.warning(
+            "Table '%s' has no timestamps and object '%s' names no weather table; EnTiSe returns the table "
+            "unchanged, so its index does not follow the object's time axis. Add a '%s' column or a '%s' key.",
+            key,
+            obj.get(O.ID),
+            C.DATETIME,
+            O.WEATHER,
+        )
+        return df.copy()
 
     table.index = output_index(table.index, obj, data)
     return table
