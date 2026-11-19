@@ -138,7 +138,9 @@ def analyze_results(df: dict, objects: pd.DataFrame, data: dict, save_figures: b
                 ts = df[obj_id][Types.HP][heating_col]
 
                 # Create a pivot table with hours as columns and days as rows
-                pivot_data = pd.DataFrame({"hour": ts.index.hour, "day_of_year": ts.index.dayofyear, "cop": ts.values})
+                pivot_data = pd.DataFrame(
+                    {"hour": ts.index.hour, "day_of_year": ts.index.day_of_year, "cop": ts.values}
+                )
                 pivot_table = pivot_data.pivot_table(values="cop", index="day_of_year", columns="hour", aggfunc="mean")
 
                 # Create heatmap
@@ -274,7 +276,7 @@ def analyze_results(df: dict, objects: pd.DataFrame, data: dict, save_figures: b
                 # Check if 'datetime' column exists
                 if "datetime" in weather_data.columns:
                     weather_data["datetime"] = pd.to_datetime(weather_data["datetime"], utc=True)
-                    weather_data.set_index("datetime", inplace=True)
+                    weather_data = weather_data.set_index("datetime")
                 # If not, check if the index can be converted to datetime
                 else:
                     try:
@@ -286,7 +288,7 @@ def analyze_results(df: dict, objects: pd.DataFrame, data: dict, save_figures: b
                         ]
                         if datetime_cols:
                             weather_data[datetime_cols[0]] = pd.to_datetime(weather_data[datetime_cols[0]], utc=True)
-                            weather_data.set_index(datetime_cols[0], inplace=True)
+                            weather_data = weather_data.set_index(datetime_cols[0])
                         else:
                             # If no datetime column is found, skip this iteration
                             continue

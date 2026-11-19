@@ -94,7 +94,7 @@ def analyze_results(df: dict, objects: pd.DataFrame, data: dict, save_figures: b
             # Get the weather data
             weather_data = data["weather"].copy()
             weather_data["datetime"] = pd.to_datetime(weather_data["datetime"])
-            weather_data.set_index("datetime", inplace=True)
+            weather_data = weather_data.set_index("datetime")
 
             # Ensure the index is a DatetimeIndex
             if not isinstance(weather_data.index, pd.DatetimeIndex):
@@ -210,14 +210,14 @@ def analyze_results(df: dict, objects: pd.DataFrame, data: dict, save_figures: b
             # Get the weather data
             weather_data = data["weather"].copy()
             weather_data["datetime"] = pd.to_datetime(weather_data["datetime"])
-            weather_data.set_index("datetime", inplace=True)
+            weather_data = weather_data.set_index("datetime")
 
             # Ensure the index is a DatetimeIndex
             if not isinstance(weather_data.index, pd.DatetimeIndex):
                 weather_data.index = pd.to_datetime(weather_data.index, utc=True)
 
             # Resample weather data to hourly frequency
-            weather_resampled = weather_data.resample("H").mean()
+            weather_resampled = weather_data.resample("h").mean()
 
             # Merge power data with wind direction
             merged_data = pd.DataFrame({"power": ts.values.flatten()}, index=ts.index)

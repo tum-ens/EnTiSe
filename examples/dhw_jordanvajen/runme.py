@@ -46,8 +46,8 @@ def analyze_results(df: dict, objects: pd.DataFrame, save_figures: bool = False)
         axes = axes.flatten()
 
         # Plot each object
-        objects.set_index("id", inplace=True)
-        for i, (obj_id, object) in enumerate(objects.iterrows()):
+        objects_by_id = objects.set_index("id")
+        for i, (obj_id, object) in enumerate(objects_by_id.iterrows()):
             plot_dhw_demand(axes[i], obj_id, df, f"Building ID: {obj_id} - Dwelling Size: {object[O.DWELLING_SIZE]}")
 
         plt.gca().xaxis.set_major_locator(mdates.MonthLocator(interval=2))
@@ -98,7 +98,7 @@ def analyze_results(df: dict, objects: pd.DataFrame, save_figures: bool = False)
 
         # Extract weekday and weekend data
         obj6_data = df[6][Types.DHW]
-        obj6_data["day_of_week"] = obj6_data.index.dayofweek
+        obj6_data["day_of_week"] = obj6_data.index.day_of_week
         weekday_data = obj6_data[obj6_data["day_of_week"] < 5]  # Monday-Friday
         weekend_data = obj6_data[obj6_data["day_of_week"] >= 5]  # Saturday-Sunday
 

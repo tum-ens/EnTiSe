@@ -114,7 +114,7 @@ def main(num: int = 1, print_summary: bool = False, analysis: bool = False, save
     if print_summary:
         print("Summary:")
         summary_kwh = (summary / 1000).round(1)
-        summary_kwh.rename(columns=lambda x: x.replace("[W]", "[kW]").replace("[Wh]", "[kWh]"), inplace=True)
+        summary_kwh = summary_kwh.rename(columns=lambda x: x.replace("[W]", "[kW]").replace("[Wh]", "[kWh]"))
         print(summary_kwh.to_string())
 
     if analysis:

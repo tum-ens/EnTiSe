@@ -253,7 +253,7 @@ class Ruhnau(Method):
             # Mean air temperature of the last 24 hours, whatever the time step.
             df["rolling_temp"] = df[C.TEMP_AIR].rolling("24h", min_periods=1).mean()
             df[C.TEMP_SOIL] = df["rolling_temp"].apply(_calc_soil_temp)
-            df.drop(columns=["rolling_temp"], inplace=True)
+            df = df.drop(columns=["rolling_temp"])
 
         # Add groundwater temperature column if missing
         if C.TEMP_WATER_GROUND not in df.columns:

@@ -124,9 +124,7 @@ class InternalTimeSeries(AuxiliaryMethod):
             ) from err
         # Match the dtype of the constant/inactive paths so downstream
         # consumers (e.g. the R1C1 numba wrapper) get a zero-copy view.
-        return pd.DataFrame(
-            {O.GAINS_INTERNAL: internal_gains.astype(np.float32, copy=False)}, index=internal_gains.index
-        )
+        return pd.DataFrame({O.GAINS_INTERNAL: internal_gains.astype(np.float32)}, index=internal_gains.index)
 
 
 class InternalOccupancy(Method):

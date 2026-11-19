@@ -36,7 +36,7 @@ def test_install(tmp_path):
         assert Path(entise.__file__).is_relative_to(Path(sys.prefix))
         assert entise.__version__ == dist.version != "unknown"
         base_requirements = {item.split(";", 1)[0] for item in dist.requires if ";" not in item}
-        assert base_requirements == {"numpy>=2.0.0", "pandas<3.0.0", "joblib>=1.0.0", "tqdm>=4.0.0"}
+        assert base_requirements == {"numpy>=2.0.0", "pandas<4,>=2.2.2", "joblib>=1.0.0", "tqdm>=4.0.0"}
         assert len(list_strategies()) == len(method_registry) == 16
         assert len(methods_by_type) == 10
         assert get_strategy_extra("districtheatingsim") is None
