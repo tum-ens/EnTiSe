@@ -1,5 +1,4 @@
 import logging
-from typing import Optional
 
 import numpy as np
 import pandas as pd
@@ -62,18 +61,16 @@ class DistrictHeatSim(Method):
         f"{Types.HEATING}{SEP}load_dhw[W]": "DHW load per timestep (derived via dhw_share)",
     }
 
+    input_aliases = {"annual_demand_kwh": O.DEMAND_KWH}
+
     def generate(
         self,
         obj: dict = None,
         data: dict = None,
         results: dict = None,
         ts_type: str = Types.HEATING,
-        *,
-        annual_demand_kwh: float = None,
-        weather: pd.DataFrame = None,
-        profile_type: str = None,
-        dhw_share: Optional[float] = None,
-    ):
+        **inputs,
+    ) -> dict:
         """Generate a heating load timeseries using DistrictHeatingSim's BDEW heat model.
 
         This method prepares inputs (including optional overrides), computes the
@@ -87,13 +84,18 @@ class DistrictHeatSim(Method):
             data: Data dictionary containing the weather dataframe under O.WEATHER.
             results: Unused placeholder for interface compatibility.
             ts_type: Timeseries type, defaults to Types.HEATING.
-            annual_demand_kwh: Optional heat demand in kWh over the simulated run (the
-                keyword keeps its historical name).
-            weather: Optional weather dataframe override with C.DATETIME and C.TEMP_AIR.
-            profile_type: Optional BDEW profile type (e.g., "HEF03", "GBH01").
-                          First three characters define building type, last two subtype.
-            dhw_share: Optional domestic hot water share (0–1), passed to
-                       DistrictHeatingSim as real_ww_share.
+            **inputs: Any input of the method, by its key or by its Python name (the key
+                without its unit, such as ``area`` for ``area[m2]``). Keywords override the
+                same keys in ``obj``. A table input, such as ``weather``, can be a
+                DataFrame. For example:
+
+                - ``demand`` or ``annual_demand_kwh`` (``demand[kWh]``): Heat demand in kWh over the
+                  simulated run.
+                - ``weather`` (DataFrame or str): Weather with C.DATETIME and C.TEMP_AIR.
+                - ``profile_type`` (str): BDEW profile type (e.g., "HEF03", "GBH01"). The first three
+                  characters define the building type, the last two the subtype.
+                - ``dhw_share`` (float): Domestic hot water share (0–1), passed to DistrictHeatingSim as
+                  real_ww_share.
 
         Returns:
             dict: {"summary": {...}, "timeseries": DataFrame with columns:
@@ -102,14 +104,7 @@ class DistrictHeatSim(Method):
               - "heating:load_dhw[W]" (derived)
             indexed like the input weather datetimes.
         """
-        processed_obj, processed_data = self._process_kwargs(
-            obj,
-            data,
-            annual_demand_kwh=annual_demand_kwh,
-            weather=weather,
-            profile_type=profile_type,
-            dhw_share=dhw_share,
-        )
+        processed_obj, processed_data = self._process_kwargs(obj, data, ts_type, **inputs)
         processed_obj, processed_data = self._get_input_data(processed_obj, processed_data, ts_type)
 
         ts_total_w = calculate_timeseries(processed_obj, processed_data)

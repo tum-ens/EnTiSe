@@ -73,15 +73,8 @@ class PHT(Method):
         data: dict = None,
         results: dict = None,
         ts_type: str = Types.OCCUPANCY,
-        *,
-        lambda_occ: float = None,
-        baseline_offset: float = None,
-        detection_threshold: int = None,
-        night_schedule: bool = None,
-        night_schedule_start: int = None,
-        night_schedule_end: int = None,
-        night_schedule_duration: float = None,
-    ):
+        **inputs,
+    ) -> dict:
         """
         Generate a binary occupancy schedule from electricity demand using PHT.
 
@@ -110,15 +103,20 @@ class PHT(Method):
                 with a datetime column Columns.DATETIME and at least one power column.
             ts_type (str, optional):
                 Target time series type. Defaults to Types.OCCUPANCY.
-            lambda_occ (float, optional): Smoothing factor for the running average used by PHT.
-            baseline_offset (float, optional): Adjusts the deviation baseline.
-            detection_threshold (int, optional): Sets the change detection sensitivity.
-            night_schedule (bool, optional): If True, apply nightly zeroing.
-            night_schedule_start (int, optional): Hour marking the start of the nightly off period.
-            night_schedule_end (int, optional): Hour marking the end of the nightly off period.
-            night_schedule_duration (float, optional): Hours of occupancy inside the evening
-                window that trigger the hold until 09:00 local time (key
-                ``night_schedule_duration[h]``, default 1).
+            **inputs: Any input of the method, by its key or by its Python name (the key
+                without its unit, such as ``area`` for ``area[m2]``). Keywords override the
+                same keys in ``obj``. For example:
+
+                - ``electricity`` (DataFrame): The electricity time series, in place of the
+                  electricity result in ``results``.
+                - ``lambda_occ`` (float): Smoothing factor for the running average used by PHT.
+                - ``baseline_offset`` (float): Adjusts the deviation baseline.
+                - ``detection_threshold`` (int): Sets the change detection sensitivity.
+                - ``night_schedule`` (bool): If True, apply nightly zeroing.
+                - ``night_schedule_start`` and ``night_schedule_end`` (int): Hours marking the start and
+                  end of the nightly off period.
+                - ``night_schedule_duration`` (``night_schedule_duration[h]``): Hours of occupancy inside
+                  the evening window that trigger the hold until 09:00 local time (default 1).
 
         Returns:
             dict: A dictionary with two keys:
@@ -138,19 +136,7 @@ class PHT(Method):
         """
 
         # Process keyword arguments
-        processed_obj, processed_data = self._process_kwargs(
-            obj,
-            data,
-            lambda_occ=lambda_occ,
-            baseline_offset=baseline_offset,
-            detection_threshold=detection_threshold,
-            night_schedule=night_schedule,
-            night_schedule_start=night_schedule_start,
-            night_schedule_end=night_schedule_end,
-            night_schedule_duration=night_schedule_duration,
-        )
-        if night_schedule_duration is not None:
-            processed_obj[O.NIGHT_SCHEDULE_DURATION] = night_schedule_duration
+        processed_obj, processed_data, results = self._process_inputs(obj, data, results, ts_type, **inputs)
 
         # Get input data
         processed_obj, processed_data = self._get_input_data(processed_obj, processed_data, results, ts_type)

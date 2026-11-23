@@ -58,6 +58,7 @@ def test_ruhnau_initialization():
         O.GRADIENT_SINK,
         O.TEMP_WATER,
         O.CORRECTION_FACTOR,
+        O.COP_COEFFICIENTS,
         O.HP_SYSTEM,
         O.TIMEZONE,
     }

@@ -71,14 +71,10 @@ class WPLib(Method):
         self,
         obj: dict = None,
         data: dict = None,
-        results: dict | None = None,
+        results: dict = None,
         ts_type: str = Types.WIND,
-        *,
-        weather: pd.DataFrame = None,
-        power: float = None,
-        turbine_type: str = None,
-        hub_height: float = None,
-    ):
+        **inputs,
+    ) -> dict:
         """Generate wind power time series based on input parameters and weather data.
 
         This method implements the abstract generate method from the Method base class.
@@ -90,10 +86,15 @@ class WPLib(Method):
             data (dict, optional): Dictionary containing input data. Defaults to None.
             results (dict, optional): Dictionary with results from previously generated time series
             ts_type (str, optional): Time series type to generate. Defaults to Types.WIND.
-            weather (pd.DataFrame, optional): Weather data with wind speed and direction. Defaults to None.
-            power (float, optional): System power rating in watts. Defaults to None.
-            turbine_type (str, optional): Type of wind turbine. Defaults to None.
-            hub_height (float, optional): Hub height of the turbine in meters. Defaults to None.
+            **inputs: Any input of the method, by its key or by its Python name (the key
+                without its unit, such as ``area`` for ``area[m2]``). Keywords override the
+                same keys in ``obj``. A table input, such as ``weather``, can be a
+                DataFrame. For example:
+
+                - ``weather`` (DataFrame or str): Weather data with wind speed and direction.
+                - ``power`` (``power[W]``): System power rating in W.
+                - ``turbine_type`` (str): Type of wind turbine.
+                - ``hub_height`` (``hub_height[m]``): Hub height of the turbine in m.
 
         Returns:
             dict: Dictionary containing:
@@ -110,21 +111,14 @@ class WPLib(Method):
             >>> # Using explicit parameters
             >>> result = windlib.generate(power=5000, weather=weather_df)
             >>> # Or using dictionaries
-            >>> obj = {"power": 5000, "weather": "weather"}
+            >>> obj = {"power[W]": 5000, "weather": "weather"}
             >>> data = {"weather": weather_df}  # DataFrame with wind data
             >>> result = windlib.generate(obj=obj, data=data)
             >>> summary = result["summary"]
             >>> timeseries = result["timeseries"]
         """
         # Process keyword arguments
-        processed_obj, processed_data = self._process_kwargs(
-            obj,
-            data,
-            weather=weather,
-            power=power,
-            turbine_type=turbine_type,
-            hub_height=hub_height,
-        )
+        processed_obj, processed_data = self._process_kwargs(obj, data, ts_type, **inputs)
 
         # Continue with existing implementation
         # Read the tables once for this call; every helper below reuses this run.

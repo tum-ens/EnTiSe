@@ -35,8 +35,7 @@ class PyLPG(Method):
     required_keys = [O.HOUSEHOLDS, O.OCCUPANTS_PER_HOUSEHOLD, O.DATETIMES]
     optional_keys = [O.ENERGY_INTENSITY, O.TIMEZONE]
 
-    required_timeseries = [O.DATETIMES]
-    optional_timeseries = []
+    required_data = [O.DATETIMES]
 
     output_summary = {
         f"{Types.ELECTRICITY}{SEP}{C.DEMAND}[Wh]": "total electricity demand",
@@ -52,11 +51,7 @@ class PyLPG(Method):
         data: dict = None,
         results: dict = None,
         ts_type: str = Types.ELECTRICITY,
-        *,
-        households: Optional[int] = None,
-        occupants_per_household: Optional[int] = None,
-        datetimes: Optional[pd.DataFrame] = None,
-        energy_intensity: Optional[str] = None,
+        **inputs,
     ) -> dict:
         """Generate an electricity load timeseries using the PyLPG backend.
 
@@ -86,11 +81,16 @@ class PyLPG(Method):
                 of wall-clock timestamps (tz-naive or parseable strings).
             results: Unused placeholder for interface compatibility.
             ts_type: Timeseries type; defaults to Types.ELECTRICITY (ignored here).
-            households: Keyword override for O.HOUSEHOLDS.
-            occupants_per_household: Keyword override for O.OCCUPANTS_PER_HOUSEHOLD.
-            datetimes: Keyword override providing the O.DATETIMES DataFrame.
-            energy_intensity: Keyword override for O.ENERGY_INTENSITY (e.g., a
-                PyLPG intensity scenario name).
+            **inputs: Any input of the method, by its key or by its Python name (the key
+                without its unit, such as ``area`` for ``area[m2]``). Keywords override the
+                same keys in ``obj``. A table input, such as ``datetimes``, can be a
+                DataFrame. For example:
+
+                - ``households`` (int): Number of households to simulate.
+                - ``occupants_per_household`` (int): Occupants per household.
+                - ``datetimes`` (DataFrame or str): The run's datetimes, or the key of their
+                  table in ``data``.
+                - ``energy_intensity`` (str): PyLPG energy intensity scenario name.
 
         Returns:
             dict: A dictionary with keys:
@@ -100,14 +100,7 @@ class PyLPG(Method):
                   "ELECTRICITY|load[W]" containing integer Watts indexed like
                   the input datetimes.
         """
-        processed_obj, processed_data = self._process_kwargs(
-            obj,
-            data,
-            households=households,
-            occupants_per_household=occupants_per_household,
-            datetimes=datetimes,
-            energy_intensity=energy_intensity,
-        )
+        processed_obj, processed_data = self._process_kwargs(obj, data, ts_type, **inputs)
 
         processed_obj, processed_data = self._get_input_data(processed_obj, processed_data, ts_type)
 

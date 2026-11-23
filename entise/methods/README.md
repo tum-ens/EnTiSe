@@ -9,6 +9,11 @@ auxiliary calculations they use.
   Choose a name that is unique regardless of case because registration uses
   the lowercase name. Keep the declared inputs and output metadata in sync
   with `generate`. The [Ruhnau heat pump method](hp/ruhnau.py) is an example.
+- Give `generate` the shared signature
+  `generate(self, obj=None, data=None, results=None, ts_type=<type>, **inputs)` and
+  resolve the keywords first with `self._process_kwargs(obj, data, ts_type, **inputs)`.
+  Direct calls then accept every declared input by key or by Python name. Map a
+  Python name kept from an earlier release to its key in `input_aliases`.
 - Add a built-in strategy to the [registry](../core/registry.py) and declare its
   install extra in [pyproject.toml](../../pyproject.toml), even when it has no
   optional dependencies. Include the method extra in its type group. Verify

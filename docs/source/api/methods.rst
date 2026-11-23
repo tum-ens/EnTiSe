@@ -52,7 +52,7 @@ When using direct method access, EnTiSe provides flexible ways to pass parameter
    .. code-block:: python
 
       # Pass parameters as dictionaries
-      obj = {"latitude": 48.1, "longitude": 11.6, "power": 5000}
+      obj = {"latitude[degree]": 48.1, "longitude[degree]": 11.6, "power[W]": 5000}
       data = {"weather": weather_df}
       result = pvlib.generate(obj=obj, data=data)
 
@@ -68,24 +68,43 @@ When using direct method access, EnTiSe provides flexible ways to pass parameter
           weather=weather_df
       )
 
-3. **Combining Both Approaches**:
+.. _direct_input_names:
 
-   .. code-block:: python
+Discovering and overriding inputs
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-      # Use dictionaries for most parameters
-      obj = {"latitude": 48.1, "longitude": 11.6}
-      data = {"weather": weather_df}
+Call ``input_names()`` on the method class or instance to list its supported input
+names. The returned dictionary maps every accepted name to its full input key.
+It includes Python names without units or heights, full keys, and any aliases
+from earlier releases. Use ``get_requirements()`` to see which input keys and
+tables are required or optional.
 
-      # Override specific parameters with explicit values
-      result = pvlib.generate(
-          obj=obj,
-          data=data,
-          power=5000  # This overrides any "power" value in obj
-      )
+.. code-block:: python
 
-The method automatically determines whether each parameter belongs in the object
-dictionary or the data dictionary based on the method's defined `required_keys`,
-`optional_keys`, `required_timeseries`, and `optional_timeseries` attributes.
+   names = PVLib.input_names()
+   assert names["power"] == "power[W]"
+   assert names["power[W]"] == "power[W]"
+
+Pass a dictionary or a pandas Series row as ``obj``. You can then override
+individual inputs with keywords while keeping the rest of the row. In this
+example, ``power=5000`` overrides both object entries for power.
+
+.. code-block:: python
+
+   obj = {
+       "latitude[degree]": 48.1,
+       "longitude[degree]": 11.6,
+       "power[W]": 3000,
+       "pv:power[W]": 4000,
+   }
+   result = pvlib.generate(obj=obj, power=5000, weather=weather_df)
+
+A keyword value of ``None`` leaves the corresponding object entry in place.
+A table keyword accepts a DataFrame or the name of a table already in
+``data``. To use a full key as a keyword, pass it through a dictionary such
+as ``**{"power[W]": 5000}``. Unknown names and two non-None keyword values
+for the same input raise ``TypeError``.
+
 
 HVAC Methods
 ------------

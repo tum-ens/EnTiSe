@@ -107,29 +107,16 @@ class R1C1(Method):
         f"{Types.COOLING}{SEP}latent_{C.LOAD}[W]": "latent cooling load",
     }
 
+    input_aliases = {"temp_init": O.TEMP_INIT, "temp_min": O.TEMP_MIN, "temp_max": O.TEMP_MAX}
+
     def generate(
         self,
         obj: dict = None,
         data: dict = None,
-        results: dict | None = None,
+        results: dict = None,
         ts_type: str = Types.HVAC,
-        *,
-        capacitance: float = None,
-        resistance: float = None,
-        weather: pd.DataFrame = None,
-        power_heating: float | pd.Series = None,
-        power_cooling: float | pd.Series = None,
-        active_heating: bool = None,
-        active_cooling: bool = None,
-        ventilation: float = None,
-        temp_init: float = None,
-        temp_min: float = None,
-        temp_max: float = None,
-        gains_internal: pd.DataFrame = None,
-        gains_solar: pd.DataFrame = None,
-        area: float = None,
-        height: float = None,
-    ):
+        **inputs,
+    ) -> dict:
         """Generate HVAC time series based on input parameters and weather data.
 
         This method implements the abstract generate method from the Method base class.
@@ -141,25 +128,27 @@ class R1C1(Method):
             data (dict, optional): Dictionary containing input data.
             results (dict, optional): Dictionary with results from previously generated time series
             ts_type (str, optional): Time series type to generate. Defaults to Types.HVAC.
-            capacitance (float, optional): Thermal capacitance in J/K.
-            resistance (float, optional): Thermal resistance in K/W.
-            weather (pd.DataFrame, optional): Weather data with outdoor temperature.
-            power_heating (float or pd.Series, optional): Maximum heating power in W.
-            power_cooling (float or pd.Series, optional): Maximum cooling power in W.
-            active_heating (bool, optional): Whether heating is active.
-            active_cooling (bool, optional): Whether cooling is active.
-            ventilation (float, optional): Ventilation rate in W/K.
-            temp_init (float, optional): Initial indoor temperature in °C.
-            temp_min (float, optional): Minimum indoor temperature in °C.
-            temp_max (float, optional): Maximum indoor temperature in °C.
-            gains_internal (pd.DataFrame, optional): Internal SENSIBLE heat gains in W.
-                Do NOT include the latent portion here — pass that via
-                `gains_internal_latent[W]` on the object. ASHRAE metabolic
-                tables split a seated occupant as ~75 W sensible + ~55 W
-                latent; the sensible number is what belongs in this input.
-            gains_solar (pd.DataFrame, optional): Solar heat gains in W.
-            area (float, optional): Heated area in m².
-            height (float, optional): Heated height in m³.
+            **inputs: Any input of the method, by its key or by its Python name (the key
+                without its unit, such as ``area`` for ``area[m2]``). Keywords override the
+                same keys in ``obj``. A table input, such as ``weather``, can be a
+                DataFrame. For example:
+
+                - ``capacitance`` (``capacitance[J K-1]``): Thermal capacitance in J/K.
+                - ``resistance`` (``resistance[K W-1]``): Thermal resistance in K/W.
+                - ``weather`` (DataFrame or str): Weather data with outdoor temperature.
+                - ``power_heating`` and ``power_cooling`` (``[W]``, float or Series): Maximum heating
+                  and cooling power in W.
+                - ``active_heating`` and ``active_cooling`` (bool): Whether heating and cooling are active.
+                - ``ventilation`` (``ventilation[W K-1]``): Ventilation rate in W/K.
+                - ``temp_init``, ``temp_min`` and ``temp_max`` (``init_temperature[C]``,
+                  ``min_temperature[C]``, ``max_temperature[C]``): Initial, minimum and maximum
+                  indoor temperature in °C.
+                - ``gains_internal`` (``gains_internal[W]``): Internal SENSIBLE heat gains in W.
+                  Do NOT include the latent portion here — pass that via
+                  ``gains_internal_latent``. ASHRAE metabolic tables split a seated occupant
+                  as ~75 W sensible + ~55 W latent; the sensible number belongs here.
+                - ``gains_solar`` (``gains_solar[W]``): Solar heat gains in W.
+                - ``area`` (``area[m2]``) and ``height`` (``height[m]``): Heated area in m² and height in m.
 
         Returns:
             dict: Dictionary containing:
@@ -171,25 +160,7 @@ class R1C1(Method):
         Raises:
             Exception: If required data is missing or invalid.
         """
-        obj, data = self._process_kwargs(
-            obj,
-            data,
-            capacitance=capacitance,
-            resistance=resistance,
-            weather=weather,
-            power_heating=power_heating,
-            power_cooling=power_cooling,
-            active_heating=active_heating,
-            active_cooling=active_cooling,
-            ventilation=ventilation,
-            temp_init=temp_init,
-            temp_min=temp_min,
-            temp_max=temp_max,
-            gains_internal=gains_internal,
-            gains_solar=gains_solar,
-            area=area,
-            height=height,
-        )
+        obj, data = self._process_kwargs(obj, data, ts_type, **inputs)
         require_module("hvac-1r1c", "pvlib")
         # Read the tables once for this call; every helper below reuses this run.
         data = {**data, RUN_TIME_KEY: run_time(data)}

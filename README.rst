@@ -137,26 +137,34 @@ For generating multiple time series at once, you can use the `Generator` and eit
 Direct Method Access
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-For more granular access you can work with the methods directly:
+For more granular access you can call a method directly:
 
 .. code-block:: python
 
    from entise.methods.pv import PVLib
 
-   # Create an instance
-   pvlib = PVLib()
-
-   # Generate time series
-   result = pvlib.generate(
-       latitude=48.1,
-       longitude=11.6,
-       power=5000,
-       weather=weather_df
+   pv = PVLib()
+   result = pv.generate(
+       latitude=48.1,  # latitude[degree]
+       longitude=11.6,  # longitude[degree]
+       power=5000,  # power[W], rated power of the system
+       weather=weather_df,  # DataFrame with solar radiation data
    )
 
-   # Access results
    summary = result["summary"]
    timeseries = result["timeseries"]
+
+Every method takes the same arguments: ``generate(obj=None, data=None, results=None, ts_type=..., **inputs)``.
+Use ``PVLib.input_names()`` to discover which names the method accepts. It maps each accepted name
+to its full input key. The mapping includes the full key, its Python name without the unit and height
+(such as ``power`` for ``power[W]``), and any aliases from earlier releases.
+
+You can pass a dictionary or a pandas Series row as ``obj`` and supply individual inputs as
+keywords in the same call. A keyword value overrides both the unprefixed key and the key
+prefixed with the active time series type, such as ``pv:power[W]``. A keyword value of ``None``
+leaves the object value in place. Pass a table input such as ``weather`` as a DataFrame or as
+the name of a table in ``data``. Unknown names and two non-None keyword values for the same
+input raise ``TypeError``.
 
 For more detailed examples, check the `examples` directory.
 

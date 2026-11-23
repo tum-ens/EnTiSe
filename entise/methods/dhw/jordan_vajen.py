@@ -113,24 +113,16 @@ class JordanVajen(Method):
         f"{Types.DHW}_{O.TEMP_WATER_HOT}": "hot water temperature in degrees Celsius",
     }
 
+    input_aliases = {"temp_water_cold": O.TEMP_WATER_COLD, "temp_water_hot": O.TEMP_WATER_HOT}
+
     def generate(
         self,
         obj: dict = None,
         data: dict = None,
-        results: dict | None = None,
+        results: dict = None,
         ts_type: str = Types.DHW,
-        *,
-        datetimes: pd.DataFrame = None,
-        dwelling_size: float = None,
-        dhw_activity: pd.DataFrame = None,
-        dhw_demand_per_size: pd.DataFrame = None,
-        holidays_location: str = None,
-        temp_water_cold: float = None,
-        temp_water_hot: float = None,
-        seasonal_variation: float = None,
-        seasonal_peak_day: int = None,
-        seed: int = None,
-    ):
+        **inputs,
+    ) -> dict:
         """Generate DHW demand time series based on input parameters.
 
         This method implements the abstract generate method from the Method base class.
@@ -142,18 +134,23 @@ class JordanVajen(Method):
             data (dict, optional): Dictionary containing input data. Defaults to None.
             results (dict, optional): Dictionary with results from previously generated time series
             ts_type (str, optional): Time series type to generate. Defaults to Types.DHW.
-            datetimes (pd.DataFrame, required): DataFrame with datetime information. Defaults to None.
-            dwelling_size (float, required): Size of the dwelling in square meters. Defaults to None.
-            dhw_activity (pd.DataFrame, optional): Activity profiles for DHW demand. Defaults to None.
-            dhw_demand_per_size (pd.DataFrame, optional): Demand data per dwelling size. Defaults to None.
-            holidays_location (str, optional): Location for holiday calendar. Defaults to None.
-            temp_water_cold (float, optional): Cold water temperature in degrees Celsius. Defaults to None.
-            temp_water_hot (float, optional): Hot water temperature in degrees Celsius. Defaults to None.
-            seasonal_variation (float, optional): Seasonal variation factor. Defaults to None.
-            seasonal_peak_day (int, optional): Day of year with peak demand. Defaults to None.
-            seed (int, optional): The object's random seed. With a seed the time series is
-                reproducible; it takes precedence over the run seed of ``Generator.generate``.
-                Without either, every call draws different numbers. Defaults to None.
+            **inputs: Any input of the method, by its key or by its Python name (the key
+                without its unit, such as ``area`` for ``area[m2]``). Keywords override the
+                same keys in ``obj``. A table input, such as ``datetimes``, can be a
+                DataFrame. For example:
+
+                - ``datetimes`` (DataFrame or str, required): The run's datetimes.
+                - ``dwelling_size`` (``dwelling_size[m2]``, required): Size of the dwelling in m².
+                - ``dhw_activity`` (DataFrame): Activity profiles for DHW demand.
+                - ``dhw_demand_per_size`` (``dhw_demand_per_size[m2]``): Demand data per dwelling size.
+                - ``holidays_location`` (str): Location for the holiday calendar.
+                - ``temp_water_cold`` and ``temp_water_hot`` (``cold_water_temperature[C]``,
+                  ``hot_water_temperature[C]``): Cold and hot water temperature in °C.
+                - ``seasonal_variation`` (float): Seasonal variation factor.
+                - ``seasonal_peak_day`` (int): Day of year with peak demand.
+                - ``seed`` (int): The object's random seed. It takes precedence over the
+                  run seed of ``Generator.generate``. Without either, each call draws
+                  different random numbers.
 
         Returns:
             dict: Dictionary containing:
@@ -170,27 +167,14 @@ class JordanVajen(Method):
             >>> # Using explicit parameters
             >>> result = jordanvajen.generate(datetimes=datetimes_df, dwelling_size=100)
             >>> # Or using dictionaries
-            >>> obj = {"datetimes": "datetimes", "dwelling_size": 100}
+            >>> obj = {"datetimes": "datetimes", "dwelling_size[m2]": 100}
             >>> data = {"datetimes": datetimes_df}
             >>> result = jordanvajen.generate(obj=obj, data=data)
             >>> summary = result["summary"]
             >>> timeseries = result["timeseries"]
         """
         # Process keyword arguments
-        processed_obj, processed_data = self._process_kwargs(
-            obj,
-            data,
-            datetimes=datetimes,
-            dwelling_size=dwelling_size,
-            dhw_activity=dhw_activity,
-            dhw_demand_per_size=dhw_demand_per_size,
-            holidays_location=holidays_location,
-            temp_water_cold=temp_water_cold,
-            temp_water_hot=temp_water_hot,
-            seasonal_variation=seasonal_variation,
-            seasonal_peak_day=seasonal_peak_day,
-            seed=seed,
-        )
+        processed_obj, processed_data = self._process_kwargs(obj, data, ts_type, **inputs)
 
         processed_obj, processed_data = get_input_data(processed_obj, processed_data, ts_type)
 

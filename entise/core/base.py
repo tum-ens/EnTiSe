@@ -2,6 +2,7 @@ import logging
 import math
 import re
 from abc import ABC, ABCMeta, abstractmethod
+from collections.abc import Mapping
 from typing import Any, Dict, List, Tuple, Type
 
 import pandas as pd
@@ -14,11 +15,50 @@ logger = logging.getLogger(__name__)
 # Global registry
 method_registry: Dict[str, Type["Method"]] = {}
 
+_UNIT = re.compile(r"\[[^\]]*\]")
+_HEIGHT = re.compile(r"@\d+(?:\.\d+)?m$")
+
+
+def input_name(key: str) -> str:
+    """Return the Python name of an input key: the key without its units and height.
+
+    Example:
+        ``area[m2]`` becomes ``area`` and ``air_temperature[C]@2m`` becomes ``air_temperature``.
+    """
+    return _UNIT.sub("", _HEIGHT.sub("", key))
+
+
+def _check_input_names(cls) -> None:
+    """Raise if two inputs of a method share a Python name or an alias is ambiguous."""
+    keys = list(
+        dict.fromkeys(
+            [
+                *getattr(cls, "required_keys", []),
+                *getattr(cls, "optional_keys", []),
+                *getattr(cls, "required_data", []),
+                *getattr(cls, "optional_data", []),
+            ]
+        )
+    )
+    owner = {key: key for key in keys}
+    for key in keys:
+        name = input_name(key)
+        if owner.setdefault(name, key) != key:
+            raise TypeError(f"{cls.__name__}: inputs '{owner[name]}' and '{key}' both have the Python name '{name}'.")
+    for alias, key in getattr(cls, "input_aliases", {}).items():
+        if key not in keys:
+            raise TypeError(f"{cls.__name__}: alias '{alias}' names '{key}', which is not a declared input.")
+        if owner.get(alias, key) != key:
+            raise TypeError(f"{cls.__name__}: alias '{alias}' for '{key}' is already a name of '{owner[alias]}'.")
+
 
 class MethodMeta(ABCMeta):
     def __init__(cls, name, bases, dct):
         super().__init__(name, bases, dct)
-        if cls.__name__ == "Method" or getattr(cls, "register", True) is False:
+        if cls.__name__ == "Method":
+            return
+        _check_input_names(cls)
+        if getattr(cls, "register", True) is False:
             return
         for t in getattr(cls, "types", []):
             if t not in VALID_TYPES:
@@ -35,10 +75,38 @@ class Method(ABC, metaclass=MethodMeta):
     optional_data: List[str] = []
     output_summary: Dict[str, pd.DataFrame] = {}
     output_timeseries: Dict[str, pd.DataFrame]
+    # Python names kept from earlier releases, mapped to the input key they set.
+    input_aliases: Dict[str, str] = {}
 
     @abstractmethod
-    def generate(self, obj: dict, data: dict, results: dict, ts_type: str) -> Dict[str, Any]:
+    def generate(
+        self, obj: dict = None, data: dict = None, results: dict = None, ts_type: str = None, **inputs
+    ) -> Dict[str, Any]:
+        """Generate the time series of one object.
+
+        Args:
+            obj (dict, optional): Object keys.
+            data (dict, optional): Input tables.
+            results (dict, optional): Results of the time series already generated for the object.
+            ts_type (str, optional): Time series type to generate.
+            **inputs: Any declared input, by its key or by its Python name (see ``input_names``).
+                Keywords override the same keys in ``obj``.
+        """
         raise NotImplementedError("Method 'generate' must be implemented.")
+
+    @classmethod
+    def input_names(cls) -> Dict[str, str]:
+        """Return every name ``generate`` accepts for an input, mapped to the input's key.
+
+        Each declared input is accepted by its key, by its Python name (see ``input_name``),
+        and by the names in ``input_aliases``.
+        """
+        keys = dict.fromkeys([*cls.required_keys, *cls.optional_keys, *cls.required_data, *cls.optional_data])
+        names = {key: key for key in keys}
+        for key in keys:
+            names.setdefault(input_name(key), key)
+        names.update(cls.input_aliases)
+        return names
 
     @staticmethod
     def resolve_column(ts_key: str, column: str, ts_type: str, data: dict) -> pd.Series:
@@ -76,35 +144,101 @@ class Method(ABC, metaclass=MethodMeta):
 
         return relevant_objs
 
-    def _process_kwargs(self, obj: dict = None, data: dict = None, **kwargs) -> Tuple[dict, dict]:
-        """Process keyword arguments into obj and data dictionaries.
+    def _process_kwargs(self, obj: dict = None, data: dict = None, ts_type: str = None, **inputs) -> Tuple[dict, dict]:
+        """Apply the keyword inputs of a direct call to copies of obj and data.
 
-        Args:
-            obj (dict, optional): Initial object dictionary. Defaults to None.
-            data (dict, optional): Initial data dictionary. Defaults to None.
-            **kwargs: Keyword arguments to process.
+        See ``_process_inputs``. A method with an input that another type produces,
+        such as the electricity series of the occupancy methods, calls
+        ``_process_inputs`` instead.
 
         Returns:
             Tuple[dict, dict]: Processed obj and data dictionaries.
         """
-        local_obj = {} if obj is None else obj.copy()
-        local_data = {} if data is None else data.copy()
+        local_obj, local_data, results = self._process_inputs(obj, data, None, ts_type, **inputs)
+        if results:
+            raise TypeError(f"{type(self).__name__} takes results of other types; call _process_inputs.")
+        return local_obj, local_data
 
-        # Get all possible keys for this method
-        all_obj_keys = set(self.required_keys + self.optional_keys)
-        all_data_keys = set(self.required_data + self.optional_data)
+    def _process_inputs(
+        self, obj: dict = None, data: dict = None, results: dict = None, ts_type: str = None, **inputs
+    ) -> Tuple[dict, dict, dict]:
+        """Apply the keyword inputs of a direct call to copies of obj, data and results.
 
-        for param_name, value in kwargs.items():
+        ``obj`` may be a dict, a row of an objects table (a Series) or None; the copy is a
+        dict. A keyword sets the input it names (see ``input_names``) and overrides the
+        same key in ``obj``, including the key prefixed with ``ts_type``. A ``None`` value
+        counts as not given. For a data input:
+
+        - a string is the name of a table in ``data``; ``obj`` refers to it;
+        - a table (DataFrame or mapping) goes into ``data`` under the input's key, and
+          ``obj`` refers to it by that key;
+        - for an input that another type produces, such as ``electricity``, the table
+          becomes that type's result in ``results``.
+
+        Any other value goes into ``obj``, or for an input that only ``data`` holds,
+        into ``data`` as a table.
+
+        Args:
+            obj (dict or pd.Series, optional): Initial object. Defaults to None.
+            data (dict, optional): Initial data dictionary. Defaults to None.
+            results (dict, optional): Results of the types generated before. Defaults to None.
+            ts_type (str, optional): Time series type the method generates. Defaults to None.
+            **inputs: Inputs by key or Python name.
+
+        Returns:
+            Tuple[dict, dict, dict]: Processed obj, data and results. ``results`` is the
+            given mapping unless a keyword sets one of its entries.
+
+        Raises:
+            TypeError: If a keyword names no input of the method, or two keywords name the same input.
+        """
+        local_obj = {} if obj is None else dict(obj)
+        local_data = {} if data is None else dict(data)
+        if not inputs:
+            return local_obj, local_data, results
+
+        names = self.input_names()
+        unknown = [name for name in inputs if name not in names]
+        if unknown:
+            raise TypeError(
+                f"{type(self).__name__}.generate() got an unexpected keyword argument '{unknown[0]}'. "
+                f"Inputs of method '{self.name}': {self._describe_inputs(names)}."
+            )
+
+        obj_keys = set(self.required_keys + self.optional_keys)
+        data_keys = set(self.required_data + self.optional_data)
+        given: Dict[str, str] = {}
+        for name, value in inputs.items():
             if value is None:
                 continue
+            key = names[name]
+            if key in given:
+                raise TypeError(
+                    f"{type(self).__name__}.generate() got multiple values for input '{key}': "
+                    f"'{given[key]}' and '{name}'."
+                )
+            given[key] = name
 
-            # Check if the parameter name is in the required or optional keys
-            if param_name in all_obj_keys:
-                local_obj[param_name] = value
-            elif param_name in all_data_keys:
-                local_data[param_name] = value
+            if key in data_keys and key in VALID_TYPES:
+                # Another type produces this input; the method reads it from the results.
+                table = local_data[value] if isinstance(value, str) else value
+                results = {**(results or {}), key: {Keys.TIMESERIES: table}}
+                continue
+            if key in data_keys and not isinstance(value, str):
+                if key not in obj_keys or isinstance(value, (pd.DataFrame, Mapping)):
+                    local_data[key] = value
+                    value = key  # the object refers to the table by its key
+            local_obj[key] = value
+            if ts_type:
+                local_obj.pop(f"{ts_type}{SEP}{key}", None)
 
-        return local_obj, local_data
+        return local_obj, local_data, results
+
+    @staticmethod
+    def _describe_inputs(names: Dict[str, str]) -> str:
+        """List the Python names of the inputs, each with its key where that differs."""
+        described = [name if name == key else f"{name} ({key})" for name, key in names.items() if name.isidentifier()]
+        return ", ".join(sorted(described, key=str.lower))
 
     @staticmethod
     def _strip_weather_height(weather: pd.DataFrame) -> pd.DataFrame:

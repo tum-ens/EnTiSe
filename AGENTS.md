@@ -6,8 +6,11 @@ Generator strategies subclass [`Method`](entise/core/base.py). Set a unique
 `name`, supported `types`,
 `required_keys` and `optional_keys`, `required_data` and `optional_data`,
 and the `output_timeseries` and `output_summary` metadata.
-Implement `generate(obj, data, results, ts_type)` so it returns a dictionary
-with `Keys.TIMESERIES` and, when provided, `Keys.SUMMARY`.
+Implement `generate(self, obj=None, data=None, results=None, ts_type=..., **inputs)`
+so it returns a dictionary with `Keys.TIMESERIES` and, when provided,
+`Keys.SUMMARY`. Resolve the keyword inputs first with `self._process_inputs`
+(or `_process_kwargs`), so every declared input can be passed by key or
+Python name.
 
 Use `Columns`, `Objects`, and `Types` from [`entise.constants`](entise/constants/__init__.py)
 for shared column names, object keys, and time series types. Name columns for

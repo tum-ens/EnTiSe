@@ -27,6 +27,7 @@ class Objects(metaclass=Namespace):
     CAPACITANCE = "capacitance[J K-1]"  # Capacitance (J/K)
     CAPACITANCE_AIR = "capacitance_air[J K-1]"  # Air capacitance (J/K)
     COLUMN = "column"
+    COP_COEFFICIENTS = "cop_coefficients"  # Custom COP coefficients (heat pump)
     CORRECTION_FACTOR = "correction_factor"  # Correction factor for calculations
     DATETIMES = "datetimes"
     DEADBAND = "deadband[K]"  # Thermostat dead band width (K)
