@@ -1,6 +1,7 @@
 """A metaclass for classes that group plain string constants, such as ``Types``."""
 
-from collections.abc import Iterator
+from collections.abc import ItemsView, Iterator, Mapping
+from types import MappingProxyType
 
 
 class Namespace(type):
@@ -13,10 +14,13 @@ class Namespace(type):
     is not instantiated.
     """
 
+    _constants: Mapping[str, str]
+    _values: frozenset[str]
+
     def __new__(mcs, name, bases, namespace):
         constants = {key: value for key, value in namespace.items() if key.isupper() and isinstance(value, str)}
         cls = super().__new__(mcs, name, bases, namespace)
-        type.__setattr__(cls, "_constants", constants)
+        type.__setattr__(cls, "_constants", MappingProxyType(constants))
         type.__setattr__(cls, "_values", frozenset(constants.values()))
         return cls
 
@@ -32,7 +36,7 @@ class Namespace(type):
     def __len__(cls) -> int:
         return len(cls._constants)
 
-    def items(cls):
+    def items(cls) -> ItemsView[str, str]:
         """Return the constants as ``(name, value)`` pairs, in definition order."""
         return cls._constants.items()
 

@@ -10,6 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 ### Added
+- Added iteration and value membership to `Columns`, `Objects`, `Types` and `Keys` in `entise.constants`. Their constants retain their plain-string types and values. `len()` counts constants and `items()` yields name-value pairs in declaration order. **Behavior change**: these classes cannot be instantiated, and their attributes are read-only. (`#59`)
 - Added a migration guide for 2.0.0 to the documentation. It lists every change that can alter results or break an existing setup, with the steps to adapt inputs. (`#116`)
 - Added a run seed, `Generator.generate(..., seed=None)`, that makes Jordan-Vajen DHW reproducible without a `seed` per object. Each object and type draws its own stream, derived from the run seed, the object's `id` and the type, so results do not depend on the order of the objects, the number of workers, the batch size or the process. An object's own `seed` takes precedence and gives the same result as before. Without any seed, results still differ between runs. PyLPG is not seeded: pylpg chooses its household members with Python's global random numbers. (`#17`)
 - Added `Generator.generate(..., utc=False)`. By default every time series of an object is indexed in its site time zone (the `timezone` key, UTC if not set); `utc=True` indexes all of them in UTC. (`#116`)
@@ -77,7 +78,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   - `Generator.generate` warns once per run about objects without `timezone`. The examples now set `timezone` to the zone of each object's holidays location, `Europe/Berlin` for the German sites; the heat example's US object now uses German holidays, because its temperatures come from the German example weather.
 - **Behavior change**: the default install now provides the EnTiSe core. Install individual methods with extras such as `pip install "entise[pv-pvlib,hvac-1r1c]"`, or use `pip install "entise[all]"` for the previous feature coverage. Methods load on demand, and missing optional packages report the relevant install command. The weather service and example tools have their own extras. (`#111`)
 - Documented how to contribute time-series methods in the shared `add-method` skill. (`#110`)
-- `Columns`, `Objects`, `Types` and `Keys` in `entise.constants` can be iterated over their values in definition order and checked for membership, for example `"dhw" in Types`; `len()` counts their constants and `items()` gives each name with its value. The constants stay plain strings with the same values, and they cannot be reassigned after import. `VALID_TYPES` is built from `Types` and holds the same strings as before. (`#59`)
 
 ## [1.3.0] Latent cooling load and other HVAC improvements - 2026-07-05
 ### Added
