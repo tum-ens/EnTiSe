@@ -1,16 +1,23 @@
-<!-- .gitlab/merge_requests_templates/Release_Checklist.md -->
+## Release checklist
 
-## 🚀 Release Checklist
+### Before merging to main
 
-### Version Number
-Enter the version number for this release (e.g., v1.2.3).
+- [ ] Record the intended version and release issue.
+- [ ] Review the changelog, migration notes and affected examples.
+- [ ] Review the support matrix, strict Sphinx and advisory job results.
+- [ ] Confirm the protected main branch, release tags, environments,
+      production approval rule, runner access and separately scoped tokens.
 
-### Pre-Release Checklist
-- [ ] The changelog has been updated with all relevant changes.
-- [ ] All major bugs have been fixed.
-- [ ] New features have been documented.
-- [ ] Unit, integration, and regression tests have passed.
-- [ ] Version number has been updated in the documentation and codebase.
+### After merging to main
 
-### Additional Notes
-Add any additional information relevant to the release (e.g., known issues, critical features, etc.).
+- [ ] Record the reviewed commit SHA and push the immutable candidate tag.
+- [ ] Verify the candidate wheel and sdist SHA-256 manifest, clean installs
+      and exact-version TestPyPI download and install.
+- [ ] Record the candidate pipeline result and check the package page.
+- [ ] Push the immutable final tag on the reviewed commit.
+- [ ] Verify the final tag's pipeline, retained checksums and TestPyPI upload.
+- [ ] Record the production deployment approval and start the protected
+      PyPI publishing job.
+- [ ] Verify the published checksums and exact-version PyPI install.
+- [ ] Create the GitLab Release with the notes, pipeline link and manifest.
+- [ ] Sync release changes to develop through a merge request.

@@ -1,36 +1,49 @@
-# GitLab CI/CD configuration for EnTiSe Python package
-# Using uv for faster dependency management
-
+# GitLab CI/CD for EnTiSe on gitlab.lrz.de.
 variables:
-  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.pip-cache"
-  UV_CACHE_DIR: "$CI_PROJECT_DIR/.uv-cache"
   GIT_DEPTH: "0"
+  UV_CACHE_DIR: "$CI_PROJECT_DIR/.uv-cache"
+  UV_VERSION: "0.13.7"
+  # Advance this deliberately and rerun the matrix when refreshing dependencies.
+  UV_EXCLUDE_NEWER: "2026-11-23T13:34:25Z"
 
 workflow:
   rules:
+    - if: &release_tag '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_REF_PROTECTED == "true" && $CI_COMMIT_TAG =~ /^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(rc[1-9][0-9]*)?$/'
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME =~ /^(develop|main)$/'
     - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH =~ /^(develop|main)$/'
 
 stages:
+  - build
   - verify
+  - upload_testpypi
+  - verify_testpypi
+  - upload_pypi
+  - verify_pypi
 
-cache:
-  key: "$CI_JOB_NAME_SLUG"
-  paths:
-    - .pip-cache/
-    - .uv-cache/
-
-.python-job-template: &python-job-template
-  stage: verify
+.uv-job:
+  image: python:3.12-bookworm
+  cache:
+    key: "$CI_JOB_NAME_SLUG"
+    paths:
+      - .uv-cache/
   before_script:
-    - python -m pip install uv
-    - uv venv --python python
+    - 'python -m pip install --disable-pip-version-check --only-binary=:all: --no-deps "uv==$UV_VERSION"'
+
+.python-job:
+  extends: .uv-job
+  stage: verify
+  dependencies: []
+  before_script:
+    - !reference [.uv-job, before_script]
+    - uv venv --python "$(command -v python)"
     - export PATH="$CI_PROJECT_DIR/.venv/bin:$PATH"
-    - uv pip install -e ".[dev]"
+    - uv pip install --build-constraints .gitlab/ci/build-constraints.txt -e ".[dev]" "$PANDAS_SPEC" "uv==$UV_VERSION"
+  variables:
+    PANDAS_SPEC: "pandas>=3,<4"
 
 lint:
-  <<: *python-job-template
-  image: python:3.12
+  extends: .python-job
+  # Existing Ruff lint, formatting and mypy failures are tracked as advisory.
   allow_failure: true
   script:
     - |
@@ -41,12 +54,16 @@ lint:
       exit "$status"
 
 .test:
-  <<: *python-job-template
+  extends: .python-job
   script:
-    # Each job pins one pandas line on top of the normal install.
-    - uv pip install "$PANDAS_SPEC"
     - python -c "import pandas; print('pandas', pandas.__version__)"
-    - pytest -m "not native_pylpg" --cov=entise --cov-report=xml tests/ --junitxml=junit/test-report.xml
+    - |
+      # Release jobs install the retained artifacts in release:install.
+      set --
+      if [ -n "${CI_COMMIT_TAG:-}" ]; then
+        set -- --ignore=tests/installation
+      fi
+      pytest -m "not native_pylpg" --cov=entise --cov-report=xml tests/ --junitxml=junit/test-report.xml "$@"
   artifacts:
     reports:
       junit: junit/test-report.xml
@@ -56,7 +73,6 @@ lint:
 
 test:develop:
   extends: .test
-  image: python:3.12
   parallel:
     matrix:
       - PANDAS_SPEC: ["pandas>=2.3,<3", "pandas>=3,<4"]
@@ -65,10 +81,10 @@ test:develop:
 
 test:main:
   extends: .test
-  image: python:$PYTHON_VERSION
+  image: python:${PYTHON_VERSION}-bookworm
   parallel:
     matrix:
-      # The oldest supported Python tests the oldest supported pandas.
+      # Keep the support matrix from #120 for main and every release tag.
       - PYTHON_VERSION: "3.11"
         PANDAS_SPEC: "pandas==2.2.2"
       - PYTHON_VERSION: "3.12"
@@ -76,14 +92,172 @@ test:main:
       - PYTHON_VERSION: ["3.11", "3.12", "3.13", "3.14"]
         PANDAS_SPEC: "pandas>=3,<4"
   rules:
-    - if: '$CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "main" || $CI_COMMIT_BRANCH == "main"'
+    - if: *release_tag
+    - if: &main_pipeline '$CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "main" || $CI_COMMIT_BRANCH == "main"'
 
 test:native-pylpg:
-  <<: *python-job-template
-  image: python:3.12
+  extends: .python-job
   allow_failure: true
   script:
     - pytest -m native_pylpg tests/ --junitxml=junit/native-pylpg.xml
   artifacts:
     reports:
       junit: junit/native-pylpg.xml
+
+docs:strict:
+  extends: .python-job
+  before_script:
+    - !reference [.uv-job, before_script]
+    - uv venv --python "$(command -v python)"
+    - export PATH="$CI_PROJECT_DIR/.venv/bin:$PATH"
+    - uv pip install --build-constraints .gitlab/ci/build-constraints.txt -e ".[dev]" "$PANDAS_SPEC" "uv==$UV_VERSION" -r docs/requirements.txt
+  script:
+    - sphinx-build -b html -W --keep-going docs/source "$CI_PROJECT_DIR/.docs-html"
+  rules:
+    - if: *release_tag
+    - if: *main_pipeline
+
+release:build:
+  extends: .uv-job
+  stage: build
+  rules:
+    - if: *release_tag
+  script:
+    - |
+      git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main
+      git rev-list --first-parent origin/main | grep -Fx "$CI_COMMIT_SHA" || {
+        echo "The release tag must point to a commit on the first-parent history of main." >&2
+        exit 1
+      }
+      test "$(git rev-parse "refs/tags/$CI_COMMIT_TAG^{commit}")" = "$CI_COMMIT_SHA"
+      # uv builds the sdist first and creates the wheel from that sdist.
+      uv build --no-sources --build-constraints .gitlab/ci/build-constraints.txt --out-dir dist
+      uv tool run --from 'twine==6.2.0' twine check --strict dist/*.whl dist/*.tar.gz
+      python .gitlab/ci/release_checks.py metadata "${CI_COMMIT_TAG#v}" dist
+      (cd dist && sha256sum -- *.whl *.tar.gz > SHA256SUMS)
+  artifacts:
+    expire_in: 30 days
+    paths:
+      - dist/*.whl
+      - dist/*.tar.gz
+      - dist/SHA256SUMS
+
+release:install:
+  extends: .uv-job
+  stage: verify
+  rules:
+    - if: *release_tag
+  dependencies: ["release:build"]
+  script:
+    - |
+      (cd dist && sha256sum --check --strict SHA256SUMS)
+      # Expand the paths before appending the extra to the wheel filename.
+      set -- "$CI_PROJECT_DIR"/dist/*.whl "$CI_PROJECT_DIR"/dist/*.tar.gz
+      work="$(mktemp -d)"
+      check="$CI_PROJECT_DIR/.gitlab/ci/release_checks.py"
+      version="${CI_COMMIT_TAG#v}"
+      cd "$work"
+      for install in "$1" "$1[pv-pvlib]" "$2"; do
+        env_dir="$(mktemp -d "$work/install.XXXXXX")"
+        uv venv --python "$(command -v python)" "$env_dir"
+        uv pip install --python "$env_dir/bin/python" \
+          --build-constraints "$CI_PROJECT_DIR/.gitlab/ci/build-constraints.txt" "$install"
+        uv pip check --python "$env_dir/bin/python"
+        "$env_dir/bin/python" -I "$check" installed "$version" "$install"
+        rm -r -- "$env_dir"
+      done
+      cp "$CI_PROJECT_DIR/dist/SHA256SUMS" "$CI_PROJECT_DIR/install-verified.sha256"
+  artifacts:
+    expire_in: 30 days
+    paths:
+      - install-verified.sha256
+
+.release-upload:
+  extends: .uv-job
+  cache: []
+  variables:
+    GIT_STRATEGY: empty
+  allow_failure: false
+  before_script:
+    - (cd dist && sha256sum --check --strict SHA256SUMS)
+    - !reference [.uv-job, before_script]
+
+release:upload:testpypi:
+  extends: .release-upload
+  stage: upload_testpypi
+  dependencies: ["release:build", "release:install"]
+  environment: testpypi
+  resource_group: testpypi
+  rules:
+    - if: *release_tag
+      when: manual
+  script:
+    - cmp dist/SHA256SUMS install-verified.sha256
+    - |
+      UV_PUBLISH_TOKEN="${TEST_PYPI_API_TOKEN:?Configure the protected testpypi variable}" \
+        uv publish --trusted-publishing never --publish-url https://test.pypi.org/legacy/ \
+        --check-url https://test.pypi.org/simple/ dist/*.whl dist/*.tar.gz
+
+.release-verify-upload:
+  extends: .uv-job
+  script:
+    - |
+      work="$(mktemp -d)"
+      check="$CI_PROJECT_DIR/.gitlab/ci/release_checks.py"
+      version="${CI_COMMIT_TAG#v}"
+      python "$check" download "$version" dist/SHA256SUMS "$RELEASE_INDEX" "$work"
+      cd "$work"
+      uv venv --python "$(command -v python)" install-env
+      uv pip install --python install-env/bin/python --default-index https://pypi.org/simple/ ./*.whl
+      uv pip check --python install-env/bin/python
+      install-env/bin/python -I "$check" installed "$version" ./*.whl
+
+release:verify:testpypi:
+  extends: .release-verify-upload
+  stage: verify_testpypi
+  dependencies: ["release:build", "release:install"]
+  variables:
+    RELEASE_INDEX: https://test.pypi.org
+  rules:
+    - if: *release_tag
+  before_script:
+    - cmp dist/SHA256SUMS install-verified.sha256
+    - !reference [.uv-job, before_script]
+  script:
+    - !reference [.release-verify-upload, script]
+    - cp "$CI_PROJECT_DIR/dist/SHA256SUMS" "$CI_PROJECT_DIR/testpypi-verified.sha256"
+  artifacts:
+    expire_in: 30 days
+    paths:
+      - testpypi-verified.sha256
+
+release:upload:pypi:
+  extends: .release-upload
+  stage: upload_pypi
+  dependencies: ["release:build", "release:verify:testpypi"]
+  environment:
+    name: pypi
+    deployment_tier: production
+  resource_group: pypi
+  manual_confirmation: "Promote the verified TestPyPI files to production PyPI?"
+  rules:
+    - if: &final_tag '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_REF_PROTECTED == "true" && $CI_COMMIT_TAG =~ /^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/'
+      when: manual
+  script:
+    - cmp dist/SHA256SUMS testpypi-verified.sha256
+    - |
+      UV_PUBLISH_TOKEN="${PYPI_API_TOKEN:?Configure the protected pypi variable}" \
+        uv publish --trusted-publishing never --publish-url https://upload.pypi.org/legacy/ \
+        --check-url https://pypi.org/simple/ dist/*.whl dist/*.tar.gz
+
+release:verify:pypi:
+  extends: .release-verify-upload
+  stage: verify_pypi
+  dependencies: ["release:build", "release:verify:testpypi"]
+  variables:
+    RELEASE_INDEX: https://pypi.org
+  rules:
+    - if: *final_tag
+  before_script:
+    - cmp dist/SHA256SUMS testpypi-verified.sha256
+    - !reference [.uv-job, before_script]
