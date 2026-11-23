@@ -18,6 +18,7 @@ from entise.methods.hvac._windows import windows_table
 from entise.methods.hvac.defaults import (
     DEFAULT_ACTIVE_COOLING,
     DEFAULT_ACTIVE_HEATING,
+    DEFAULT_ACTIVE_VENTILATION,
     DEFAULT_POWER_COOLING,
     DEFAULT_POWER_HEATING,
     DEFAULT_TEMP_INIT,
@@ -73,6 +74,7 @@ class R1C0(Method):
         O.HEIGHT,
         O.GAINS_INTERNAL,
         O.GAINS_INTERNAL_COL,
+        O.ACTIVE_VENTILATION,
         O.VENTILATION,
         O.VENTILATION_COL,
         O.GAINS_SOLAR,
@@ -232,6 +234,9 @@ class R1C0(Method):
             O.TEMP_MAX: Method.get_with_method_backup(obj, O.TEMP_MAX, method_type, DEFAULT_TEMP_MAX),
             O.TEMP_MIN: Method.get_with_method_backup(obj, O.TEMP_MIN, method_type, DEFAULT_TEMP_MIN),
             # Ventilation
+            O.ACTIVE_VENTILATION: Method.get_with_method_backup(
+                obj, O.ACTIVE_VENTILATION, method_type, DEFAULT_ACTIVE_VENTILATION
+            ),
             O.VENTILATION: Method.get_with_method_backup(obj, O.VENTILATION, method_type, DEFAULT_VENTILATION),
             O.VENTILATION_COL: Method.get_with_method_backup(obj, O.VENTILATION_COL, method_type),
         }
