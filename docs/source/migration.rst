@@ -26,6 +26,22 @@ The weather service and the example tools have their own extras.
 **Python and pandas.** EnTiSe 2.0.0 runs on Python 3.11 to 3.14; Python 3.10
 is no longer supported. It works with pandas 2 (2.2.2 or newer) and pandas 3.
 
+Direct method calls
+-------------------
+
+Keep ``obj``, ``data``, ``results`` and ``ts_type`` as the first four
+arguments to ``generate()``. Pass method-specific inputs by keyword.
+Earlier keyword names such as ``temp_init`` for 1R0C and 1R1C remain
+available. Call ``input_names()`` on the method to see the accepted names.
+
+Some keywords that were previously ignored now take effect. For example,
+``power=5000`` sets the rated power for PVLib even if the object row already
+contains a power value. Remove an old keyword if you want to use the object
+value or the method default. Unknown keywords raise ``TypeError``, including
+the unused ``weather`` keyword on demandlib electricity. See
+:ref:`direct_input_names` for an example that combines an object row and
+keywords.
+
 Timestamps
 ----------
 

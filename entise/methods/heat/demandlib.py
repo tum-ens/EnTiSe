@@ -1,5 +1,4 @@
 import logging
-from typing import Optional
 
 import numpy as np
 import pandas as pd
@@ -57,20 +56,16 @@ class Demandlib(Method):
     output_summary = {f"{Types.HEATING}{SEP}{C.DEMAND}[kWh]": "total heating demand"}
     output_timeseries = {f"{Types.HEATING}{SEP}{C.LOAD}[W]": "heating load"}
 
+    input_aliases = {"annual_demand_kwh": O.DEMAND_KWH}
+
     def generate(
         self,
         obj: dict = None,
         data: dict = None,
         results: dict = None,
         ts_type: str = Types.HEATING,
-        *,
-        annual_demand_kwh: float = None,
-        weather: pd.DataFrame = None,
-        building_type: str = None,
-        building_class: int = None,
-        wind_class: int = None,
-        holidays_location: Optional[str] = None,
-    ):
+        **inputs,
+    ) -> dict:
         """Generate a heating load timeseries using demandlib's BDEW heat model.
 
         This method prepares inputs (including optional overrides), computes the
@@ -82,29 +77,25 @@ class Demandlib(Method):
             data: Data dictionary containing the weather dataframe under O.WEATHER.
             results: Unused placeholder for interface compatibility.
             ts_type: Timeseries type, defaults to Types.HEATING.
-            annual_demand_kwh: Optional heat demand in kWh over the simulated run (the
-                keyword keeps its historical name); defaults to 1.0.
-            weather: Optional weather dataframe override with C.DATETIME and C.TEMP_AIR.
-            building_type: Optional BDEW building type (e.g., "EFH").
-            building_class: Optional BDEW building class (int).
-            wind_class: Optional BDEW wind class (int).
-            holidays_location: Optional country/region code for holidays (e.g., "DE").
+            **inputs: Any input of the method, by its key or by its Python name (the key
+                without its unit, such as ``area`` for ``area[m2]``). Keywords override the
+                same keys in ``obj``. A table input, such as ``weather``, can be a
+                DataFrame. For example:
+
+                - ``demand`` or ``annual_demand_kwh`` (``demand[kWh]``): Heat demand in kWh over the
+                  simulated run; defaults to 1.0.
+                - ``weather`` (DataFrame or str): Weather with C.DATETIME and C.TEMP_AIR.
+                - ``building_type`` (str): BDEW building type (e.g., "EFH").
+                - ``building_class`` (int): BDEW building class.
+                - ``wind_class`` (int): BDEW wind class.
+                - ``holidays_location`` (str): Country/region code for holidays (e.g., "DE").
 
         Returns:
             dict: {"summary": {...}, "timeseries": DataFrame with column
             "HEATING|load[W]" indexed like the input weather datetimes.
         """
         # Process keyword arguments
-        processed_obj, processed_data = self._process_kwargs(
-            obj,
-            data,
-            annual_demand_kwh=annual_demand_kwh,
-            weather=weather,
-            building_type=building_type,
-            building_class=building_class,
-            wind_class=wind_class,
-            holidays_location=holidays_location,
-        )
+        processed_obj, processed_data = self._process_kwargs(obj, data, ts_type, **inputs)
         processed_obj, processed_data = self._get_input_data(processed_obj, processed_data, ts_type)
 
         ts = calculate_timeseries(processed_obj, processed_data)

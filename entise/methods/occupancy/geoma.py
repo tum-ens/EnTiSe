@@ -71,13 +71,8 @@ class GeoMA(Method):
         data: dict = None,
         results: dict = None,
         ts_type: str = Types.OCCUPANCY,
-        *,
-        lambda_occ: float = None,
-        night_schedule: bool = None,
-        night_schedule_start: int = None,
-        night_schedule_end: int = None,
-        night_schedule_duration: float = None,
-    ):
+        **inputs,
+    ) -> dict:
         """
         Generate a binary occupancy schedule from electricity demand using GeoMA.
 
@@ -88,6 +83,7 @@ class GeoMA(Method):
         Args:
             obj (dict, optional):
                 Object parameters. Relevant keys (under the current method type) include:
+
                 - O.LAMBDA (float): Exponential smoothing parameter in (0, 1].
                 - O.NIGHT_SCHEDULE (bool): Whether to enforce a nightly schedule.
                 - O.NIGHT_SCHEDULE_START (int): Start hour of nightly off period [0-23].
@@ -103,16 +99,21 @@ class GeoMA(Method):
                 with a datetime column Columns.DATETIME and at least one power column.
             ts_type (str, optional):
                 Target time series type. Defaults to Types.OCCUPANCY.
-            lambda_occ (float, optional): Exponential smoothing factor for the EWM used
-                to compute the geometric moving average. Typical range (0.05–0.5).
-            night_schedule (bool, optional): If True, apply nightly zeroing.
-            night_schedule_start (int, optional): Hour of day marking the start of
-                the nightly off period (e.g., 18:00).
-            night_schedule_end (int, optional):  Hour of day marking the end of the
-                nightly off period (e.g., 00:00).
-            night_schedule_duration (float, optional): Hours of occupancy inside the
-                evening window that trigger the hold until 09:00 local time (key
-                ``night_schedule_duration[h]``, default 1).
+            **inputs: Any input of the method, by its key or by its Python name (the key
+                without its unit, such as ``area`` for ``area[m2]``). Keywords override the
+                same keys in ``obj``. For example:
+
+                - ``electricity`` (DataFrame): The electricity time series, in place of the
+                  electricity result in ``results``.
+                - ``lambda_occ`` (float): Exponential smoothing factor for the EWM used to compute the
+                  geometric moving average. Typical range (0.05–0.5).
+                - ``night_schedule`` (bool): If True, apply nightly zeroing.
+                - ``night_schedule_start`` (int): Hour of day marking the start of the nightly off period
+                  (e.g., 18:00).
+                - ``night_schedule_end`` (int): Hour of day marking the end of the nightly off period
+                  (e.g., 00:00).
+                - ``night_schedule_duration`` (``night_schedule_duration[h]``): Hours of occupancy inside
+                  the evening window that trigger the hold until 09:00 local time (default 1).
 
         Returns:
             dict: A dictionary with two keys:
@@ -132,17 +133,7 @@ class GeoMA(Method):
         """
 
         # Process keyword arguments
-        processed_obj, processed_data = self._process_kwargs(
-            obj,
-            data,
-            lambda_occ=lambda_occ,
-            night_schedule=night_schedule,
-            night_schedule_start=night_schedule_start,
-            night_schedule_end=night_schedule_end,
-            night_schedule_duration=night_schedule_duration,
-        )
-        if night_schedule_duration is not None:
-            processed_obj[O.NIGHT_SCHEDULE_DURATION] = night_schedule_duration
+        processed_obj, processed_data, results = self._process_inputs(obj, data, results, ts_type, **inputs)
 
         # Get input data
         processed_obj, processed_data = self._get_input_data(processed_obj, processed_data, results, ts_type)

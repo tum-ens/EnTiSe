@@ -20,8 +20,11 @@ reference docs, see [Ruhnau](../../../entise/methods/hp/ruhnau.py),
   required and optional object keys and data, and output metadata. Reuse
   [`Columns`, `Objects`, and `Types`](../../../entise/constants/__init__.py)
   and follow `name[unit]` with an optional `@height` for physical quantities.
-- Implement `generate(obj, data, results, ts_type)` with `Keys.TIMESERIES`
-  and optional `Keys.SUMMARY` in the result. Use the declared inputs and keep
+- Implement `generate(self, obj=None, data=None, results=None, ts_type=...,
+  **inputs)` with `Keys.TIMESERIES` and optional `Keys.SUMMARY` in the result.
+  Resolve the keyword inputs first with `self._process_inputs` (or
+  `_process_kwargs`), so every declared input can be passed by key or Python
+  name. Use the declared inputs and keep
   the output metadata consistent with the returned columns and units. If the
   method consumes another strategy's output, follow how the
   [runner](../../../entise/core/runner.py) resolves that dependency.

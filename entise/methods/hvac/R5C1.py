@@ -145,10 +145,33 @@ class R5C1(Method):
     }
 
     def generate(
-        self, obj: dict = None, data: dict = None, results: dict = None, ts_type: str = Types.HVAC, **kwargs
+        self,
+        obj: dict = None,
+        data: dict = None,
+        results: dict = None,
+        ts_type: str = Types.HVAC,
+        **inputs,
     ) -> dict:
+        """Generate the indoor temperature and the heating and cooling loads of the 5R1C model.
+
+        Solar gains: the 5R1C model looks up the object's windows by its ``id``, so a
+        direct call passes ``obj={"id": ...}`` unless ``active_gains_solar`` is False.
+
+        Args:
+            obj (dict, optional): Object keys. Defaults to None.
+            data (dict, optional): Input tables. Defaults to None.
+            results (dict, optional): Results of the time series already generated for the object.
+            ts_type (str, optional): Time series type to generate. Defaults to Types.HVAC.
+            **inputs: Any input of the method, by its key or by its Python name (the key
+                without its unit, such as ``H_tr_is`` for ``H_tr_is[W K-1]``). Keywords override the same keys
+                in ``obj``. A table input, such as ``weather``, can be a DataFrame.
+
+        Returns:
+            dict: ``"summary"`` with the demand and load statistics and ``"timeseries"``
+            with the indoor temperature and the loads.
+        """
+        obj, data = self._process_kwargs(obj, data, ts_type, **inputs)
         require_module("hvac-5r1c", "pvlib")
-        obj, data = self._process_kwargs(obj, data, **kwargs)
         # Read the tables once for this call; every helper below reuses this run.
         data = {**data, RUN_TIME_KEY: run_time(data)}
         obj, tables = self._get_input_data(obj, data, ts_type)

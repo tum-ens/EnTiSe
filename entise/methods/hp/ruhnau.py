@@ -81,6 +81,7 @@ class Ruhnau(Method):
         O.GRADIENT_SINK,
         O.TEMP_WATER,
         O.CORRECTION_FACTOR,
+        O.COP_COEFFICIENTS,
         O.HP_SYSTEM,
         O.TIMEZONE,
     ]
@@ -99,23 +100,16 @@ class Ruhnau(Method):
         f"{Types.HP}{SEP}{Types.DHW}[1]": "DHW COP time series",
     }
 
+    input_aliases = {"temp_sink": O.TEMP_SINK, "temp_water": O.TEMP_WATER}
+
     def generate(
         self,
         obj: dict = None,
         data: dict = None,
-        results: dict | None = None,
+        results: dict = None,
         ts_type: str = Types.HP,
-        *,
-        weather: pd.DataFrame = None,
-        hp_source: str = None,
-        hp_sink: str = None,
-        temp_sink: float = None,
-        gradient_sink: float = None,
-        temp_water: float = None,
-        correction_factor: float = None,
-        hp_system: dict = None,
-        cop_coefficients: dict = None,
-    ):
+        **inputs,
+    ) -> dict:
         """Generate heat pump COP time series for both heating and DHW.
 
         Args:
@@ -123,15 +117,20 @@ class Ruhnau(Method):
             data (dict, optional): Dictionary with input data
             results (dict, optional): Dictionary with results from previously generated time series
             ts_type (str, optional): Time series type to generate
-            weather (pd.DataFrame, optional): Weather data with temperatures
-            hp_source (str, optional): Heat pump source type ('ASHP', 'GSHP', 'WSHP')
-            hp_sink (str, optional): Heat sink type ('floor', 'radiator')
-            temp_sink (float, optional): Temperature setting for heating
-            gradient_sink (float, optional): Gradient setting for heating
-            temp_water (float, optional): Temperature setting for DHW
-            correction_factor (float, optional): Efficiency correction factor
-            hp_system (dict, optional): System configuration for heat pump
-            cop_coefficients (dict, optional): Custom coefficients for COP calculation (a, b, c)
+            **inputs: Any input of the method, by its key or by its Python name (the key
+                without its unit, such as ``area`` for ``area[m2]``). Keywords override the
+                same keys in ``obj``. A table input, such as ``weather``, can be a
+                DataFrame. For example:
+
+                - ``weather`` (DataFrame or str): Weather data with temperatures.
+                - ``hp_source`` (str): Heat pump source type ('ASHP', 'GSHP', 'WSHP').
+                - ``hp_sink`` (str): Heat sink type ('floor', 'radiator').
+                - ``temp_sink`` (``sink_temperature[C]``): Temperature setting for heating.
+                - ``gradient_sink`` (float): Gradient setting for heating.
+                - ``temp_water`` (``water_temperature[C]``): Temperature setting for DHW.
+                - ``correction_factor`` (float): Efficiency correction factor.
+                - ``hp_system`` (dict or str): System configuration for the heat pump.
+                - ``cop_coefficients`` (dict): Custom coefficients for the COP calculation (a, b, c).
 
         Returns:
             dict: Dictionary with summary statistics and COP time series for both heating and DHW
@@ -140,18 +139,7 @@ class Ruhnau(Method):
             ValueError: If required parameters are missing or invalid
         """
         # Process inputs
-        processed_obj, processed_data = self._process_kwargs(
-            obj,
-            data,
-            weather=weather,
-            hp_source=hp_source,
-            hp_sink=hp_sink,
-            hp_temp=temp_sink,
-            gradient_sink=gradient_sink,
-            temp_water=temp_water,
-            correction_factor=correction_factor,
-            cop_coefficients=cop_coefficients,
-        )
+        processed_obj, processed_data = self._process_kwargs(obj, data, ts_type, **inputs)
 
         # Get input data with validation
         # Read the tables once for this call; every helper below reuses this run.
@@ -199,7 +187,7 @@ class Ruhnau(Method):
             obj_out[HP_PARAMS][O.HP_SOURCE] = hp_source
 
             # Check for custom coefficients first
-            cop_coefficients = self.get_with_backup(obj, "cop_coefficients", None)
+            cop_coefficients = self.get_with_backup(obj, O.COP_COEFFICIENTS, None)
             obj_out[HP_PARAMS]["coeffs"] = cop_coefficients if cop_coefficients is not None else HP_SYSTEM[hp_source]
             hp_sink = self.get_with_backup(obj, O.HP_SINK, defs.DEFAULT_HEAT)
             obj_out[HEAT_PARAMS][O.HP_SINK] = hp_sink

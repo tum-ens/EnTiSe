@@ -61,19 +61,10 @@ class PVLib(Method):
         self,
         obj: dict = None,
         data: dict = None,
-        results: dict | None = None,
+        results: dict = None,
         ts_type: str = Types.PV,
-        *,
-        latitude: float = None,
-        longitude: float = None,
-        weather: pd.DataFrame = None,
-        power: float = None,
-        azimuth: float = None,
-        tilt: float = None,
-        altitude: float = None,
-        pv_arrays: dict = None,
-        pv_inverter: dict = None,
-    ):
+        **inputs,
+    ) -> dict:
         """Generate PV power time series based on input parameters and weather data.
 
         This method implements the abstract generate method from the Method base class.
@@ -85,16 +76,20 @@ class PVLib(Method):
             data (dict, optional): Dictionary containing input data. Defaults to None.
             results (dict, optional): Dictionary with results from previously generated time series
             ts_type (str, optional): Time series type to generate. Defaults to Types.PV.
-            latitude (float, optional): Geographic latitude in degrees. Defaults to None.
-            longitude (float, optional): Geographic longitude in degrees. Defaults to None.
-            weather (pd.DataFrame, optional): Weather data with solar radiation. Defaults to None.
-            power (float, optional): System power rating in watts. Defaults to None.
-            azimuth (float, optional): Panel azimuth angle in degrees (0=North, 90=East, 180=South, 270=West).
-                                        Defaults to None.
-            tilt (float, optional): Panel tilt angle in degrees (0=horizontal, 90=vertical). Defaults to None.
-            altitude (float, optional): Site altitude in meters. Defaults to None.
-            pv_arrays (dict, optional): PV array configuration parameters. Defaults to None.
-            pv_inverter (dict, optional): PV inverter configuration parameters. Defaults to None.
+            **inputs: Any input of the method, by its key or by its Python name (the key
+                without its unit, such as ``area`` for ``area[m2]``). Keywords override the
+                same keys in ``obj``. A table input, such as ``weather``, can be a
+                DataFrame. For example:
+
+                - ``latitude`` and ``longitude`` (``[degree]``): Geographic latitude and longitude in degrees.
+                - ``weather`` (DataFrame or str): Weather data with solar radiation.
+                - ``power`` (``power[W]``): System power rating in W.
+                - ``azimuth`` (``azimuth[degree]``): Panel azimuth in degrees (0=North, 90=East, 180=South,
+                  270=West).
+                - ``tilt`` (``tilt[degree]``): Panel tilt in degrees (0=horizontal, 90=vertical).
+                - ``altitude`` (``altitude[m]``): Site altitude in m.
+                - ``pv_arrays`` (dict or str): PV array configuration parameters.
+                - ``pv_inverter``: PV inverter configuration parameters.
 
         Returns:
             dict: Dictionary containing:
@@ -111,26 +106,14 @@ class PVLib(Method):
             >>> # Using explicit parameters
             >>> result = pvlib.generate(latitude=48.1, longitude=11.6, power=5000, weather=weather_df)
             >>> # Or using dictionaries
-            >>> obj = {"latitude": 48.1, "longitude": 11.6, "power": 5000}
+            >>> obj = {"latitude[degree]": 48.1, "longitude[degree]": 11.6, "power[W]": 5000}
             >>> data = {"weather": weather_df}  # DataFrame with solar radiation data
             >>> result = pvlib.generate(obj=obj, data=data)
             >>> summary = result["summary"]
             >>> timeseries = result["timeseries"]
         """
         # Process keyword arguments
-        processed_obj, processed_data = self._process_kwargs(
-            obj,
-            data,
-            latitude=latitude,
-            longitude=longitude,
-            weather=weather,
-            power=power,
-            azimuth=azimuth,
-            tilt=tilt,
-            altitude=altitude,
-            pv_arrays=pv_arrays,
-            pv_inverter=pv_inverter,
-        )
+        processed_obj, processed_data = self._process_kwargs(obj, data, ts_type, **inputs)
 
         # Continue with existing implementation
         # Read the tables once for this call; every helper below reuses this run.

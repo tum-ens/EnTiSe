@@ -98,7 +98,7 @@ The `summary` will contain summary metrics, and `timeseries` will hold the gener
 Direct Method Access
 ~~~~~~~~~~~~~~~~~~~~
 
-You can also call a method directly when you want fine-grained control or to embed EnTiSe in an existing pipeline. In this case you can either provide the parameters directly or use the same objects and data as in the batch processing example. Below is an example for the PVLib method using the direct method access.
+You can also call a method directly when you want fine-grained control or to embed EnTiSe in an existing pipeline. Below is the PVLib method called directly with the inputs as keywords.
 
 .. code-block:: python
 
@@ -106,14 +106,28 @@ You can also call a method directly when you want fine-grained control or to emb
 
     pv = PVLib()
     result = pv.generate(
-        latitude=48.1,  # Latitude of the location
-        longitude=11.6,  # Longitude of the location
-        power=5000,  # Maximum power output of the solar system in watts
+        latitude=48.1,  # latitude[degree]
+        longitude=11.6,  # longitude[degree]
+        power=5000,  # power[W], rated power of the system
         weather=weather_df,  # DataFrame with solar radiation data
     )
 
     summary = result["summary"]
     timeseries = result["timeseries"]
+
+Every method takes the same arguments: ``generate(obj=None, data=None, results=None, ts_type=..., **inputs)``.
+Use ``PVLib.input_names()`` to discover which names the method accepts. It maps each accepted name
+to its full input key. The mapping includes the full key, its Python name without the unit and height
+(such as ``power`` for ``power[W]``), and any aliases from earlier releases.
+
+You can pass a dictionary or a pandas Series row as ``obj`` and supply individual inputs as
+keywords in the same call. A keyword value overrides both the unprefixed key and the key
+prefixed with the active time series type, such as ``pv:power[W]``. A keyword value of ``None``
+leaves the object value in place. Pass a table input such as ``weather`` as a DataFrame or as
+the name of a table in ``data``. Unknown names and two non-None keyword values for the same
+input raise ``TypeError``.
+
+See :ref:`direct_input_names` for a mixed-call example.
 
 
 Understanding the Workflow

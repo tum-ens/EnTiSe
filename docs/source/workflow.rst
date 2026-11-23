@@ -151,7 +151,38 @@ Once processing is complete, you can access and export your results. The per‑o
 Alternative Workflow: Direct Method Access
 ------------------------------------------
 
-If you prefer to call a single method directly (for tighter control or easy embedding), see the minimal example in :ref:`getting_started` under “Direct Method Access,” and explore the :ref:`examples` for full scripts and notebooks. This keeps the Workflow page focused on concepts while runnable code lives in the quickstart and examples.
+Call a single method directly for tighter control or easy embedding:
+
+.. code-block:: python
+
+    from entise.methods.pv import PVLib
+
+    pv = PVLib()
+    result = pv.generate(
+        latitude=48.1,  # latitude[degree]
+        longitude=11.6,  # longitude[degree]
+        power=5000,  # power[W], rated power of the system
+        weather=weather_df,  # DataFrame with solar radiation data
+    )
+
+    summary = result["summary"]
+    timeseries = result["timeseries"]
+
+Every method takes the same arguments: ``generate(obj=None, data=None, results=None, ts_type=..., **inputs)``.
+Use ``PVLib.input_names()`` to discover which names the method accepts. It maps each accepted name
+to its full input key. The mapping includes the full key, its Python name without the unit and height
+(such as ``power`` for ``power[W]``), and any aliases from earlier releases.
+
+You can pass a dictionary or a pandas Series row as ``obj`` and supply individual inputs as
+keywords in the same call. A keyword value overrides both the unprefixed key and the key
+prefixed with the active time series type, such as ``pv:power[W]``. A keyword value of ``None``
+leaves the object value in place. Pass a table input such as ``weather`` as a DataFrame or as
+the name of a table in ``data``. Unknown names and two non-None keyword values for the same
+input raise ``TypeError``.
+
+See :ref:`direct_input_names` for a mixed-call example.
+
+See :ref:`getting_started` for the batch counterpart and the :ref:`examples` for full scripts and notebooks.
 
 Decision Guide
 --------------

@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 import numpy as np
 import pandas as pd
@@ -51,8 +51,7 @@ class Demandlib(Method):
     required_keys = [O.DATETIMES]
     optional_keys = [O.DEMAND_KWH, O.PROFILE, O.HOLIDAYS_LOCATION, O.TIMEZONE]
 
-    required_timeseries = [O.DATETIMES]
-    optional_timeseries = []
+    required_data = [O.DATETIMES]
 
     output_summary = {
         f"{Types.ELECTRICITY}{SEP}{C.DEMAND}[Wh]": "total electricity demand",
@@ -62,17 +61,15 @@ class Demandlib(Method):
         f"{Types.ELECTRICITY}{SEP}{C.LOAD}[W]": "electricity load",
     }
 
+    input_aliases = {"demand_kwh": O.DEMAND_KWH}
+
     def generate(
         self,
         obj: dict = None,
         data: dict = None,
         results: dict = None,
         ts_type: str = Types.ELECTRICITY,
-        *,
-        profile: str = None,
-        demand_kwh: float = None,
-        weather: pd.DataFrame = None,
-        holidays_location: Optional[str] = None,
+        **inputs,
     ) -> dict:
         """Generate an electricity demand timeseries using demandlib BDEW profiles.
 
@@ -86,12 +83,18 @@ class Demandlib(Method):
             data: Data dictionary containing required timeseries (O.DATETIMES).
             results: Unused placeholder for interface compatibility.
             ts_type: Timeseries type, defaults to Types.ELECTRICITY.
-            profile: Optional BDEW profile key (e.g., "h0", "g0"); defaults to
-                method-level DEFAULT_PROFILE when not provided.
-            demand_kwh: Optional demand in kWh over the run; defaults to 1.0 if not provided.
-            weather: Unused for this method; accepted for API symmetry.
-            holidays_location: Optional holidays country/region code used by demandlib
-                to adjust profiles (e.g., "DE").
+            **inputs: Any input of the method, by its key or by its Python name (the key
+                without its unit, such as ``area`` for ``area[m2]``). Keywords override the
+                same keys in ``obj``. A table input, such as ``datetimes``, can be a
+                DataFrame. For example:
+
+                - ``profile`` (str): BDEW profile key (e.g., "h0", "g0"); defaults to
+                  DEFAULT_PROFILE.
+                - ``demand`` or ``demand_kwh`` (``demand[kWh]``): Demand in kWh over the run; defaults to 1.0.
+                - ``datetimes`` (DataFrame or str): The run's datetimes, or the key of their
+                  table in ``data``.
+                - ``holidays_location`` (str): Holidays country/region code used by demandlib to adjust
+                  profiles (e.g., "DE").
 
         Returns:
             dict: A dictionary with keys:
@@ -99,14 +102,7 @@ class Demandlib(Method):
                 - "timeseries": DataFrame indexed by the run's instants in the site time zone, with one
                   column "ELECTRICITY|load[W]" of integer W values.
         """
-        processed_obj, processed_data = self._process_kwargs(
-            obj,
-            data,
-            profile=profile,
-            demand_kwh=demand_kwh,
-            weather=weather,
-            holidays_location=holidays_location,
-        )
+        processed_obj, processed_data = self._process_kwargs(obj, data, ts_type, **inputs)
         processed_obj, processed_data = self._get_input_data(processed_obj, processed_data, ts_type)
 
         ts = calculate_timeseries(processed_obj, processed_data)

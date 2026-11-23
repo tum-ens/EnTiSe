@@ -72,9 +72,16 @@ class FileLoader(Method):
     output_summary = {}
     output_timeseries = {}
 
+    input_aliases = {"file": O.FILE}
+
     def generate(
-        self, obj: dict = None, data: dict = None, results: dict = None, ts_type: str = None, *, file: str = None
-    ):
+        self,
+        obj: dict = None,
+        data: dict = None,
+        results: dict = None,
+        ts_type: str = None,
+        **inputs,
+    ) -> dict:
         """Load time series data from external sources.
 
         This method implements the abstract generate method from the Method base class.
@@ -85,7 +92,11 @@ class FileLoader(Method):
             data (dict, optional): Dictionary containing input data. Defaults to None.
             results (dict, optional): Dictionary with results from previously generated time series
             ts_type (str, optional): Time series type to generate. Defaults to None.
-            file (str, optional): Key to use for loading the time series. Defaults to None.
+            **inputs: Any input of the method, by its key or by its Python name (the key
+                without its unit, such as ``area`` for ``area[m2]``). Keywords override the
+                same keys in ``obj``. For example:
+
+                - ``filename`` or ``file`` (str): Key of the time series in ``data``.
 
         Returns:
             dict: Dictionary containing:
@@ -103,13 +114,13 @@ class FileLoader(Method):
             >>> # Using explicit parameters
             >>> result = fileloader.generate(file="external_input", data={"external_input": df})
             >>> # Or using dictionaries
-            >>> obj = {"file": "external_input"}
+            >>> obj = {"filename": "external_input"}
             >>> data = {"external_input": df}
             >>> result = fileloader.generate(obj=obj, data=data)
             >>> timeseries = result["timeseries"]
         """
         # Process keyword arguments
-        processed_obj, processed_data = self._process_kwargs(obj, data, file=file)
+        processed_obj, processed_data = self._process_kwargs(obj, data, ts_type, **inputs)
         processed_data = {**processed_data, RUN_TIME_KEY: run_time(processed_data)}
 
         # Continue with existing implementation
