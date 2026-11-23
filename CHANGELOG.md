@@ -10,6 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 ### Added
+- Added iteration and value membership to `Columns`, `Objects`, `Types` and `Keys` in `entise.constants`. Their constants retain their plain-string types and values. `len()` counts constants and `items()` yields name-value pairs in declaration order. **Behavior change**: these classes cannot be instantiated, and their attributes are read-only. (`#59`)
 - Added a migration guide for 2.0.0 to the documentation. It lists every change that can alter results or break an existing setup, with the steps to adapt inputs. (`#116`)
 - Added a run seed, `Generator.generate(..., seed=None)`, that makes Jordan-Vajen DHW reproducible without a `seed` per object. Each object and type draws its own stream, derived from the run seed, the object's `id` and the type, so results do not depend on the order of the objects, the number of workers, the batch size or the process. An object's own `seed` takes precedence and gives the same result as before. Without any seed, results still differ between runs. PyLPG is not seeded: pylpg chooses its household members with Python's global random numbers. (`#17`)
 - Added `Generator.generate(..., utc=False)`. By default every time series of an object is indexed in its site time zone (the `timezone` key, UTC if not set); `utc=True` indexes all of them in UTC. (`#116`)

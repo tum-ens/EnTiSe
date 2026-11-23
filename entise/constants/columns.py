@@ -1,4 +1,7 @@
-class Columns:
+from entise.constants._namespace import Namespace
+
+
+class Columns(metaclass=Namespace):
     """Column names used in timeseries data."""
 
     ID = "id"  # Object ID

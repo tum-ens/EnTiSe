@@ -3,7 +3,20 @@
 Constants API
 =============
 
-This section provides detailed API documentation for the constants modules of EnTiSe.
+``Types``, ``Objects``, ``Columns`` and ``Keys`` group read-only string
+constants. Iterate over a namespace to get its values in declaration order.
+Use ``in`` to check a value, ``len()`` to count the constants, and ``items()``
+to get name-value pairs in declaration order.
+
+.. code-block:: python
+
+   from entise.constants import Types
+
+   assert Types.DHW == "dhw"
+   assert "dhw" in Types
+   assert dict(Types.items())["DHW"] == "dhw"
+
+These namespaces are used directly as classes.
 
 Types
 -----
