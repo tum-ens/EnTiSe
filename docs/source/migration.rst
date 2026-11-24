@@ -340,6 +340,56 @@ clock. The hold starts once occupancy has lasted ``night_schedule_duration[h]``
 (new, default 1 h) instead of four samples, which lasted four hours on hourly
 data.
 
+Method inputs
+-------------
+
+**Solar gains you supply.** 1R0C, 1R1C, 5R1C and 7R2C now use an object's
+``gains_solar[W]`` instead of calculating solar gains. It can be a constant in
+W, ``table|column``, or the name of a table whose column is the object's
+``id``. Before, the value was accepted and ignored. ``active_gains_solar=False``
+still switches solar gains off. Remove ``gains_solar[W]`` from your objects if
+you want the calculated gains.
+
+**Ventilation in 5R1C and 7R2C.** ``H_ve[W K-1]`` now takes the place of the
+ventilation input, and ``ventilation_split`` divides it between supply air and
+infiltration. 5R1C now uses ``ventilation_split``; before, it always used 0.
+The split changes results only when ``supply_temperature[C]`` differs from the
+outdoor air. Before, ``H_ve[W K-1]`` was ignored in both models.
+
+**Table columns.** A key with the suffix ``_COL`` no longer names the column of
+a table reference. Write the reference as ``table|column``:
+
+.. code-block:: python
+
+    # Before
+    {"power_heating[W]": "caps", "power_heating[W]_COL": "ph"}
+    # Now
+    {"power_heating[W]": "caps|ph"}
+
+A key that names a table without a column, where a column is needed, raises an
+error that shows this form. ``gains_internal_column`` and
+``ventilation_column`` are unchanged.
+
+**Prefixed keys for the heat pump.** Ruhnau now reads ``hp:correction_factor``
+before ``correction_factor``, as every other method reads its own prefix.
+Before, it ignored prefixed keys. Objects that set both now use the prefixed
+value.
+
+**Removed and added keys.** WPLib no longer declares ``wind_model``, which it
+never read; a direct call with ``wind_model=`` raises ``TypeError``. 1R1C now
+declares ``latitude[degree]`` and ``longitude[degree]``, which it already read,
+so direct calls accept ``latitude=`` and ``longitude=``.
+
+**Your own methods.** A method may declare ``optional_keys`` as a mapping from
+each key to its default; a list still works and means no defaults. Resolve the
+keys with ``self.get_relevant_objects(obj, ts_type)``: it reads the prefixed
+key, then the plain key, then the default, and returns only declared keys that
+have a value. Before, ``get_relevant_objects`` returned every key with the
+type's prefix, prefix removed, and the declared keys without defaults. The
+built-in methods now declare ``optional_keys`` as mappings, so code such as
+``PVLib.optional_keys + [...]`` must use ``list(PVLib.optional_keys)`` or
+``get_requirements()``, which still returns lists.
+
 Other changes
 -------------
 

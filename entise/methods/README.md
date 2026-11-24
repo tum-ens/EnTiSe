@@ -9,6 +9,10 @@ auxiliary calculations they use.
   Choose a name that is unique regardless of case because registration uses
   the lowercase name. Keep the declared inputs and output metadata in sync
   with `generate`. The [Ruhnau heat pump method](hp/ruhnau.py) is an example.
+- Declare each optional key's default in `optional_keys`, a mapping from key
+  to default, and resolve the object's keys with
+  `self.get_relevant_objects(obj, ts_type)` instead of looking them up one by
+  one. Keep table lookups in the existing helpers.
 - Give `generate` the shared signature
   `generate(self, obj=None, data=None, results=None, ts_type=<type>, **inputs)` and
   resolve the keywords first with `self._process_kwargs(obj, data, ts_type, **inputs)`.
