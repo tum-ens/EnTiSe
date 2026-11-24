@@ -138,7 +138,7 @@ def test_get_demand_data():
     assert not result.empty
 
 
-def test_get_water_temperatures():
+def test_get_water_temperatures(caplog):
     """Test the _get_water_temperatures function."""
     # Create sample data
     obj = {O.TEMP_WATER_COLD: 10, O.TEMP_WATER_HOT: 60}
@@ -162,13 +162,11 @@ def test_get_water_temperatures():
     assert np.all(result[O.TEMP_WATER_COLD] == 10)
     assert np.all(result[O.TEMP_WATER_HOT] == 60)
 
-    # Test with missing cold water temperature (should use VDI4655 method)
     obj = {O.TEMP_WATER_HOT: 60}
-    result = _get_water_temperatures(obj, data, weather)
-
-    # Check that cold water temperature is calculated
-    assert O.TEMP_WATER_COLD in result.columns
-    assert not np.isnan(result[O.TEMP_WATER_COLD]).any()
+    with caplog.at_level("ERROR"):
+        result = _get_water_temperatures(obj, data, weather)
+    assert np.all(result[O.TEMP_WATER_COLD] == defaults.DEFAULT_TEMP_COLD)
+    assert not caplog.records
 
     # Test with missing hot water temperature (should use default)
     obj = {O.TEMP_WATER_COLD: 10}

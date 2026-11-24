@@ -1,9 +1,15 @@
-day: [0, 6] (0: Monday, 6: Sunday)
-time: hh:mm
-event: str
-probability: 1
-duration: s
-flow_rate: l/s
-sigma_duratin: s
-sigma_flow_rate: l/s
-probability_day: 1
+dhw_activity.csv
+day_of_week	Weekday number from 0 (Monday) to 6 (Sunday).
+time	Local time of day in HH:MM format.
+event	Draw-off category (Bath, Medium, Shower or Small).
+probability	Dimensionless weight for a draw-off in this time slot.
+duration[s]	Mean draw-off duration in seconds.
+flow_rate[l s-1]	Mean draw-off flow rate in litres per second.
+duration_sigma[s]	Standard deviation of duration in seconds.
+flow_rate_sigma[l s-1]	Standard deviation of flow rate in litres per second.
+probability_day	Dimensionless weight for the event category on this weekday.
+
+dhw_demand_by_dwelling.csv
+dwelling_size[m2]	Reference floor area in square metres.
+yearly_dhw_demand[m3 m-2 a-1]	Mean annual hot-water demand in cubic metres per square metre.
+sigma	Standard deviation of daily demand as a fraction of its mean.

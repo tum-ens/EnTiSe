@@ -6,7 +6,6 @@ used by the Jordan & Vajen DHW method.
 """
 
 import logging
-import os
 from typing import Any, Dict, Union
 
 import pandas as pd
@@ -14,7 +13,6 @@ import pandas as pd
 import entise.methods.dhw.defaults as defaults
 from entise.constants import Columns as C
 from entise.constants import Objects as O
-from entise.methods.dhw.jordanvajen.utils import _get_data_path
 
 logger = logging.getLogger(__name__)
 
@@ -55,80 +53,12 @@ def _get_water_temp(obj: Dict[str, Any], data: Dict[str, Any], key: str) -> Unio
 
 
 def _get_water_temp_cold(obj: Dict[str, Any], data: Dict[str, Any], df: pd.DataFrame, key: str) -> pd.Series:
-    """
-    Get cold water temperature.
-
-    This function retrieves cold water temperature from object parameters or data.
-    If not found, it uses a fallback method based on the VDI4655 standard.
-
-    Parameters:
-    -----------
-    obj : Dict[str, Any]
-        Object parameters
-    data : Dict[str, Any]
-        Input data
-    df : pd.DataFrame
-        DataFrame with datetime index
-    key : str
-        Key for cold water temperature (e.g., O.TEMP_WATER_COLD)
-
-    Returns:
-    --------
-    pd.Series
-        Cold water temperature for each timestamp in df
-
-    Raises:
-    -------
-    FileNotFoundError
-        If the cold water temperature data file is not found
-    ValueError
-        If the cold water temperature data file has an invalid format
-    """
+    """Return the supplied cold-water temperature or the constant default."""
     water_temp = _get_water_temp(obj, data, key)
-
     if water_temp is None:
-        logger.info(f"'{key}' not defined. Using fallback method 'VDI4655'.")
+        water_temp = defaults.DEFAULT_TEMP_COLD
 
-        try:
-            # Load VDI4655 cold water temperature data
-            path = _get_data_path("shared", "cold_water_temp_vdi4655.csv")
-            logger.debug(f"Loading cold water temperature data from {path}")
-
-            if not os.path.exists(path):
-                raise FileNotFoundError(f"Cold water temperature data file not found: {path}")
-
-            water_temp_data = pd.read_csv(path)
-
-            # Validate required columns
-            if C.MONTH not in water_temp_data.columns or O.TEMP_WATER_COLD not in water_temp_data.columns:
-                raise ValueError(
-                    f"Cold water temperature data missing required columns: {C.MONTH} or {O.TEMP_WATER_COLD}"
-                )
-
-            # Extract months from datetime index and match with water temperature data
-            months = pd.Series(df.index.month, index=df.index)
-            water_temp = months.map(water_temp_data.set_index(C.MONTH)[O.TEMP_WATER_COLD])
-
-            # Check if any NaN values in the result
-            if water_temp.isna().any():
-                logger.warning(
-                    f"Some cold water temperatures could not be determined. Using default value {defaults.DEFAULT_TEMP_COLD}°C."
-                )
-                water_temp = water_temp.fillna(defaults.DEFAULT_TEMP_COLD)
-
-            logger.info(
-                f"Using VDI4655 cold water temperatures: min={water_temp.min():.1f}°C, max={water_temp.max():.1f}°C"
-            )
-
-        except Exception as e:
-            logger.error(
-                f"Error getting cold water temperature: {str(e)}. Using default value {defaults.DEFAULT_TEMP_COLD}°C."
-            )
-            water_temp = pd.Series(defaults.DEFAULT_TEMP_COLD, index=df.index)
-
-    # Convert to Series if it's a scalar
     if not isinstance(water_temp, pd.Series):
-        logger.debug(f"Converting cold water temperature from {type(water_temp)} to Series")
         water_temp = pd.Series(water_temp, index=df.index)
 
     return water_temp
