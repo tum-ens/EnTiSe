@@ -149,9 +149,9 @@ def test_jordan_vajen_holidays(inputs):
     no_data = df[no_holidays_obj["id"]][Types.DHW]
 
     # Add day of week column
-    pt_data["day_of_week"] = pt_data.index.dayofweek
-    ar_data["day_of_week"] = ar_data.index.dayofweek
-    no_data["day_of_week"] = no_data.index.dayofweek
+    pt_data["day_of_week"] = pt_data.index.day_of_week
+    ar_data["day_of_week"] = ar_data.index.day_of_week
+    no_data["day_of_week"] = no_data.index.day_of_week
 
     # Add holiday column
     pt_data["date"] = pt_data.index.date
@@ -194,7 +194,7 @@ def test_jordan_vajen_weekday_weekend(inputs):
     dhw_data = df[obj["id"]][Types.DHW]
 
     # Add day of week column
-    dhw_data["day_of_week"] = dhw_data.index.dayofweek
+    dhw_data["day_of_week"] = dhw_data.index.day_of_week
 
     # Calculate average demand for weekdays and weekends
     weekday_demand = dhw_data[dhw_data["day_of_week"] < 5][f"{Types.DHW}:volume[l]"].mean()

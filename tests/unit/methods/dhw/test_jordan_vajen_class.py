@@ -19,7 +19,7 @@ from entise.methods.dhw.jordan_vajen import JordanVajen
 def create_sample_weather(start_date="2023-01-01", days=7, freq="h"):
     """Create sample weather data for testing."""
     start = pd.Timestamp(start_date, tz="UTC")
-    end = start + pd.Timedelta(days, unit="D")
+    end = start + pd.Timedelta(days=days)
     index = pd.date_range(start=start, end=end, freq=freq)
 
     # Create a DataFrame with temperature data
@@ -382,7 +382,7 @@ def test_jordan_vajen_time_resolution():
     # Create sample data with different time resolutions
     weather_hourly = create_sample_weather(freq="h")
     weather_15min = create_sample_weather(freq="15min")
-    weather_daily = create_sample_weather(freq="d")
+    weather_daily = create_sample_weather(freq="D")
 
     data = {"weather_hourly": weather_hourly, "weather_15min": weather_15min, "weather_daily": weather_daily}
 

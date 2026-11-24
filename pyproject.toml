@@ -120,6 +120,17 @@ target-version = "py311"
 markers = [
     "native_pylpg: runs the external PyLPG engine",
 ]
+# Only warnings EnTiSe cannot fix are ignored, so new ones stay visible.
+filterwarnings = [
+    # pandas 2 uses NumPy timedeltas without a unit internally, which NumPy 2.5 deprecates.
+    "ignore:The 'generic' unit for NumPy timedelta is deprecated:DeprecationWarning",
+    # pandas 4 deprecations inside dependencies.
+    "ignore::DeprecationWarning:demandlib",
+    "ignore::DeprecationWarning:pvlib",
+    "ignore::DeprecationWarning:windpowerlib",
+    # Tests that switch the accelerator make pvlib reload its solar-position solver.
+    "ignore:Reloading spa to use:UserWarning:pvlib",
+]
 
 [tool.ruff.format]
 quote-style = "double"
