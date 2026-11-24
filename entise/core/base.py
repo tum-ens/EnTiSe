@@ -1,7 +1,7 @@
 import logging
 import re
 from abc import ABC, ABCMeta, abstractmethod
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from typing import Any, Dict, List, Tuple, Type
 
 import pandas as pd
@@ -131,6 +131,11 @@ class Method(ABC, metaclass=MethodMeta):
     output_timeseries: Dict[str, pd.DataFrame]
     # Python names kept from earlier releases, mapped to the input key they set.
     input_aliases: Dict[str, str] = {}
+    # Optional hook for a method that calculates several of its types at once. When set, the
+    # runner calls ``generate_group(obj, data, results, ts_types)`` once for all the types in
+    # ``types`` that select this method on the object, and expects a mapping from each of those
+    # types to its result. Otherwise the runner calls ``generate`` once per type.
+    generate_group: Callable[..., Dict[str, Dict[str, Any]]] | None = None
 
     @abstractmethod
     def generate(
