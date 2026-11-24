@@ -288,3 +288,38 @@ def test_interpolation_needs_two_heights(example_inputs):
     }
     with pytest.raises(ValueError, match="two or more heights"):
         WPLib().generate(obj, data, wind_model=two_heights)
+
+
+def _wind_run(weather: pd.DataFrame, caplog):
+    """Generate two example turbines on a week of ``weather``; return the summary and the height warnings."""
+    import logging
+
+    from entise import Generator
+
+    here = os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "examples", "wind_wplib")
+    objects = pd.read_csv(os.path.join(here, "objects.csv")).head(2)
+    generator = Generator(raise_on_error=True)
+    generator.add_objects(objects)
+    with caplog.at_level(logging.WARNING, logger="entise.methods.wind.wplib"):
+        summary, _ = generator.generate({"weather": weather}, workers=1, show_progress=False)
+    warnings = [r.getMessage() for r in caplog.records if "no height" in r.getMessage()]
+    caplog.clear()
+    return summary, warnings
+
+
+def test_wind_speed_without_a_height_is_read_at_10_m_with_one_warning(caplog):
+    examples = os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "examples")
+    weather = pd.read_csv(os.path.join(examples, "common_data", "weather.csv")).iloc[: 7 * 24]
+    others = [c for c in weather.columns if not c.startswith("wind_speed[")]
+    at_10m = weather[[*others, "wind_speed[m s-1]@10m"]]
+    no_height = at_10m.rename(columns={"wind_speed[m s-1]@10m": C.WIND_SPEED})
+
+    expected, none = _wind_run(at_10m, caplog)
+    summary, warnings = _wind_run(no_height, caplog)
+
+    assert expected[f"{Types.WIND}{SEP}{C.GENERATION}"].gt(0).all()
+    pd.testing.assert_frame_equal(summary, expected)
+    assert none == []
+    # One warning for the run, not one per object; it names the column and the way to set the height.
+    assert len(warnings) == 1
+    assert C.WIND_SPEED in warnings[0] and "10 m" in warnings[0] and "@<height>m" in warnings[0]

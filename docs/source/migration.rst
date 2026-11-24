@@ -418,6 +418,10 @@ Other changes
   back to NumPy silently.
 - PyLPG raises an error if the engine leaves minutes of the run without
   output. Before, they were filled with zero.
+- WPLib reads a wind speed column without a height, such as
+  ``wind_speed[m s-1]``, at 10 m and warns. Before, it read it at 0 m, which
+  gave zero wind power. Name the column with its height, such as
+  ``wind_speed[m s-1]@10m``, to avoid the warning.
 - Importing the PV method no longer switches off every warning in the process.
   Before, it called ``warnings.filterwarnings("ignore")`` for the whole
   process. Warnings from your own code and other libraries that it hid now
