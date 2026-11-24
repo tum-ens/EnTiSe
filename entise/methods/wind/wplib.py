@@ -59,9 +59,9 @@ class WPLib(Method):
     required_data = [O.WEATHER]
     optional_data = [O.WIND_MODEL]
     output_summary = {
-        f"{C.GENERATION}_{Types.WIND}": "total wind power generation",
-        f"{O.GEN_MAX}_{Types.WIND}": "maximum wind power generation",
-        f"{C.FLH}_{Types.WIND}": "full load hours",
+        f"{Types.WIND}{SEP}{C.GENERATION}": "total wind power generation",
+        f"{Types.WIND}{SEP}{O.GEN_MAX}": "maximum wind power generation",
+        f"{Types.WIND}{SEP}{C.FLH}": "full load hours",
     }
     output_timeseries = {
         f"{C.GENERATION}_{Types.WIND}": "wind power generation",

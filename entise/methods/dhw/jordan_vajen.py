@@ -92,15 +92,15 @@ class JordanVajen(Method):
         O.TEMP_WATER_HOT,
     ]
     output_summary = {
-        f"{Types.DHW}_volume_total": "total hot water demand in liters",
-        f"{Types.DHW}_volume_avg": "average hot water demand in liters",
-        f"{Types.DHW}_volume_peak": "peak hot water demand in liters",
-        f"{Types.DHW}_energy_total": "total energy demand for hot water in Wh",
-        f"{Types.DHW}_energy_avg": "average energy demand for hot water in Wh",
-        f"{Types.DHW}_energy_peak": "peak energy demand for hot water in Wh",
-        f"{Types.DHW}_power_avg": "average power for hot water in W",
-        f"{Types.DHW}_power_max": "maximum power for hot water in W",
-        f"{Types.DHW}_power_min": "minimum power for hot water in W",
+        f"{Types.DHW}{SEP}volume_total[l]": "total hot water demand in liters",
+        f"{Types.DHW}{SEP}volume_avg[l]": "average hot water demand in liters",
+        f"{Types.DHW}{SEP}volume_peak[l]": "peak hot water demand in liters",
+        f"{Types.DHW}{SEP}energy_total[Wh]": "total energy demand for hot water in Wh",
+        f"{Types.DHW}{SEP}energy_avg[Wh]": "average energy demand for hot water in Wh",
+        f"{Types.DHW}{SEP}energy_peak[Wh]": "peak energy demand for hot water in Wh",
+        f"{Types.DHW}{SEP}power_avg[W]": "average power for hot water in W",
+        f"{Types.DHW}{SEP}power_max[W]": "maximum power for hot water in W",
+        f"{Types.DHW}{SEP}power_min[W]": "minimum power for hot water in W",
     }
     output_timeseries = {
         f"{Types.DHW}_volume": "hot water demand in liters",

@@ -53,7 +53,10 @@ class Demandlib(Method):
     required_data = [O.WEATHER]
     optional_data = []
 
-    output_summary = {f"{Types.HEATING}{SEP}{C.DEMAND}[kWh]": "total heating demand"}
+    output_summary = {
+        f"{Types.HEATING}{SEP}{C.DEMAND}[Wh]": "total heating demand",
+        f"{Types.HEATING}{SEP}{O.LOAD_MAX}[W]": "maximum heating load",
+    }
     output_timeseries = {f"{Types.HEATING}{SEP}{C.LOAD}[W]": "heating load"}
 
     input_aliases = {"annual_demand_kwh": O.DEMAND_KWH}
