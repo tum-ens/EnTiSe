@@ -1063,3 +1063,31 @@ def test_r7c2_equivalent_temperature_stays_between_air_and_sol_air(basic_7r2c_ob
     sol_air = minimal_weather[C.TEMP_AIR] + DEFAULT_T_EQ_ALPHA_SW * minimal_weather[C.SOLAR_GHI] / DEFAULT_T_EQ_H_O
     assert (teq >= minimal_weather[C.TEMP_AIR] - 1e-9).all()
     assert (teq <= sol_air + 1e-9).all()
+
+
+def test_r7c2_window_weight_uses_the_total_conductance_of_vdi_6007(basic_7r2c_object, minimal_weather):
+    """The windows' share of T_eq is U·A over the exterior envelope's U·A, 1 / (R_1_AW + R_rest_AW + R_in) (VDI 6007).
+
+    R_in is the inner surface resistance of the exterior walls: their convective resistance to the air in
+    parallel with their radiative resistance to the interior walls. The model's star resistances come from
+    that triangle.
+    """
+    r_aw_iw, r_iw_air, r_aw_air = 0.002, 0.001, 0.003  # radiative AW-IW, convective IW-air, convective AW-air
+    total = r_aw_iw + r_iw_air + r_aw_air
+    star = {
+        O.R_ALPHA_STAR_IL: r_iw_air * r_aw_air / total,
+        O.R_ALPHA_STAR_AW: r_aw_iw * r_aw_air / total,
+        O.R_ALPHA_STAR_IW: r_aw_iw * r_iw_air / total,
+    }
+    obj = {**basic_7r2c_object, **star, O.WINDOWS: "windows"}
+    data = {O.WEATHER: minimal_weather, O.WINDOWS: _windows("test_7r2c", 10.0)}  # 15 W/K
+
+    teq = R7C2()._calc_teq_series(obj, data, minimal_weather, minimal_weather.index)["T_eq"]
+
+    r_in = 1 / (1 / r_aw_air + 1 / r_aw_iw)
+    ua_total = 1 / (obj[O.R_1_AW] + obj[O.R_REST_AW] + r_in)
+    weight = 15.0 / ua_total
+    t_air = minimal_weather[C.TEMP_AIR]
+    sol_air = t_air + DEFAULT_T_EQ_ALPHA_SW * minimal_weather[C.SOLAR_GHI] / DEFAULT_T_EQ_H_O
+    expected = (1 - weight) * sol_air + weight * t_air
+    np.testing.assert_allclose(teq.to_numpy(), expected.to_numpy(), rtol=1e-12)
