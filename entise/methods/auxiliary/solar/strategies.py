@@ -5,6 +5,7 @@ from entise.constants import Columns as C
 from entise.constants import Objects as O
 from entise.core.base_auxiliary import AuxiliaryMethod
 from entise.core.utils import resolve_ts_or_scalar_by_id
+from entise.perf import get_accelerator
 
 # Solar position and plane-of-array irradiance are cached per process and per
 # weather frame. Objects in the same grid cell share one solar position, which
@@ -179,7 +180,10 @@ class SolarGainsPVLib(AuxiliaryMethod):
         solpos = cache.solpos.get(sp_key)
         if solpos is None:
             location = pvlib.location.Location(cell[0], cell[1])
-            solpos = location.get_solarposition(_interval_midpoints(weather.index), method="nrel_numba")
+            # pvlib's numba and numpy NREL solvers give bit-identical positions; use numba only where
+            # EnTiSe's accelerator does, as pvlib otherwise warns and falls back on every call.
+            method = "nrel_numba" if get_accelerator() == "numba" else "nrel_numpy"
+            solpos = location.get_solarposition(_interval_midpoints(weather.index), method=method)
             # Irradiance is a mean over each interval, so the sun is taken at its midpoint
             # and the result is labelled like the weather row it belongs to.
             solpos.index = weather.index

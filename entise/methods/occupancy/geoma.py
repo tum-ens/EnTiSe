@@ -67,9 +67,9 @@ class GeoMA(Method):
 
     def generate(
         self,
-        obj: dict = None,
-        data: dict = None,
-        results: dict = None,
+        obj: dict | None = None,
+        data: dict | None = None,
+        results: dict | None = None,
         ts_type: str = Types.OCCUPANCY,
         **inputs,
     ) -> dict:
@@ -144,11 +144,12 @@ class GeoMA(Method):
         return self._format_output(occ_schedule, processed_obj, processed_data)
 
     def _get_input_data(
-        self, obj: dict, data: dict, results: dict, method_type: str = Types.OCCUPANCY
+        self, obj: dict, data: dict, results: dict | None, method_type: str = Types.OCCUPANCY
     ) -> tuple[dict, dict]:
         obj_out = self.get_relevant_objects(obj, method_type)
 
         # Store required results
+        results = results or {}
         data_out = {k: results[k][K.TIMESERIES] for k in self.required_data if k in results}
 
         # Clean up

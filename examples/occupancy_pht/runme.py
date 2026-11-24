@@ -10,7 +10,6 @@ import numpy as np
 import pandas as pd
 
 from entise.constants import SEP, Columns, Types
-from entise.constants import Objects as O
 from examples.utils import load_input, run_simulation
 
 

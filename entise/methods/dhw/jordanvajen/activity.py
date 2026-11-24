@@ -71,13 +71,13 @@ def _get_activity_data(source: str, filename: str = "dhw_activity.csv") -> pd.Da
         logger.info(f"Loaded activity data: {len(data)} rows, {len(data['event'].unique())} event types")
         return data
 
-    except pd.errors.EmptyDataError:
+    except pd.errors.EmptyDataError as e:
         logger.error(f"Activity data file is empty: {path}")
-        raise ValueError(f"Activity data file is empty: {path}")
+        raise ValueError(f"Activity data file is empty: {path}") from e
 
     except pd.errors.ParserError as e:
         logger.error(f"Error parsing activity data file: {str(e)}")
-        raise ValueError(f"Error parsing activity data file: {str(e)}")
+        raise ValueError(f"Error parsing activity data file: {str(e)}") from e
 
     except Exception as e:
         logger.error(f"Error loading activity data: {str(e)}")
@@ -131,13 +131,13 @@ def _get_demand_data(source: str, filename: str = "dhw_demand_by_dwelling.csv") 
         logger.info(f"Loaded demand data: {len(data)} dwelling sizes")
         return data
 
-    except pd.errors.EmptyDataError:
+    except pd.errors.EmptyDataError as e:
         logger.error(f"Demand data file is empty: {path}")
-        raise ValueError(f"Demand data file is empty: {path}")
+        raise ValueError(f"Demand data file is empty: {path}") from e
 
     except pd.errors.ParserError as e:
         logger.error(f"Error parsing demand data file: {str(e)}")
-        raise ValueError(f"Error parsing demand data file: {str(e)}")
+        raise ValueError(f"Error parsing demand data file: {str(e)}") from e
 
     except Exception as e:
         logger.error(f"Error loading demand data: {str(e)}")

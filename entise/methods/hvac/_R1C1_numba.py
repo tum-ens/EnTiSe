@@ -132,7 +132,9 @@ def _solve(
     return temp_in, p_heat, p_cool
 
 
-def calculate_timeseries_1r1c(obj: dict, data: dict, timestep: float) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+def calculate_timeseries_1r1c(
+    obj: dict, data: dict, timestep: float | np.floating
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Numba entry point matching the signature of the numpy dispatch target.
 
     Unpacks the obj/data dicts into flat arrays and scalars, then delegates

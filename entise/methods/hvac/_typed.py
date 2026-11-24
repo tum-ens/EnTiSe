@@ -44,7 +44,7 @@ class TypedViews(GroupedMethod):
     shared_columns = (C.TEMP_IN,)
     control_keys = CONTROL_KEYS
 
-    def generate_group(self, obj: dict, data: dict, results: dict, ts_types: Iterable[str]) -> dict:
+    def generate_group(self, obj: dict, data: dict, results: dict | None, ts_types: Iterable[str]) -> dict:
         """Return the result of each type in ``ts_types`` from one solve."""
         ts_types = tuple(ts_types)
         if ts_types == (Types.HVAC,):
@@ -58,7 +58,7 @@ class TypedViews(GroupedMethod):
             )
         return super().generate_group(obj, data, results, ts_types)
 
-    def generate_combined(self, obj: dict, data: dict, results: dict, ts_types: Tuple[str, ...]) -> dict:
+    def generate_combined(self, obj: dict, data: dict, results: dict | None, ts_types: Tuple[str, ...]) -> dict:
         """Solve the building once; the result is the full ``hvac`` result."""
         return self.generate(obj, data, results, Types.HVAC)
 

@@ -45,8 +45,7 @@ A maintainer configures these settings before the first rehearsal.
    into a dated release heading, and review the migration notes and examples.
 2. Merge the release only after review and the required checks pass,
    including strict Sphinx and the supported Python and pandas matrix.
-   Review any advisory failures before tagging. Ruff lint, Ruff formatting,
-   mypy and native PyLPG have existing advisory failures.
+   Native PyLPG is the only advisory job; review its result before tagging.
 3. Fetch `main` and its tags, confirm the exact reviewed merge commit and
    record its SHA in the release issue. Use the same GitLab project for the
    review, tag and release pipeline.

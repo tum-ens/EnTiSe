@@ -139,7 +139,12 @@ class Method(ABC, metaclass=MethodMeta):
 
     @abstractmethod
     def generate(
-        self, obj: dict = None, data: dict = None, results: dict = None, ts_type: str = None, **inputs
+        self,
+        obj: dict | None = None,
+        data: dict | None = None,
+        results: dict | None = None,
+        ts_type: str = "",
+        **inputs,
     ) -> Dict[str, Any]:
         """Generate the time series of one object.
 
@@ -252,7 +257,9 @@ class Method(ABC, metaclass=MethodMeta):
                 raise ValueError(f"'{found[0]}' ({found[1]!r}) and '{scoped}' ({value!r}) give different values.")
         return None if found is None else found[1]
 
-    def _process_kwargs(self, obj: dict = None, data: dict = None, ts_type: str = None, **inputs) -> Tuple[dict, dict]:
+    def _process_kwargs(
+        self, obj: dict | None = None, data: dict | None = None, ts_type: str | None = None, **inputs
+    ) -> Tuple[dict, dict]:
         """Apply the keyword inputs of a direct call to copies of obj and data.
 
         See ``_process_inputs``. A method with an input that another type produces,
@@ -268,8 +275,13 @@ class Method(ABC, metaclass=MethodMeta):
         return local_obj, local_data
 
     def _process_inputs(
-        self, obj: dict = None, data: dict = None, results: dict = None, ts_type: str = None, **inputs
-    ) -> Tuple[dict, dict, dict]:
+        self,
+        obj: dict | None = None,
+        data: dict | None = None,
+        results: dict | None = None,
+        ts_type: str | None = None,
+        **inputs,
+    ) -> Tuple[dict, dict, dict | None]:
         """Apply the keyword inputs of a direct call to copies of obj, data and results.
 
         ``obj`` may be a dict, a row of an objects table (a Series) or None; the copy is a
@@ -294,7 +306,7 @@ class Method(ABC, metaclass=MethodMeta):
             **inputs: Inputs by key or Python name.
 
         Returns:
-            Tuple[dict, dict, dict]: Processed obj, data and results. ``results`` is the
+            Tuple[dict, dict, dict | None]: Processed obj, data and results. ``results`` is the
             given mapping unless a keyword sets one of its entries.
 
         Raises:
@@ -420,11 +432,11 @@ class Method(ABC, metaclass=MethodMeta):
         return weather, info
 
     @staticmethod
-    def get_with_backup(obj: dict, key: str, backup: Any = None):
+    def get_with_backup(obj: Mapping, key: str, backup: Any = None):
         """Get a value from a dictionary with a backup value if not found or None.
 
         Args:
-            obj (dict): Dictionary to get value from
+            obj (Mapping): Mapping to get value from
             key (str): Key to look for
             backup: Default value if key doesn't exist or value is None/NaN
 

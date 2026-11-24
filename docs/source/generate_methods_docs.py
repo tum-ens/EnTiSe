@@ -76,7 +76,9 @@ def get_enriched_description(cls) -> str:
         "pvlib": "pvlib-python: https://pvlib-python.readthedocs.io/",
         "windpowerlib": "windpowerlib: https://windpowerlib.readthedocs.io/",
         "demandlib": "demandlib (BDEW SLPs): https://demandlib.readthedocs.io/",
-        "iso_13790": "ISO 13790: Energy performance of buildings — Calculation of energy use for space heating and cooling",
+        "iso_13790": (
+            "ISO 13790: Energy performance of buildings — Calculation of energy use for space heating and cooling"
+        ),
         "vdi_6007": "VDI 6007: Calculation of transient thermal response of rooms and buildings",
         "dhwcalc": "DHWcalc (Jordan & Vajen): http://www.solar-heating.at/downloads/DHWcalc_english.pdf",
         "ruhnau": "Ruhnau et al. (heat pump COP vs. ambient temperature): https://doi.org/10.1016/j.enpol.2019.111179",
@@ -137,9 +139,10 @@ def get_enriched_description(cls) -> str:
 
     if "entise.methods.dhw" in mod:
         return (
-            "Domestic hot water (DHW) demand based on Jordan & Vajen profiles as popularized by DHWcalc. The method "
-            "synthesizes stochastic tapping events (draw volumes and times) consistent with dwelling size and occupants, "
-            "and converts them to thermal energy using cold/hot water temperatures and heater assumptions.\n\n"
+            "Domestic hot water (DHW) demand based on Jordan & Vajen profiles as popularized by DHWcalc. "
+            "The method synthesizes stochastic tapping events (draw volumes and times) consistent with dwelling "
+            "size and occupants, and converts them to thermal energy using cold/hot water temperatures and heater "
+            "assumptions.\n\n"
             f"Reference: {refs['dhwcalc']}."
         )
 
@@ -154,16 +157,17 @@ def get_enriched_description(cls) -> str:
 
     if "entise.methods.occupancy" in mod:
         return (
-            "Occupancy profile generation/detection. Methods in this family either generate plausible presence schedules "
-            "from lightweight priors (e.g., GeoMA) or infer occupancy from measured signals via thresholding and schedule "
-            "heuristics (e.g., PHT). Outputs are occupancy indicators or internal gains proxies for downstream HVAC models."
+            "Occupancy profile generation/detection. Methods in this family either generate plausible presence "
+            "schedules from lightweight priors (e.g., GeoMA) or infer occupancy from measured signals via "
+            "thresholding and schedule heuristics (e.g., PHT). Outputs are occupancy indicators or internal gains "
+            "proxies for downstream HVAC models."
         )
 
     if "entise.methods.auxiliary" in mod:
         return (
-            "Auxiliary strategy used by main methods to derive intermediate inputs (e.g., solar or internal gains, ventilation). "
-            "Selectors pick the most specific strategy given available object keys and input data, enabling automatic yet "
-            "overrideable preprocessing within the workflow."
+            "Auxiliary strategy used by main methods to derive intermediate inputs (e.g., solar or internal gains, "
+            "ventilation). Selectors pick the most specific strategy given available object keys and input data, "
+            "enabling automatic yet overrideable preprocessing within the workflow."
         )
 
     # Default fallback: empty string to keep original behavior
@@ -566,7 +570,8 @@ def ensure_top_level_index(base_dir):
         title,
         underline,
         "",
-        "This section documents all available time series generation methods in EnTiSe. Pages are auto-generated from the code at build time, so they stay consistent with the current API.",
+        "This section documents all available time series generation methods in EnTiSe. Pages are "
+        "auto-generated from the code at build time, so they stay consistent with the current API.",
         "",
         ".. toctree::",
         "   :maxdepth: 2",

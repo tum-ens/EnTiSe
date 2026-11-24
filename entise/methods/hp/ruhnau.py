@@ -105,9 +105,9 @@ class Ruhnau(Method):
 
     def generate(
         self,
-        obj: dict = None,
-        data: dict = None,
-        results: dict = None,
+        obj: dict | None = None,
+        data: dict | None = None,
+        results: dict | None = None,
         ts_type: str = Types.HP,
         **inputs,
     ) -> dict:
@@ -342,7 +342,7 @@ def _calculate_cop(
     temp_sink,
     gradient_sink,
     correction_factor,
-    temp_offset_types: list = (defs.HP_SOIL, defs.HP_WATER),
+    temp_offset_types: tuple = (defs.HP_SOIL, defs.HP_WATER),
     temp_offset: float = 5,
 ):
     """Calculate COP time series based on temperature differences.
@@ -354,7 +354,7 @@ def _calculate_cop(
         temp_sink (float): Temperature setting for the heat sink
         gradient_sink (float): Gradient for sink temperature calculation
         correction_factor (float): Efficiency correction factor
-        temp_offset_types (list, optional): Heat pump source types that need temperature offset
+        temp_offset_types (tuple, optional): Heat pump source types that need temperature offset
         temp_offset (float, optional): Temperature offset value
 
     Returns:

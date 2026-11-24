@@ -49,8 +49,8 @@ class WeatherProvider(ABC):
         return weather
 
     @staticmethod
-    def use_default_features(metadata: Dict[str, dict]) -> set:
-        """Return set of default features based on metadata dictionary."""
+    def use_default_features(metadata: Dict[str, dict]) -> List[str]:
+        """Return the default features of a metadata dictionary."""
         return [key for key, val in metadata.items() if val.get("default") is True]
 
     @staticmethod
@@ -58,9 +58,7 @@ class WeatherProvider(ABC):
         """Ensure requested features are in the list of available features."""
         missing = [f for f in features if f not in available_features]
         if missing:
-            raise ValueError(
-                f"Requested features not available: {missing}. " f"Available: {sorted(available_features)}"
-            )
+            raise ValueError(f"Requested features not available: {missing}. Available: {sorted(available_features)}")
         return features
 
     def calculate_derived_variables(self, df: pd.DataFrame, variables: Optional[List[str]] = None) -> pd.DataFrame:
@@ -186,10 +184,10 @@ class WeatherProvider(ABC):
             quantity = Q_(values.values, src_unit)
             converted = quantity.to(tgt_unit).magnitude
             return pd.Series(converted, index=values.index)
-        except pint.errors.DimensionalityError:
-            raise ValueError(f"Incompatible units: {src_unit} → {tgt_unit}")
-        except pint.errors.UndefinedUnitError:
-            raise ValueError(f"Unknown unit: {src_unit} or {tgt_unit}")
+        except pint.errors.DimensionalityError as e:
+            raise ValueError(f"Incompatible units: {src_unit} → {tgt_unit}") from e
+        except pint.errors.UndefinedUnitError as e:
+            raise ValueError(f"Unknown unit: {src_unit} or {tgt_unit}") from e
 
     def _convert_unit_column(self, values: pd.Series, src_unit: str, tgt_unit: str) -> pd.Series:
         if src_unit == "%" and tgt_unit == "1":

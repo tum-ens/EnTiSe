@@ -44,13 +44,13 @@ class GroupedMethod(_Base):
     # Columns that belong to every type's result, such as an indoor temperature.
     shared_columns: Tuple[str, ...] = ()
 
-    def generate_group(self, obj: dict, data: dict, results: dict, ts_types: Iterable[str]) -> Dict[str, dict]:
+    def generate_group(self, obj: dict, data: dict, results: dict | None, ts_types: Iterable[str]) -> Dict[str, dict]:
         """Return the result of each type in ``ts_types`` from one calculation."""
         ts_types = tuple(ts_types)
         combined = self.generate_combined(self.group_object(obj, ts_types), data, results, ts_types)
         return split_by_type(combined, ts_types, self.shared_columns)
 
-    def generate_combined(self, obj: dict, data: dict, results: dict, ts_types: Tuple[str, ...]) -> dict:
+    def generate_combined(self, obj: dict, data: dict, results: dict | None, ts_types: Tuple[str, ...]) -> dict:
         """Calculate the selected types together.
 
         Args:
@@ -76,7 +76,7 @@ class GroupedMethod(_Base):
         flat.update(self.get_relevant_objects(obj, ts_types))
         return flat
 
-    def group_result(self, obj: dict, data: dict, results: dict, ts_type: str) -> dict:
+    def group_result(self, obj: dict, data: dict, results: dict | None, ts_type: str) -> dict:
         """Return the result of one type, as a direct call of ``generate`` with ``ts_type`` does."""
         return self.generate_group(obj, data, results, (ts_type,))[ts_type]
 

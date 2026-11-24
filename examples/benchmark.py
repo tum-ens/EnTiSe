@@ -63,12 +63,12 @@ Backwards-friendly comma-separated inputs:
 - python examples/benchmark.py run --methods pv_pvlib,hp_ruhnau --workers 1,2,4 --objects 50,100 --repeats 3 --plot
 """
 
-
 import argparse
 import fnmatch
 import os
 import sys
 import time
+import warnings
 from datetime import datetime
 from typing import Dict, List, Optional, Sequence, Tuple
 
@@ -77,7 +77,6 @@ import matplotlib.gridspec as gridspec
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import warnings
 
 warnings.simplefilter("default")  # undo "error" policy if present
 warnings.filterwarnings("ignore", category=FutureWarning)
@@ -199,9 +198,7 @@ def benchmark_one(
             dt = time.perf_counter() - t0
 
         # Serialize any captured warnings for visibility (non-fatal)
-        warn_txt = "; ".join(
-            [f"{type(w.message).__name__}: {str(w.message)}" for w in wlist]
-        ) if wlist else None
+        warn_txt = "; ".join([f"{type(w.message).__name__}: {str(w.message)}" for w in wlist]) if wlist else None
 
         return {
             "method": method,

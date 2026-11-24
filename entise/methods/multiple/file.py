@@ -76,10 +76,10 @@ class FileLoader(Method):
 
     def generate(
         self,
-        obj: dict = None,
-        data: dict = None,
-        results: dict = None,
-        ts_type: str = None,
+        obj: dict | None = None,
+        data: dict | None = None,
+        results: dict | None = None,
+        ts_type: str | None = None,
         **inputs,
     ) -> dict:
         """Load time series data from external sources.
@@ -135,7 +135,7 @@ class FileLoader(Method):
         }
 
 
-def get_input_data(obj: dict, data: dict, method_type: str = None) -> tuple[dict, dict]:
+def get_input_data(obj: dict, data: dict, method_type: str | None = None) -> tuple[dict, dict]:
     """Process and validate input data for file loading.
 
     This function extracts required parameters from the input dictionaries,
