@@ -3,26 +3,12 @@ import pandas as pd
 
 
 def resolve_table_and_column(obj: dict, key: str):
-    """Resolve table and column from the given object.
-    Either in the new format 'table|column' or the old format with separate keys."""
+    """Return the table and column that the object's ``key`` names as ``"table|column"``."""
     val = obj.get(key)
-
-    # New pattern: "table|column"
     if isinstance(val, str) and "|" in val:
         table_key, col = val.split("|", 1)
         return table_key.strip(), col.strip()
-
-    # Legacy: key="table", key+"_COL"="column"
-    table_key = val if isinstance(val, str) else None
-    col = obj.get(f"{key}_COL", None)
-
-    if table_key is None or col is None:
-        raise KeyError(
-            f"Could not resolve table and column for key '{key}'. "
-            f"Either use 'table|column' or provide both '{key}' and '{key}_COL'."
-        )
-
-    return table_key, col
+    raise KeyError(f"Key '{key}' names the table {val!r} without a column. Use '{val}|<column>'.")
 
 
 def _same_instants(given: pd.Index, index: pd.Index) -> bool:
@@ -40,7 +26,6 @@ def resolve_ts_or_scalar(obj: dict, data: dict, key: str, index, default=None) -
       - scalar → constant Series
       - pd.Series → validated against target index
       - "table|column"
-      - table + separate '{key}_COL'
     Always aligned to index.
     """
     if key not in obj or obj[key] is None:

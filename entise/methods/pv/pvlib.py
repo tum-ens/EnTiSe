@@ -45,7 +45,15 @@ class PVLib(Method):
     types = [Types.PV]
     name = "pvlib"
     required_keys = [O.LAT, O.LON, O.WEATHER]
-    optional_keys = [O.POWER, O.AZIMUTH, O.TILT, O.ALTITUDE, O.PV_ARRAYS, O.PV_INVERTER, O.TIMEZONE]
+    optional_keys = {
+        O.POWER: POWER,
+        O.AZIMUTH: AZIMUTH,
+        O.TILT: TILT,
+        O.ALTITUDE: None,
+        O.PV_ARRAYS: None,
+        O.PV_INVERTER: None,
+        O.TIMEZONE: None,
+    }
     required_data = [O.WEATHER]
     optional_data = [O.PV_ARRAYS]
     output_summary = {
@@ -156,31 +164,21 @@ class PVLib(Method):
             - Weather data columns are renamed to match pvlib requirements.
             - Azimuth and tilt values are validated to be within normal ranges.
         """
-        obj_out = {
-            O.ID: Method.get_with_backup(obj, O.ID),
-            O.ALTITUDE: Method.get_with_method_backup(obj, O.ALTITUDE, method_type),
-            O.AZIMUTH: Method.get_with_method_backup(obj, O.AZIMUTH, method_type, AZIMUTH),
-            O.LAT: Method.get_with_method_backup(obj, O.LAT, method_type),
-            O.LON: Method.get_with_method_backup(obj, O.LON, method_type),
-            O.POWER: Method.get_with_method_backup(obj, O.POWER, method_type, POWER),
-            O.PV_ARRAYS: Method.get_with_method_backup(obj, O.PV_ARRAYS, method_type),
-            O.PV_INVERTER: Method.get_with_method_backup(obj, O.PV_INVERTER, method_type),
-            O.TILT: Method.get_with_method_backup(obj, O.TILT, method_type, TILT),
-        }
+        obj_out = self.get_relevant_objects(obj, method_type)
         weather_key = Method.get_with_method_backup(obj, O.WEATHER, method_type, O.WEATHER)
         run = run_time(data)
         data_out = {
             O.WEATHER: run.table(weather_key) if weather_key in run else None,
-            O.PV_ARRAYS: Method.get_with_backup(data, obj_out[O.PV_ARRAYS], PV_ARRAYS),
+            O.PV_ARRAYS: Method.get_with_backup(data, obj_out.get(O.PV_ARRAYS), PV_ARRAYS),
             O.PV_INVERTER: Method.get_with_backup(data, O.PV_INVERTER, PV_INVERTER),
         }
 
         # Fill missing data
-        if obj_out[O.ALTITUDE] is None:
+        if obj_out.get(O.ALTITUDE) is None:
             with requires_extra("pv-pvlib", "pvlib"):
                 import pvlib
 
-            obj_out[O.ALTITUDE] = pvlib.location.lookup_altitude(obj_out[O.LAT], obj_out[O.LON])
+            obj_out[O.ALTITUDE] = pvlib.location.lookup_altitude(obj_out.get(O.LAT), obj_out.get(O.LON))
 
         if data_out[O.WEATHER] is not None:
             # The run returns a copy indexed by UTC instants; each row is the interval [t, t + step).
@@ -196,7 +194,7 @@ class PVLib(Method):
                 },
             )
             regular_step(weather.index, table=weather_key)
-            if C.SOLAR_GHI in data_out[O.WEATHER].columns and obj_out[O.LON] is not None:
+            if C.SOLAR_GHI in data_out[O.WEATHER].columns and obj_out.get(O.LON) is not None:
                 run.check_irradiance(weather_key, float(obj_out[O.LON]))
             data_out[O.WEATHER] = weather
         else:

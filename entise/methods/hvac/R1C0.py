@@ -67,27 +67,29 @@ class R1C0(Method):
     types = [Types.HVAC]
     name = "1R0C"
     required_keys = [O.RESISTANCE, O.WEATHER]
-    optional_keys = [
-        O.TIMEZONE,
-        O.POWER_HEATING,
-        O.POWER_COOLING,
-        O.ACTIVE_HEATING,
-        O.ACTIVE_COOLING,
-        O.TEMP_INIT,
-        O.TEMP_MIN,
-        O.TEMP_MAX,
-        O.AREA,
-        O.HEIGHT,
-        O.GAINS_INTERNAL,
-        O.GAINS_INTERNAL_COL,
-        O.ACTIVE_VENTILATION,
-        O.VENTILATION,
-        O.VENTILATION_COL,
-        O.GAINS_SOLAR,
-        O.WINDOWS,
-        O.LAT,
-        O.LON,
-    ]
+    optional_keys = {
+        O.TIMEZONE: None,
+        O.POWER_HEATING: DEFAULT_POWER_HEATING,
+        O.POWER_COOLING: DEFAULT_POWER_COOLING,
+        O.ACTIVE_HEATING: DEFAULT_ACTIVE_HEATING,
+        O.ACTIVE_COOLING: DEFAULT_ACTIVE_COOLING,
+        O.TEMP_INIT: DEFAULT_TEMP_INIT,
+        O.TEMP_MIN: DEFAULT_TEMP_MIN,
+        O.TEMP_MAX: DEFAULT_TEMP_MAX,
+        # Geometry, needed for ventilation given in air changes per hour
+        O.AREA: Const.DEFAULT_AREA.value,
+        O.HEIGHT: Const.DEFAULT_HEIGHT.value,
+        O.GAINS_INTERNAL: None,
+        O.GAINS_INTERNAL_COL: None,
+        O.ACTIVE_VENTILATION: DEFAULT_ACTIVE_VENTILATION,
+        O.VENTILATION: DEFAULT_VENTILATION,
+        O.VENTILATION_COL: None,
+        O.GAINS_SOLAR: None,
+        O.WINDOWS: None,
+        # Location, needed for solar gains through windows
+        O.LAT: None,
+        O.LON: None,
+    }
     required_data = [O.WEATHER]
     optional_data = [O.WINDOWS, O.GAINS_INTERNAL, O.GAINS_SOLAR, O.VENTILATION]
     output_summary = {
@@ -194,38 +196,7 @@ class R1C0(Method):
             - Parameters can be specified with method-specific prefixes (e.g., "hvac:temp_min")
               which will take precedence over generic parameters (e.g., "temp_min").
         """
-        obj_out = {
-            O.ID: Method.get_with_backup(obj, O.ID),
-            O.TIMEZONE: Method.get_with_backup(obj, O.TIMEZONE),
-            # Geometry, needed for ventilation given in air changes per hour
-            O.AREA: Method.get_with_method_backup(obj, O.AREA, method_type, Const.DEFAULT_AREA.value),
-            O.HEIGHT: Method.get_with_method_backup(obj, O.HEIGHT, method_type, Const.DEFAULT_HEIGHT.value),
-            # Controls
-            O.ACTIVE_COOLING: Method.get_with_method_backup(obj, O.ACTIVE_COOLING, method_type, DEFAULT_ACTIVE_COOLING),
-            O.ACTIVE_HEATING: Method.get_with_method_backup(obj, O.ACTIVE_HEATING, method_type, DEFAULT_ACTIVE_HEATING),
-            # Gains
-            O.GAINS_INTERNAL: Method.get_with_method_backup(obj, O.GAINS_INTERNAL, method_type),
-            O.GAINS_INTERNAL_COL: Method.get_with_method_backup(obj, O.GAINS_INTERNAL_COL, method_type),
-            O.GAINS_SOLAR: Method.get_with_method_backup(obj, O.GAINS_SOLAR, method_type),
-            # Location, needed for solar gains through windows
-            O.LAT: Method.get_with_method_backup(obj, O.LAT, method_type),
-            O.LON: Method.get_with_method_backup(obj, O.LON, method_type),
-            # Power limits
-            O.POWER_COOLING: Method.get_with_method_backup(obj, O.POWER_COOLING, method_type, DEFAULT_POWER_COOLING),
-            O.POWER_HEATING: Method.get_with_method_backup(obj, O.POWER_HEATING, method_type, DEFAULT_POWER_HEATING),
-            # 1R0C RC parameters
-            O.RESISTANCE: Method.get_with_method_backup(obj, O.RESISTANCE, method_type),
-            # Temperature setpoints
-            O.TEMP_INIT: Method.get_with_method_backup(obj, O.TEMP_INIT, method_type, DEFAULT_TEMP_INIT),
-            O.TEMP_MAX: Method.get_with_method_backup(obj, O.TEMP_MAX, method_type, DEFAULT_TEMP_MAX),
-            O.TEMP_MIN: Method.get_with_method_backup(obj, O.TEMP_MIN, method_type, DEFAULT_TEMP_MIN),
-            # Ventilation
-            O.ACTIVE_VENTILATION: Method.get_with_method_backup(
-                obj, O.ACTIVE_VENTILATION, method_type, DEFAULT_ACTIVE_VENTILATION
-            ),
-            O.VENTILATION: Method.get_with_method_backup(obj, O.VENTILATION, method_type, DEFAULT_VENTILATION),
-            O.VENTILATION_COL: Method.get_with_method_backup(obj, O.VENTILATION_COL, method_type),
-        }
+        obj_out = R1C0.get_relevant_objects(obj, method_type)
         run, weather_key, weather = hvac_weather(obj, data, method_type)
         windows = windows_table(obj, data, method_type)
         check_window_irradiance(run, weather_key, weather, obj, windows, method_type)
@@ -241,11 +212,7 @@ class R1C0(Method):
             ventilation_key: ventilation,
         }
 
-        # Keep legacy "<key>_COL" column names for table references (see resolve_table_and_column).
-        obj_out.update({k: v for k, v in obj.items() if isinstance(k, str) and k.endswith("_COL")})
-
         # Clean up
-        obj_out = {k: v for k, v in obj_out.items() if v is not None}
         data_out = {k: v for k, v in data_out.items() if v is not None}
 
         return obj_out, data_out

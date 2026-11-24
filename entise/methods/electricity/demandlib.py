@@ -49,7 +49,12 @@ class Demandlib(Method):
     types = [Types.ELECTRICITY]
 
     required_keys = [O.DATETIMES]
-    optional_keys = [O.DEMAND_KWH, O.PROFILE, O.HOLIDAYS_LOCATION, O.TIMEZONE]
+    optional_keys = {
+        O.DEMAND_KWH: DEFAULT_DEMAND,
+        O.PROFILE: DEFAULT_PROFILE,
+        O.HOLIDAYS_LOCATION: None,
+        O.TIMEZONE: None,
+    }
 
     required_data = [O.DATETIMES]
 
@@ -112,13 +117,7 @@ class Demandlib(Method):
         return self._format_output(ts, processed_obj, processed_data)
 
     def _get_input_data(self, obj: dict, data: dict, method_type: str = Types.ELECTRICITY) -> tuple[dict, dict]:
-        obj_out = {
-            O.ID: Method.get_with_backup(obj, O.ID),
-            O.PROFILE: Method.get_with_method_backup(obj, O.PROFILE, method_type, DEFAULT_PROFILE),
-            O.DEMAND_KWH: Method.get_with_method_backup(obj, O.DEMAND_KWH, method_type, DEFAULT_DEMAND),
-            O.HOLIDAYS_LOCATION: Method.get_with_method_backup(obj, O.HOLIDAYS_LOCATION, method_type, None),
-            O.TIMEZONE: obj.get(O.TIMEZONE),
-        }
+        obj_out = self.get_relevant_objects(obj, method_type)
 
         if float(obj_out[O.DEMAND_KWH]) <= 0:
             raise ValueError("[demandlib_electricity] demand must be > 0 ")
@@ -126,8 +125,6 @@ class Demandlib(Method):
         dts_key = Method.get_with_method_backup(obj, O.DATETIMES, method_type, O.DATETIMES)
         table, step, hours = time_table(data, dts_key, site_zone(obj_out))
         data_out = {O.DATETIMES: table, "step": step, "hours": hours, "run_data": data}
-
-        obj_out = {k: v for k, v in obj_out.items() if v is not None}
         return obj_out, data_out
 
     @staticmethod

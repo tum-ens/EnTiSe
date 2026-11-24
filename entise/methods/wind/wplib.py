@@ -55,9 +55,14 @@ class WPLib(Method):
     types = [Types.WIND]
     name = "wplib"
     required_keys = [O.WEATHER]
-    optional_keys = [O.POWER, O.TURBINE_TYPE, O.HUB_HEIGHT, O.WIND_MODEL, O.TIMEZONE]
+    optional_keys = {
+        O.POWER: DEFAULT_POWER,
+        O.TURBINE_TYPE: DEFAULT_TURBINE_TYPE,
+        O.HUB_HEIGHT: DEFAULT_HUB_HEIGHT,
+        O.TIMEZONE: None,
+    }
     required_data = [O.WEATHER]
-    optional_data = [O.WIND_MODEL]
+    optional_data = []
     output_summary = {
         f"{Types.WIND}{SEP}{C.GENERATION}": "total wind power generation",
         f"{Types.WIND}{SEP}{O.GEN_MAX}": "maximum wind power generation",
@@ -217,12 +222,7 @@ class WPLib(Method):
               which will take precedence over generic parameters (e.g., "altitude").
             - Weather data is processed to match the format required by windpowerlib.
         """
-        obj_out = {
-            O.ID: Method.get_with_backup(obj, O.ID),
-            O.POWER: Method.get_with_method_backup(obj, O.POWER, method_type, DEFAULT_POWER),
-            O.TURBINE_TYPE: Method.get_with_method_backup(obj, O.TURBINE_TYPE, method_type, DEFAULT_TURBINE_TYPE),
-            O.HUB_HEIGHT: Method.get_with_method_backup(obj, O.HUB_HEIGHT, method_type, DEFAULT_HUB_HEIGHT),
-        }
+        obj_out = self.get_relevant_objects(obj, method_type)
 
         weather_key = Method.get_with_method_backup(obj, O.WEATHER, method_type, O.WEATHER)
         run = run_time(data)

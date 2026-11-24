@@ -155,15 +155,10 @@ def get_input_data(obj: dict, data: dict, method_type: str = None) -> tuple[dict
         ValueError: If required parameters are missing.
     """
     # Process object parameters
-    obj_out = {
-        O.ID: Method.get_with_backup(obj, O.ID),
-        O.FILE: Method.get_with_method_backup(obj, O.FILE, method_type),
-        O.WEATHER: Method.get_with_method_backup(obj, O.WEATHER, method_type),
-        O.TIMEZONE: Method.get_with_backup(obj, O.TIMEZONE),
-    }
+    obj_out = FileLoader.get_relevant_objects(obj, method_type)
 
     # Validate required parameters
-    if obj_out[O.FILE] is None:
+    if obj_out.get(O.FILE) is None:
         raise ValueError(f"Required parameter '{O.FILE}' not found in object parameters")
 
     # Validate required data

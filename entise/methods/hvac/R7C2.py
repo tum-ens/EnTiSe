@@ -98,49 +98,49 @@ class R7C2(Method):
     ]
 
     # Optional controls, splits, and auxiliaries
-    optional_keys = [
-        O.TIMEZONE,
+    optional_keys = {
+        O.TIMEZONE: None,
         # Controls
-        O.POWER_HEATING,
-        O.POWER_COOLING,
-        O.ACTIVE_HEATING,
-        O.ACTIVE_COOLING,
-        O.ACTIVE_GAINS_INTERNAL,
-        O.ACTIVE_GAINS_SOLAR,
-        O.ACTIVE_VENTILATION,
-        O.TEMP_INIT,
-        O.TEMP_MIN,
-        O.TEMP_MAX,
-        O.DEADBAND,
-        O.TARGET_HUMIDITY_REL,
-        O.GAINS_INTERNAL_LATENT,
-        O.TEMP_SUPPLY,
+        O.POWER_HEATING: DEFAULT_POWER_HEATING,
+        O.POWER_COOLING: DEFAULT_POWER_COOLING,
+        O.ACTIVE_HEATING: DEFAULT_ACTIVE_HEATING,
+        O.ACTIVE_COOLING: DEFAULT_ACTIVE_COOLING,
+        O.ACTIVE_GAINS_INTERNAL: DEFAULT_ACTIVE_INTERNAL_GAINS,
+        O.ACTIVE_GAINS_SOLAR: DEFAULT_ACTIVE_SOLAR_GAINS,
+        O.ACTIVE_VENTILATION: DEFAULT_ACTIVE_VENTILATION,
+        O.TEMP_INIT: DEFAULT_TEMP_INIT,
+        O.TEMP_MIN: DEFAULT_TEMP_MIN,
+        O.TEMP_MAX: DEFAULT_TEMP_MAX,
+        O.DEADBAND: DEFAULT_DEADBAND,
+        O.TARGET_HUMIDITY_REL: DEFAULT_TARGET_HUMIDITY_REL,
+        O.GAINS_INTERNAL_LATENT: DEFAULT_GAINS_INTERNAL_LATENT,
+        O.TEMP_SUPPLY: None,
         # Geometry
-        O.AREA,
-        O.HEIGHT,
-        O.LAT,
-        O.LON,
+        O.AREA: Const.DEFAULT_AREA.value,
+        O.HEIGHT: Const.DEFAULT_HEIGHT.value,
+        O.LAT: None,
+        O.LON: None,
         # Gains splits
-        O.FRAC_CONV_INTERNAL,
-        O.FRAC_RAD_AW,  # IW is derived
+        O.FRAC_CONV_INTERNAL: DEFAULT_FRAC_CONV_INTERNAL,
+        O.FRAC_RAD_AW: DEFAULT_FRAC_RAD_AW,  # IW is derived
         # HVAC sigma as three scalars (AW, IW, conv is derived)
-        O.SIGMA_7R2C_AW,
-        O.SIGMA_7R2C_IW,
+        O.SIGMA_7R2C_AW: DEFAULT_SIGMA_7R2C_AW,
+        O.SIGMA_7R2C_IW: DEFAULT_SIGMA_7R2C_IW,
         # Ventilation
-        O.H_VE,
-        O.VENTILATION_SPLIT,
+        O.H_VE: None,
+        O.VENTILATION_SPLIT: DEFAULT_VENTILATION_SPLIT,
         # Equivalent outdoor (sol-air)
-        O.T_EQ,
-        O.T_EQ_COL,
-        O.T_EQ_ALPHA_SW,
-        O.T_EQ_H_O,
+        O.T_EQ: None,
+        O.T_EQ_COL: None,
+        O.T_EQ_ALPHA_SW: DEFAULT_T_EQ_ALPHA_SW,
+        O.T_EQ_H_O: DEFAULT_T_EQ_H_O,
         # Timeseries
-        O.GAINS_INTERNAL,
-        O.GAINS_INTERNAL_COL,
-        O.GAINS_SOLAR,
-        O.VENTILATION,
-        O.VENTILATION_COL,
-    ]
+        O.GAINS_INTERNAL: None,
+        O.GAINS_INTERNAL_COL: None,
+        O.GAINS_SOLAR: None,
+        O.VENTILATION: DEFAULT_VENTILATION,
+        O.VENTILATION_COL: None,
+    }
 
     required_data = [O.WEATHER]
     # Hint set of common auxiliaries
@@ -223,9 +223,7 @@ class R7C2(Method):
         p_cool_max = controls[O.POWER_COOLING].to_numpy(dtype=float, copy=False)
         h_ve_df = data["series"]["ventilation"]
         h_ve = np.asarray(h_ve_df.sum(axis=1), dtype=float)
-        gains_lat = resolve_ts_or_scalar(
-            obj, data, O.GAINS_INTERNAL_LATENT, index, default=DEFAULT_GAINS_INTERNAL_LATENT
-        ).to_numpy(dtype=float, copy=False)
+        gains_lat = resolve_ts_or_scalar(obj, data, O.GAINS_INTERNAL_LATENT, index).to_numpy(dtype=float, copy=False)
         t_max_arr = controls[O.TEMP_MAX].to_numpy(dtype=float, copy=False)
 
         p_sens_out, p_lat_out = compute_latent_cooling(
@@ -235,7 +233,7 @@ class R7C2(Method):
             h_ve=h_ve,
             gains_internal_latent=gains_lat,
             temp_max_c=t_max_arr,
-            target_humidity_rel=float(obj.get(O.TARGET_HUMIDITY_REL, DEFAULT_TARGET_HUMIDITY_REL)),
+            target_humidity_rel=float(obj[O.TARGET_HUMIDITY_REL]),
         )
         return (
             pd.Series(p_sens_out, index=index),
@@ -253,7 +251,7 @@ class R7C2(Method):
 
         No interpretation of columns, no unit conversion, no time-series generation.
         """
-        obj_out = self._get_relevant_objects(obj, method_type)
+        obj_out = self.get_relevant_objects(obj, method_type)
         data_out = self._prepare_data_tables(obj, data, method_type)
         return obj_out, data_out
 
@@ -283,11 +281,14 @@ class R7C2(Method):
         # the selector to hit the VDI-6007-specific TimeSeries strategy.
         if not bool(obj.get(O.ACTIVE_VENTILATION, True)):
             ven_df = VentilationInactive().generate(obj, data)
+        elif obj.get(O.H_VE) is not None:
+            # A ventilation coefficient on the object takes the place of the ventilation input.
+            ven_df = resolve_ts_or_scalar(obj, data, O.H_VE, index)
         else:
             ven_df = VentilationTimeSeries().generate(obj, data)
         # Align onto the model index before the split — see R5C1 and issue #106.
         ven_df = align_auxiliary_series(ven_df, index, O.VENTILATION, self.name)
-        vent_split = resolve_ts_or_scalar(obj, data, O.VENTILATION_SPLIT, index, default=DEFAULT_VENTILATION_SPLIT)
+        vent_split = resolve_ts_or_scalar(obj, data, O.VENTILATION_SPLIT, index)
         Hve_vent_series = ven_df * vent_split
         Hve_inf_series = ven_df * (1.0 - vent_split)
         ventilation = pd.concat([Hve_vent_series, Hve_inf_series], axis=1, keys=["Hve_vent", "Hve_inf"])
@@ -302,22 +303,22 @@ class R7C2(Method):
             resolve_ts_or_scalar(obj, data, O.TEMP_SUPPLY, index) if temp_sup is not None else weather[C.TEMP_AIR]
         )
         controls = {
-            O.TEMP_MIN: resolve_ts_or_scalar(obj, data, O.TEMP_MIN, index, default=DEFAULT_TEMP_MIN),
-            O.TEMP_MAX: resolve_ts_or_scalar(obj, data, O.TEMP_MAX, index, default=DEFAULT_TEMP_MAX),
+            O.TEMP_MIN: resolve_ts_or_scalar(obj, data, O.TEMP_MIN, index),
+            O.TEMP_MAX: resolve_ts_or_scalar(obj, data, O.TEMP_MAX, index),
             O.TEMP_SUPPLY: temp_sup,
-            O.POWER_HEATING: resolve_ts_or_scalar(obj, data, O.POWER_HEATING, index, default=DEFAULT_POWER_HEATING),
-            O.POWER_COOLING: resolve_ts_or_scalar(obj, data, O.POWER_COOLING, index, default=DEFAULT_POWER_COOLING),
-            O.ACTIVE_HEATING: resolve_ts_or_scalar(obj, data, O.ACTIVE_HEATING, index, default=DEFAULT_ACTIVE_HEATING),
-            O.ACTIVE_COOLING: resolve_ts_or_scalar(obj, data, O.ACTIVE_COOLING, index, default=DEFAULT_ACTIVE_COOLING),
+            O.POWER_HEATING: resolve_ts_or_scalar(obj, data, O.POWER_HEATING, index),
+            O.POWER_COOLING: resolve_ts_or_scalar(obj, data, O.POWER_COOLING, index),
+            O.ACTIVE_HEATING: resolve_ts_or_scalar(obj, data, O.ACTIVE_HEATING, index),
+            O.ACTIVE_COOLING: resolve_ts_or_scalar(obj, data, O.ACTIVE_COOLING, index),
         }
         controls = pd.DataFrame(controls)
         data_out["controls"] = controls
 
         # Parameters
-        volume = float(obj.get(O.AREA, Const.DEFAULT_AREA.value)) * float(obj.get(O.HEIGHT, Const.DEFAULT_HEIGHT.value))
+        volume = float(obj[O.AREA]) * float(obj[O.HEIGHT])
         capacity_air = volume * RHO_AIR * CP_AIR
         params = {
-            O.TEMP_INIT: float(obj.get(O.TEMP_INIT, DEFAULT_TEMP_INIT)),
+            O.TEMP_INIT: float(obj[O.TEMP_INIT]),
             O.R_1_AW: float(obj[O.R_1_AW]),
             O.C_1_AW: float(obj[O.C_1_AW]),
             O.R_1_IW: float(obj[O.R_1_IW]),
@@ -330,20 +331,20 @@ class R7C2(Method):
             # Symmetric thermostat dead band. deadband = 0 collapses the
             # hysteresis state machine to aim-for-setpoint (bit-exact
             # regression against the pre-hysteresis solver).
-            O.DEADBAND: float(obj.get(O.DEADBAND, DEFAULT_DEADBAND)),
+            O.DEADBAND: float(obj[O.DEADBAND]),
         }
         data_out["params"] = params
 
         # Splits (normalize defensively)
-        sigma_aw = float(obj.get(O.SIGMA_7R2C_AW, DEFAULT_SIGMA_7R2C_AW))
-        sigma_iw = float(obj.get(O.SIGMA_7R2C_IW, DEFAULT_SIGMA_7R2C_IW))
-        f_aw = float(obj.get(O.FRAC_RAD_AW, DEFAULT_FRAC_RAD_AW))
+        sigma_aw = float(obj[O.SIGMA_7R2C_AW])
+        sigma_iw = float(obj[O.SIGMA_7R2C_IW])
+        f_aw = float(obj[O.FRAC_RAD_AW])
         f_aw = min(max(f_aw, 0.0), 1.0)
         splits = {
             O.SIGMA_7R2C_AW: sigma_aw,
             O.SIGMA_7R2C_IW: sigma_iw,
             "sigma_conv": max(0.0, 1.0 - (sigma_aw + sigma_iw)),
-            O.FRAC_CONV_INTERNAL: float(obj.get(O.FRAC_CONV_INTERNAL, DEFAULT_FRAC_CONV_INTERNAL)),
+            O.FRAC_CONV_INTERNAL: float(obj[O.FRAC_CONV_INTERNAL]),
             O.FRAC_RAD_AW: f_aw,
             "f_iw": 1.0 - f_aw,
         }
@@ -385,91 +386,6 @@ class R7C2(Method):
         )
 
         return {"summary": summary, "timeseries": df}
-
-    def _get_relevant_objects(self, obj: dict, method_type: str = Types.HVAC) -> dict:
-        # TODO: Change this so that it takes the data from self.objects and make this for loops.
-        #   This probably also means changing the lists to dicts and having default values as the value
-        obj_out = {
-            O.ID: self.get_with_backup(obj, O.ID),
-            O.TIMEZONE: self.get_with_backup(obj, O.TIMEZONE),
-            O.LAT: self.get_with_method_backup(obj, O.LAT, method_type),
-            O.LON: self.get_with_method_backup(obj, O.LON, method_type),
-            # Geometry (for air capacity)
-            O.AREA: self.get_with_method_backup(obj, O.AREA, method_type, Const.DEFAULT_AREA.value),
-            O.HEIGHT: self.get_with_method_backup(obj, O.HEIGHT, method_type, Const.DEFAULT_HEIGHT.value),
-            # Controls
-            O.ACTIVE_HEATING: self.get_with_method_backup(obj, O.ACTIVE_HEATING, method_type, DEFAULT_ACTIVE_HEATING),
-            O.ACTIVE_COOLING: self.get_with_method_backup(obj, O.ACTIVE_COOLING, method_type, DEFAULT_ACTIVE_COOLING),
-            O.ACTIVE_GAINS_INTERNAL: self.get_with_method_backup(
-                obj, O.ACTIVE_GAINS_INTERNAL, method_type, DEFAULT_ACTIVE_INTERNAL_GAINS
-            ),
-            O.ACTIVE_GAINS_SOLAR: self.get_with_method_backup(
-                obj, O.ACTIVE_GAINS_SOLAR, method_type, DEFAULT_ACTIVE_SOLAR_GAINS
-            ),
-            O.ACTIVE_VENTILATION: self.get_with_method_backup(
-                obj, O.ACTIVE_VENTILATION, method_type, DEFAULT_ACTIVE_VENTILATION
-            ),
-            O.POWER_HEATING: self.get_with_method_backup(obj, O.POWER_HEATING, method_type, DEFAULT_POWER_HEATING),
-            O.POWER_COOLING: self.get_with_method_backup(obj, O.POWER_COOLING, method_type, DEFAULT_POWER_COOLING),
-            O.TEMP_INIT: self.get_with_method_backup(obj, O.TEMP_INIT, method_type, DEFAULT_TEMP_INIT),
-            O.TEMP_MIN: self.get_with_method_backup(obj, O.TEMP_MIN, method_type, DEFAULT_TEMP_MIN),
-            O.TEMP_MAX: self.get_with_method_backup(obj, O.TEMP_MAX, method_type, DEFAULT_TEMP_MAX),
-            O.DEADBAND: self.get_with_method_backup(obj, O.DEADBAND, method_type, DEFAULT_DEADBAND),
-            # Latent cooling (issue #103)
-            O.TARGET_HUMIDITY_REL: self.get_with_method_backup(
-                obj, O.TARGET_HUMIDITY_REL, method_type, DEFAULT_TARGET_HUMIDITY_REL
-            ),
-            O.GAINS_INTERNAL_LATENT: self.get_with_method_backup(
-                obj, O.GAINS_INTERNAL_LATENT, method_type, DEFAULT_GAINS_INTERNAL_LATENT
-            ),
-            O.TEMP_SUPPLY: self.get_with_method_backup(obj, O.TEMP_SUPPLY, method_type),
-            # RC parameters (7R2C)
-            O.R_1_AW: self.get_with_method_backup(obj, O.R_1_AW, method_type),
-            O.C_1_AW: self.get_with_method_backup(obj, O.C_1_AW, method_type),
-            O.R_1_IW: self.get_with_method_backup(obj, O.R_1_IW, method_type),
-            O.C_1_IW: self.get_with_method_backup(obj, O.C_1_IW, method_type),
-            O.R_ALPHA_STAR_IL: self.get_with_method_backup(obj, O.R_ALPHA_STAR_IL, method_type),
-            O.R_ALPHA_STAR_AW: self.get_with_method_backup(obj, O.R_ALPHA_STAR_AW, method_type),
-            O.R_ALPHA_STAR_IW: self.get_with_method_backup(obj, O.R_ALPHA_STAR_IW, method_type),
-            O.R_REST_AW: self.get_with_method_backup(obj, O.R_REST_AW, method_type),
-            # Gains & splits
-            O.FRAC_CONV_INTERNAL: self.get_with_method_backup(
-                obj, O.FRAC_CONV_INTERNAL, method_type, DEFAULT_FRAC_CONV_INTERNAL
-            ),
-            O.FRAC_RAD_AW: self.get_with_method_backup(obj, O.FRAC_RAD_AW, method_type, DEFAULT_FRAC_RAD_AW),
-            O.SIGMA_7R2C_AW: self.get_with_method_backup(obj, O.SIGMA_7R2C_AW, method_type, DEFAULT_SIGMA_7R2C_AW),
-            O.SIGMA_7R2C_IW: self.get_with_method_backup(obj, O.SIGMA_7R2C_IW, method_type, DEFAULT_SIGMA_7R2C_IW),
-            # Ventilation
-            O.VENTILATION: self.get_with_method_backup(obj, O.VENTILATION, method_type, DEFAULT_VENTILATION),
-            O.VENTILATION_COL: self.get_with_method_backup(obj, O.VENTILATION_COL, method_type),
-            O.VENTILATION_SPLIT: self.get_with_method_backup(
-                obj, O.VENTILATION_SPLIT, method_type, DEFAULT_VENTILATION_SPLIT
-            ),
-            # Equivalent outdoor temperature (sol-air)
-            O.T_EQ: self.get_with_method_backup(obj, O.T_EQ, method_type),
-            O.T_EQ_COL: self.get_with_method_backup(obj, O.T_EQ_COL, method_type),
-            O.T_EQ_ALPHA_SW: self.get_with_method_backup(obj, O.T_EQ_ALPHA_SW, method_type, DEFAULT_T_EQ_ALPHA_SW),
-            O.T_EQ_H_O: self.get_with_method_backup(obj, O.T_EQ_H_O, method_type, DEFAULT_T_EQ_H_O),
-            # Timeseries references
-            O.WEATHER: self.get_with_method_backup(obj, O.WEATHER, method_type, O.WEATHER),
-            O.GAINS_INTERNAL: self.get_with_method_backup(obj, O.GAINS_INTERNAL, method_type),
-            O.GAINS_INTERNAL_COL: self.get_with_method_backup(obj, O.GAINS_INTERNAL_COL, method_type),
-            O.GAINS_SOLAR: self.get_with_method_backup(obj, O.GAINS_SOLAR, method_type),
-        }
-
-        # Future possible code
-        # obj_out = {}
-        # for key in self.required_keys:
-        # value = obj_out.get(key)
-        # if value is None:
-        # raise ValueError(f"Required key '{key}' not found for method '{method_type}'.")
-        # obj_out[key] = value
-        # for key in self.optional_keys:
-        # obj_out[key] = obj_out.get(key)
-
-        # Keep legacy "<key>_COL" column names for table references (see resolve_table_and_column).
-        obj_out.update({k: v for k, v in obj.items() if isinstance(k, str) and k.endswith("_COL")})
-        return {k: v for k, v in obj_out.items() if v is not None}
 
     def _prepare_data_tables(self, obj: dict, data: dict, method_type: str = Types.HVAC) -> dict:
         run, weather_key, weather = hvac_weather(obj, data, method_type)
