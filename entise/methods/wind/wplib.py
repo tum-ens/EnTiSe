@@ -1,4 +1,5 @@
 import logging
+from collections.abc import Mapping
 
 import pandas as pd
 
@@ -59,10 +60,12 @@ class WPLib(Method):
         O.POWER: DEFAULT_POWER,
         O.TURBINE_TYPE: DEFAULT_TURBINE_TYPE,
         O.HUB_HEIGHT: DEFAULT_HUB_HEIGHT,
+        # ModelChain settings that replace those in MODELCHAIN_PARAMS: a mapping, or the name of one in data.
+        O.WIND_MODEL: None,
         O.TIMEZONE: None,
     }
     required_data = [O.WEATHER]
-    optional_data = []
+    optional_data = [O.WIND_MODEL]
     output_summary = {
         f"{Types.WIND}{SEP}{C.GENERATION}": "total wind power generation",
         f"{Types.WIND}{SEP}{O.GEN_MAX}": "maximum wind power generation",
@@ -228,6 +231,7 @@ class WPLib(Method):
         run = run_time(data)
         data_out = {
             O.WEATHER: run.table(weather_key) if weather_key in run else None,
+            O.WIND_MODEL: modelchain_params(obj_out.get(O.WIND_MODEL), data),
         }
 
         # Process weather data. The run returns a copy indexed by UTC instants.
@@ -259,6 +263,34 @@ class WPLib(Method):
         }
 
 
+def modelchain_params(wind_model, data: dict) -> dict:
+    """Return the windpowerlib ModelChain settings for an object.
+
+    Args:
+        wind_model: The object's ``wind_model``: ``None`` for the defaults in
+            ``MODELCHAIN_PARAMS``, a mapping of settings that replace them, such as
+            ``{"wind_speed_model": "hellman"}``, or the name of such a mapping in ``data``.
+        data (dict): The input data.
+
+    Raises:
+        ValueError: If ``wind_model`` names no mapping, or sets an unknown setting.
+    """
+    if wind_model is None:
+        return dict(MODELCHAIN_PARAMS)
+    settings = data.get(wind_model) if isinstance(wind_model, str) else wind_model
+    if not isinstance(settings, Mapping):
+        raise ValueError(
+            f"'{O.WIND_MODEL}' must be a mapping of ModelChain settings or the name of one in the data; "
+            f"got {wind_model!r}."
+        )
+    unknown = sorted(set(settings) - set(MODELCHAIN_PARAMS))
+    if unknown:
+        raise ValueError(
+            f"Unknown ModelChain settings in '{O.WIND_MODEL}': {unknown}. Known: {sorted(MODELCHAIN_PARAMS)}."
+        )
+    return {**MODELCHAIN_PARAMS, **settings}
+
+
 def calculate_timeseries(obj, data):
     """Calculate wind power generation time series using the windpowerlib package.
 
@@ -282,7 +314,7 @@ def calculate_timeseries(obj, data):
     Notes:
         - The function creates a wind turbine with the specified type and hub height.
         - The system is modeled using the windpowerlib ModelChain with the parameters
-          defined in MODELCHAIN_PARAMS.
+          defined in MODELCHAIN_PARAMS, updated by the object's ``wind_model``.
         - The output power is scaled by the system power rating.
     """
     with requires_extra("wind-wplib", "windpowerlib", feature="Wind method 'wplib'"):
@@ -303,7 +335,15 @@ def calculate_timeseries(obj, data):
     )
 
     # Create model chain and run model
-    mc = ModelChain(turbine, **MODELCHAIN_PARAMS).run_model(weather)
+    params = data.get(O.WIND_MODEL, MODELCHAIN_PARAMS)
+    try:
+        mc = ModelChain(turbine, **params).run_model(weather)
+    except IndexError as err:
+        # windpowerlib interpolates between heights and fails without a second one.
+        raise ValueError(
+            f"windpowerlib cannot run the ModelChain settings {params} on this weather: an "
+            "'interpolation_extrapolation' model needs its variable at two or more heights."
+        ) from err
 
     # Get output power
     power_output = mc.power_output

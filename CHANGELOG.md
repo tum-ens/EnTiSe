@@ -38,10 +38,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   - `init_temperature[C]` now has no effect, because the zone has no thermal mass.
   - On the 1R0C example (20–25 °C), heating is unchanged, and cooling rises from 2.1–8.8 MWh to 4.7–20.3 MWh per building.
   - The example no longer sets `set_temperature[C]` and `capacitance[J K-1]`, which 1R0C does not read. The stored outputs of its notebook show the old values until it is run again.
-- **Behavior change**: the RC models use the inputs they declare. (`#119`)
+- **Behavior change**: the RC models and WPLib use the inputs they declare. (`#119`)
   - 1R0C, 1R1C, 5R1C and 7R2C use an object's `gains_solar[W]` in place of calculated solar gains: a constant in W, `table|column`, or a table whose column is the object's `id` (or whose only column holds the gains). Before, it was accepted and ignored. In 1R1C, 5R1C and 7R2C, `active_gains_solar=False` still switches solar gains off.
   - 5R1C and 7R2C use `H_ve[W K-1]` in place of the ventilation input, in the same forms; `ventilation_split` then divides it. Before, it was ignored.
   - 5R1C uses `ventilation_split`. Before, it always used 0. The split matters only when `supply_temperature[C]` differs from the outdoor air.
+  - WPLib uses `wind_model`: a mapping of windpowerlib ModelChain settings, such as `{"wind_speed_model": "hellman"}`, or the name of one in the data. It replaces the matching defaults; an unknown setting raises a `ValueError`, and so does a setting that needs a variable at two heights the weather does not have. Before, it was declared but never read, and the defaults always applied. Two objects of the wind example name its `data/system.json`; their generation falls by 1.9 % and 2.8 %. That file now sets `temperature_model` to `linear_gradient`, because the example weather has the air temperature at one height and `interpolation_extrapolation` failed there.
   - 1R1C declares `latitude[degree]` and `longitude[degree]`, which it already read for solar gains. Direct calls accept `latitude=` and `longitude=`, and `input_names()` lists them.
 - **Behavior change**: 1R0C honors `active_ventilation=False` for both scalar and timestamped ventilation inputs. The flag defaults to `True`. (`#123`)
 - **Behavior change**: a ventilation table column named with EnTiSe's own unit spelling, such as `typical[W K-1]`, `typical[m3 h-1]` or `typical[h-1]`, is read in that unit. Before, only `W/K`, `m3/h` and `1/h` were recognised, and any other unit was read as air changes per hour, so 61 W/K in a 140 m² zone became about 7,400 W/K. Both spellings are now accepted. An unrecognised unit is still read as air changes per hour, with a warning that names the unit; a column without a unit, such as an object id, is read as air changes per hour as before. (`#107`)
@@ -118,7 +119,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Removed
 - **Behavior change**: removed the `<key>_COL` object key that named the column of a table reference, such as `power_heating[W]_COL`. Write the reference as `table|column` instead, for example `power_heating[W]: caps|ph`. A table reference without a column now raises an error that shows this form. `gains_internal_column` and `ventilation_column` are unchanged. (`#119`)
-- Removed the `wind_model` input of WPLib. It was declared but never read; passing it to a direct call now raises a `TypeError`. (`#119`)
 - Removed unused domestic hot water reference tables from the repository and packages. Jordan-Vajen retains its two active input tables and applies the 10 °C cold-water default directly. (`#126`)
 
 ## [1.3.0] Latent cooling load and other HVAC improvements - 2026-07-05

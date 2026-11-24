@@ -376,10 +376,17 @@ before ``correction_factor``, as every other method reads its own prefix.
 Before, it ignored prefixed keys. Objects that set both now use the prefixed
 value.
 
-**Removed and added keys.** WPLib no longer declares ``wind_model``, which it
-never read; a direct call with ``wind_model=`` raises ``TypeError``. 1R1C now
-declares ``latitude[degree]`` and ``longitude[degree]``, which it already read,
-so direct calls accept ``latitude=`` and ``longitude=``.
+**Wind model settings.** WPLib now uses ``wind_model``: a mapping of
+windpowerlib ModelChain settings, such as ``{"wind_speed_model": "hellman"}``,
+or the name of one in ``data``. It replaces the matching defaults of
+``MODELCHAIN_PARAMS``, and an unknown setting raises ``ValueError``. Before, the
+key was declared but never read. Remove it from objects that should keep the
+defaults. An ``interpolation_extrapolation`` model needs its variable at two or
+more heights in the weather; otherwise EnTiSe raises ``ValueError``.
+
+**1R1C location.** 1R1C now declares ``latitude[degree]`` and
+``longitude[degree]``, which it already read, so direct calls accept
+``latitude=`` and ``longitude=``.
 
 **Your own methods.** A method may declare ``optional_keys`` as a mapping from
 each key to its default; a list still works and means no defaults. Resolve the
