@@ -74,17 +74,18 @@ class Ruhnau(Method):
     types = [Types.HP]
     name = "ruhnau"
     required_keys = [O.WEATHER]
-    optional_keys = [
-        O.HP_SOURCE,
-        O.HP_SINK,
-        O.TEMP_SINK,
-        O.GRADIENT_SINK,
-        O.TEMP_WATER,
-        O.CORRECTION_FACTOR,
-        O.COP_COEFFICIENTS,
-        O.HP_SYSTEM,
-        O.TIMEZONE,
-    ]
+    optional_keys = {
+        O.HP_SOURCE: defs.DEFAULT_HP,
+        O.HP_SINK: defs.DEFAULT_HEAT,
+        # The sink defaults depend on the sink type; see DEFAULT_SINKS.
+        O.TEMP_SINK: None,
+        O.GRADIENT_SINK: None,
+        O.TEMP_WATER: None,
+        O.CORRECTION_FACTOR: DEFAULT_CORRECTION_FACTOR,
+        O.COP_COEFFICIENTS: None,
+        O.HP_SYSTEM: None,
+        O.TIMEZONE: None,
+    }
     required_data = [O.WEATHER]
     optional_data = [O.HP_SYSTEM]
     output_summary = {
@@ -145,7 +146,7 @@ class Ruhnau(Method):
         # Read the tables once for this call; every helper below reuses this run.
         processed_data = {**processed_data, RUN_TIME_KEY: run_time(processed_data)}
         site_obj, run_data = processed_obj, processed_data
-        processed_obj, processed_data = self._get_input_data(processed_obj, processed_data)
+        processed_obj, processed_data = self._get_input_data(processed_obj, processed_data, ts_type)
 
         # Calculate heating COP time series
         heating_cop_series = _calculate_heating_cop_series(processed_obj, processed_data)
@@ -156,7 +157,7 @@ class Ruhnau(Method):
         index = output_index(processed_data[O.WEATHER].index, site_obj, run_data)
         return self._format_output(heating_cop_series, dhw_cop_series, processed_data, index)
 
-    def _get_input_data(self, obj, data):
+    def _get_input_data(self, obj, data, method_type=Types.HP):
         """Process and validate input parameters.
 
         Args:
@@ -174,40 +175,35 @@ class Ruhnau(Method):
         obj_out[HEAT_PARAMS] = {}
         obj_out[DHW_PARAMS] = {}
         data_out = {}
+        keys = self.get_relevant_objects(obj, method_type)
 
         # Get system parameters either from obj df or specifications
-        hp_system = self.get_with_backup(obj, O.HP_SYSTEM, None)
+        hp_system = keys.get(O.HP_SYSTEM)
         if isinstance(hp_system, str):
             params = self.get_with_backup(data, hp_system)
             obj_out[HP_PARAMS] = params[HP_PARAMS]
             obj_out[HEAT_PARAMS] = params[HEAT_PARAMS]
             obj_out[DHW_PARAMS] = params[DHW_PARAMS]
         else:
-            hp_source = self.get_with_backup(obj, O.HP_SOURCE, defs.DEFAULT_HP)
+            hp_source = keys[O.HP_SOURCE]
             obj_out[HP_PARAMS][O.HP_SOURCE] = hp_source
 
             # Check for custom coefficients first
-            cop_coefficients = self.get_with_backup(obj, O.COP_COEFFICIENTS, None)
+            cop_coefficients = keys.get(O.COP_COEFFICIENTS)
             obj_out[HP_PARAMS]["coeffs"] = cop_coefficients if cop_coefficients is not None else HP_SYSTEM[hp_source]
-            hp_sink = self.get_with_backup(obj, O.HP_SINK, defs.DEFAULT_HEAT)
+            hp_sink = keys[O.HP_SINK]
             obj_out[HEAT_PARAMS][O.HP_SINK] = hp_sink
-            obj_out[HEAT_PARAMS][O.TEMP_SINK] = self.get_with_backup(
-                obj, O.TEMP_SINK, DEFAULT_SINKS[hp_sink][O.TEMP_SINK]
-            )
-            obj_out[HEAT_PARAMS][O.GRADIENT_SINK] = self.get_with_backup(
-                obj, O.GRADIENT_SINK, DEFAULT_SINKS[hp_sink][O.GRADIENT_SINK]
-            )
+            obj_out[HEAT_PARAMS][O.TEMP_SINK] = keys.get(O.TEMP_SINK, DEFAULT_SINKS[hp_sink][O.TEMP_SINK])
+            obj_out[HEAT_PARAMS][O.GRADIENT_SINK] = keys.get(O.GRADIENT_SINK, DEFAULT_SINKS[hp_sink][O.GRADIENT_SINK])
             dhw_sink = defs.WATER
             obj_out[DHW_PARAMS][O.HP_SINK] = dhw_sink
-            obj_out[DHW_PARAMS][O.TEMP_SINK] = self.get_with_backup(
-                obj, O.TEMP_WATER, DEFAULT_SINKS[dhw_sink][O.TEMP_SINK]
-            )
+            obj_out[DHW_PARAMS][O.TEMP_SINK] = keys.get(O.TEMP_WATER, DEFAULT_SINKS[dhw_sink][O.TEMP_SINK])
             obj_out[DHW_PARAMS][O.GRADIENT_SINK] = DEFAULT_SINKS[dhw_sink][O.GRADIENT_SINK]
 
-        obj_out[O.CORRECTION_FACTOR] = self.get_with_backup(obj, O.CORRECTION_FACTOR, DEFAULT_CORRECTION_FACTOR)
+        obj_out[O.CORRECTION_FACTOR] = keys[O.CORRECTION_FACTOR]
 
         # Process weather data
-        weather = self.get_with_backup(obj, O.WEATHER, None)
+        weather = keys.get(O.WEATHER)
         if weather is None:
             logger.warning("No weather provided")
             raise ValueError("Weather data is required but not provided")

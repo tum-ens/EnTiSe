@@ -24,7 +24,10 @@ reference docs, see [Ruhnau](../../../entise/methods/hp/ruhnau.py),
   **inputs)` with `Keys.TIMESERIES` and optional `Keys.SUMMARY` in the result.
   Resolve the keyword inputs first with `self._process_inputs` (or
   `_process_kwargs`), so every declared input can be passed by key or Python
-  name. Use the declared inputs and keep
+  name. Declare each optional key's default in `optional_keys` (a mapping
+  from key to default) and read the object's keys with
+  `self.get_relevant_objects(obj, ts_type)`, which applies the type prefix,
+  the plain key and the default in that order. Use the declared inputs and keep
   the output metadata consistent with the returned columns and units. If the
   method consumes another strategy's output, follow how the
   [runner](../../../entise/core/runner.py) resolves that dependency.

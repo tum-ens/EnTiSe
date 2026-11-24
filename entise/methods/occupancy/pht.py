@@ -50,16 +50,16 @@ class PHT(Method):
     name = "PHT"
     required_keys = []
     required_data = [Types.ELECTRICITY]
-    optional_keys = [
-        O.DETECTION_THRESHOLD,
-        O.BASELINE_OFFSET,
-        O.NIGHT_SCHEDULE,
-        O.NIGHT_SCHEDULE_START,
-        O.NIGHT_SCHEDULE_END,
-        O.NIGHT_SCHEDULE_DURATION,
-        O.LAMBDA,
-        O.TIMEZONE,
-    ]
+    optional_keys = {
+        O.DETECTION_THRESHOLD: Const.DEFAULT_DETECTION_THRESHOLD.value,
+        O.BASELINE_OFFSET: Const.DEFAULT_LAMBDA.value,
+        O.NIGHT_SCHEDULE: Const.DEFAULT_NIGHT_SCHEDULE.value,
+        O.NIGHT_SCHEDULE_START: Const.DEFAULT_NIGHT_SCHEDULE_START.value,
+        O.NIGHT_SCHEDULE_END: Const.DEFAULT_NIGHT_SCHEDULE_END.value,
+        O.NIGHT_SCHEDULE_DURATION: DEFAULT_NIGHT_SCHEDULE_DURATION_H,
+        O.LAMBDA: Const.DEFAULT_LAMBDA.value,
+        O.TIMEZONE: None,
+    }
     output_summary = {
         f"{Types.OCCUPANCY}{SEP}{O.OCCUPANCY_AVG}": "average occupancy",
     }
@@ -148,35 +148,12 @@ class PHT(Method):
     def _get_input_data(
         self, obj: dict, data: dict, results: dict, method_type: str = Types.OCCUPANCY
     ) -> tuple[dict, dict]:
-        obj_out = {
-            O.ID: Method.get_with_backup(obj, O.ID),
-            O.LAMBDA: Method.get_with_method_backup(obj, O.LAMBDA, method_type, Const.DEFAULT_LAMBDA.value),
-            O.BASELINE_OFFSET: Method.get_with_method_backup(
-                obj, O.BASELINE_OFFSET, method_type, Const.DEFAULT_LAMBDA.value
-            ),
-            O.DETECTION_THRESHOLD: Method.get_with_method_backup(
-                obj, O.DETECTION_THRESHOLD, method_type, Const.DEFAULT_DETECTION_THRESHOLD.value
-            ),
-            O.NIGHT_SCHEDULE: Method.get_with_method_backup(
-                obj, O.NIGHT_SCHEDULE, method_type, Const.DEFAULT_NIGHT_SCHEDULE.value
-            ),
-            O.NIGHT_SCHEDULE_START: Method.get_with_method_backup(
-                obj, O.NIGHT_SCHEDULE_START, method_type, Const.DEFAULT_NIGHT_SCHEDULE_START.value
-            ),
-            O.NIGHT_SCHEDULE_END: Method.get_with_method_backup(
-                obj, O.NIGHT_SCHEDULE_END, method_type, Const.DEFAULT_NIGHT_SCHEDULE_END.value
-            ),
-            O.NIGHT_SCHEDULE_DURATION: Method.get_with_method_backup(
-                obj, O.NIGHT_SCHEDULE_DURATION, method_type, DEFAULT_NIGHT_SCHEDULE_DURATION_H
-            ),
-            O.TIMEZONE: obj.get(O.TIMEZONE),
-        }
+        obj_out = self.get_relevant_objects(obj, method_type)
 
         # Store required results
         data_out = {k: results[k][K.TIMESERIES] for k in self.required_data if k in results}
 
         # Clean up
-        obj_out = {k: v for k, v in obj_out.items() if v is not None}
         data_out = {k: v for k, v in data_out.items() if v is not None}
 
         # The electricity series by instant, from a built-in method's index or a file's datetime column

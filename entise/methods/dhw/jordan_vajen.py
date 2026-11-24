@@ -73,17 +73,17 @@ class JordanVajen(Method):
     types = [Types.DHW]
     name = "jordanvajen"
     required_keys = [O.DATETIMES, O.DWELLING_SIZE]
-    optional_keys = [
-        O.DHW_ACTIVITY,
-        O.DHW_DEMAND_PER_SIZE,
-        O.HOLIDAYS_LOCATION,
-        O.TEMP_WATER_COLD,
-        O.TEMP_WATER_HOT,
-        O.SEASONAL_VARIATION,
-        O.SEASONAL_PEAK_DAY,
-        O.SEED,
-        O.TIMEZONE,
-    ]
+    optional_keys = {
+        O.DHW_ACTIVITY: None,
+        O.DHW_DEMAND_PER_SIZE: None,
+        O.HOLIDAYS_LOCATION: None,
+        O.TEMP_WATER_COLD: DEFAULT_TEMP_COLD,
+        O.TEMP_WATER_HOT: DEFAULT_TEMP_HOT,
+        O.SEASONAL_VARIATION: DEFAULT_SEASONAL_VARIATION,
+        O.SEASONAL_PEAK_DAY: DEFAULT_SEASONAL_PEAK_DAY,
+        O.SEED: None,
+        O.TIMEZONE: None,
+    }
     required_data = [O.DATETIMES]
     optional_data = [
         O.DHW_ACTIVITY,
@@ -226,25 +226,11 @@ def get_input_data(obj, data, method_type=Types.DHW):
         raise KeyError(f"Required parameter '{O.DATETIMES}' not found in object parameters")
 
     # Process object parameters
-    obj_out = {
-        O.DWELLING_SIZE: Method.get_with_method_backup(obj, O.DWELLING_SIZE, method_type),
-        O.DATETIMES: Method.get_with_method_backup(obj, O.DATETIMES, method_type),
-        O.SEED: Method.get_with_method_backup(obj, O.SEED, method_type),
-        O.TEMP_WATER_COLD: Method.get_with_method_backup(obj, O.TEMP_WATER_COLD, method_type, DEFAULT_TEMP_COLD),
-        O.TEMP_WATER_HOT: Method.get_with_method_backup(obj, O.TEMP_WATER_HOT, method_type, DEFAULT_TEMP_HOT),
-        O.SEASONAL_VARIATION: Method.get_with_method_backup(
-            obj, O.SEASONAL_VARIATION, method_type, DEFAULT_SEASONAL_VARIATION
-        ),
-        O.SEASONAL_PEAK_DAY: Method.get_with_method_backup(
-            obj, O.SEASONAL_PEAK_DAY, method_type, DEFAULT_SEASONAL_PEAK_DAY
-        ),
-        O.HOLIDAYS_LOCATION: Method.get_with_method_backup(obj, O.HOLIDAYS_LOCATION, method_type),
-        O.TIMEZONE: obj.get(O.TIMEZONE),
-    }
+    obj_out = JordanVajen.get_relevant_objects(obj, method_type)
 
     # Process data
     data_out = {
-        O.DATETIMES: Method.get_with_backup(data, obj_out[O.DATETIMES]),
+        O.DATETIMES: Method.get_with_backup(data, obj_out.get(O.DATETIMES)),
         O.DHW_ACTIVITY: Method.get_with_backup(data, O.DHW_ACTIVITY),
         O.DHW_DEMAND_PER_SIZE: Method.get_with_backup(data, O.DHW_DEMAND_PER_SIZE),
         O.TEMP_WATER_COLD: Method.get_with_backup(data, O.TEMP_WATER_COLD),
@@ -254,10 +240,10 @@ def get_input_data(obj, data, method_type=Types.DHW):
     # Validate required data
     if data_out[O.DATETIMES] is None:
         logger.error("[DHW jordanvajen]: No datetime data")
-        raise KeyError(f"Required data '{obj_out[O.DATETIMES]}' not found in input data")
+        raise KeyError(f"Required data '{obj_out.get(O.DATETIMES)}' not found in input data")
 
     # The run's instants and the site's local calendar
-    table, step, hours = time_table(data, obj_out[O.DATETIMES], site_zone(obj_out))
+    table, step, hours = time_table(data, obj_out.get(O.DATETIMES), site_zone(obj_out))
     data_out[O.DATETIMES] = table
     data_out["step"] = step
     data_out["hours"] = hours
@@ -268,7 +254,7 @@ def get_input_data(obj, data, method_type=Types.DHW):
         data_out[O.DHW_ACTIVITY] = _get_activity_data("jordan_vajen")
 
     # The object's seed wins; otherwise the run seed, the object's id and the type place its random stream.
-    data_out["rng"] = method_rng(data, obj.get(O.ID), method_type, seed=obj_out[O.SEED])
+    data_out["rng"] = method_rng(data, obj.get(O.ID), method_type, seed=obj_out.get(O.SEED))
 
     return obj_out, data_out
 

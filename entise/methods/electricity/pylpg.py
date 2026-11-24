@@ -33,7 +33,7 @@ class PyLPG(Method):
     types = [Types.ELECTRICITY]
 
     required_keys = [O.HOUSEHOLDS, O.OCCUPANTS_PER_HOUSEHOLD, O.DATETIMES]
-    optional_keys = [O.ENERGY_INTENSITY, O.TIMEZONE]
+    optional_keys = {O.ENERGY_INTENSITY: None, O.TIMEZONE: None}
 
     required_data = [O.DATETIMES]
 
@@ -110,18 +110,10 @@ class PyLPG(Method):
         return self._format_output(ts, processed_obj, processed_data)
 
     def _get_input_data(self, obj: dict, data: dict, method_type: str = Types.ELECTRICITY) -> tuple[dict, dict]:
-        obj_out = {
-            O.ID: Method.get_with_backup(obj, O.ID),
-            O.HOUSEHOLDS: Method.get_with_method_backup(obj, O.HOUSEHOLDS, method_type),
-            O.OCCUPANTS_PER_HOUSEHOLD: Method.get_with_method_backup(obj, O.OCCUPANTS_PER_HOUSEHOLD, method_type),
-            O.ENERGY_INTENSITY: Method.get_with_method_backup(obj, O.ENERGY_INTENSITY, method_type, None),
-            O.TIMEZONE: obj.get(O.TIMEZONE),
-        }
+        obj_out = self.get_relevant_objects(obj, method_type)
         dts_key = Method.get_with_method_backup(obj, O.DATETIMES, method_type, O.DATETIMES)
         table, step, hours = time_table(data, dts_key, site_zone(obj_out))
         data_out = {O.DATETIMES: table, "step": step, "hours": hours, "run_data": data}
-
-        obj_out = {k: v for k, v in obj_out.items() if v is not None}
         return obj_out, data_out
 
     @staticmethod

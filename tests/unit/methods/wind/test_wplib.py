@@ -1,3 +1,6 @@
+import json
+import os
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -224,3 +227,64 @@ def test_generate_with_kwargs():
     # Check that generation occurs
     summary = result["summary"]
     assert summary[f"{Types.WIND}{SEP}{C.GENERATION}"].item() >= 0
+
+
+EXAMPLE = os.path.join(os.path.dirname(__file__), *[os.pardir] * 4, "examples")
+
+
+@pytest.fixture
+def example_inputs():
+    """The first object of the wind example, with the shared weather."""
+    obj = pd.read_csv(os.path.join(EXAMPLE, "wind_wplib", "objects.csv")).iloc[0].to_dict()
+    obj = {key: value for key, value in obj.items() if not (isinstance(value, float) and np.isnan(value))}
+    return obj, {O.WEATHER: pd.read_csv(os.path.join(EXAMPLE, "common_data", "weather.csv"))}
+
+
+def _generation(obj, data, **inputs):
+    return WPLib().generate(obj, data, **inputs)["summary"][f"{Types.WIND}{SEP}{C.GENERATION}"]
+
+
+def test_wind_model_sets_the_model_chain(example_inputs):
+    """The object's wind_model replaces ModelChain settings; before #119 it was ignored."""
+    obj, data = example_inputs
+    hellman = {"wind_speed_model": "hellman"}
+    named = {**data, "my_model": hellman}
+
+    by_keyword = _generation(obj, data, wind_model=hellman)
+
+    assert by_keyword != _generation(obj, data)
+    assert _generation({**obj, O.WIND_MODEL: "my_model"}, named) == by_keyword
+    assert _generation({**obj, f"{Types.WIND}{SEP}{O.WIND_MODEL}": "my_model"}, named) == by_keyword
+
+
+def test_wind_model_rejects_unknown_settings(dummy_inputs):
+    obj, data = dummy_inputs
+    with pytest.raises(ValueError, match="Unknown ModelChain settings"):
+        WPLib().generate(obj, data, wind_model={"wind_speed": "hellman"})
+
+
+def test_wind_model_must_name_a_mapping(dummy_inputs):
+    obj, data = dummy_inputs
+    with pytest.raises(ValueError, match="mapping of ModelChain settings"):
+        WPLib().generate({**obj, O.WIND_MODEL: "missing"}, data)
+
+
+def test_the_example_objects_run_with_their_wind_model(example_inputs):
+    """Two example objects name the shipped data/system.json; it runs on the one-height weather."""
+    obj, data = example_inputs
+    with open(os.path.join(EXAMPLE, "wind_wplib", "data", "system.json"), encoding="utf-8") as f:
+        system = json.load(f)
+
+    assert _generation({**obj, O.WIND_MODEL: "system"}, {**data, "system": system}) != _generation(obj, data)
+
+
+def test_interpolation_needs_two_heights(example_inputs):
+    obj, data = example_inputs
+    # The density correction reads the ideal gas density, which interpolates the hub temperature.
+    two_heights = {
+        "temperature_model": "interpolation_extrapolation",
+        "density_model": "ideal_gas",
+        "density_correction": True,
+    }
+    with pytest.raises(ValueError, match="two or more heights"):
+        WPLib().generate(obj, data, wind_model=two_heights)

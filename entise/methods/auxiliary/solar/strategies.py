@@ -4,6 +4,7 @@ import pandas as pd
 from entise.constants import Columns as C
 from entise.constants import Objects as O
 from entise.core.base_auxiliary import AuxiliaryMethod
+from entise.core.utils import resolve_ts_or_scalar_by_id
 
 # Solar position and plane-of-array irradiance are cached per process and per
 # weather frame. Objects in the same grid cell share one solar position, which
@@ -285,6 +286,26 @@ class SolarGainsISO13790(SolarGainsPVLib):
         net_gains = gains_windows + gains_opaque - loss
 
         return pd.DataFrame({O.GAINS_SOLAR: net_gains}, index=weather.index)
+
+
+class SolarGainsTimeSeries(AuxiliaryMethod):
+    """Solar gains that the object supplies instead of having them calculated.
+
+    The object's ``gains_solar[W]`` is a constant in W, a series on the weather index,
+    ``"table|column"``, or the name of a table whose column is the object's ``id`` or
+    whose only column holds the gains.
+    """
+
+    required_keys = [O.GAINS_SOLAR]
+    required_data = [O.WEATHER]
+
+    def get_input_data(self, obj, data):
+        weather = data[O.WEATHER]
+        gains = resolve_ts_or_scalar_by_id(obj, data, O.GAINS_SOLAR, weather.index)
+        return {"gains": gains.to_numpy(dtype=np.float32), "weather": weather}
+
+    def run(self, gains, weather):
+        return pd.DataFrame({O.GAINS_SOLAR: gains}, index=weather.index)
 
 
 __all__ = [

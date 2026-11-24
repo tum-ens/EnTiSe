@@ -67,30 +67,35 @@ class R1C1(Method):
     types = [Types.HVAC]
     name = "1R1C"
     required_keys = [O.CAPACITANCE, O.RESISTANCE, O.WEATHER]
-    optional_keys = [
-        O.TIMEZONE,
-        O.POWER_HEATING,
-        O.POWER_COOLING,
-        O.ACTIVE_HEATING,
-        O.ACTIVE_COOLING,
-        O.ACTIVE_GAINS_INTERNAL,
-        O.ACTIVE_GAINS_SOLAR,
-        O.ACTIVE_VENTILATION,
-        O.TEMP_INIT,
-        O.TEMP_MIN,
-        O.TEMP_MAX,
-        O.DEADBAND,
-        O.TARGET_HUMIDITY_REL,
-        O.GAINS_INTERNAL_LATENT,
-        O.AREA,
-        O.HEIGHT,
-        O.GAINS_INTERNAL,
-        O.GAINS_INTERNAL_COL,
-        O.VENTILATION,
-        O.VENTILATION_COL,
-        O.GAINS_SOLAR,
-        O.WINDOWS,
-    ]
+    optional_keys = {
+        O.TIMEZONE: None,
+        O.POWER_HEATING: DEFAULT_POWER_HEATING,
+        O.POWER_COOLING: DEFAULT_POWER_COOLING,
+        O.ACTIVE_HEATING: DEFAULT_ACTIVE_HEATING,
+        O.ACTIVE_COOLING: DEFAULT_ACTIVE_COOLING,
+        O.ACTIVE_GAINS_INTERNAL: True,
+        O.ACTIVE_GAINS_SOLAR: True,
+        O.ACTIVE_VENTILATION: True,
+        O.TEMP_INIT: DEFAULT_TEMP_INIT,
+        O.TEMP_MIN: DEFAULT_TEMP_MIN,
+        O.TEMP_MAX: DEFAULT_TEMP_MAX,
+        O.DEADBAND: DEFAULT_DEADBAND,
+        # Latent cooling (issue #103)
+        O.TARGET_HUMIDITY_REL: DEFAULT_TARGET_HUMIDITY_REL,
+        O.GAINS_INTERNAL_LATENT: DEFAULT_GAINS_INTERNAL_LATENT,
+        # Geometry
+        O.AREA: Const.DEFAULT_AREA.value,
+        O.HEIGHT: Const.DEFAULT_HEIGHT.value,
+        # Location, needed for solar gains through windows
+        O.LAT: None,
+        O.LON: None,
+        O.GAINS_INTERNAL: None,
+        O.GAINS_INTERNAL_COL: None,
+        O.VENTILATION: DEFAULT_VENTILATION,
+        O.VENTILATION_COL: None,
+        O.GAINS_SOLAR: None,
+        O.WINDOWS: None,
+    }
     required_data = [O.WEATHER]
     optional_data = [O.WINDOWS, O.GAINS_INTERNAL, O.GAINS_SOLAR, O.VENTILATION]
     output_summary = {
@@ -184,14 +189,14 @@ class R1C1(Method):
         # `power_cooling` (the total cap); the post-pass may clip it further
         # if latent load pushes the total over that cap.
         weather_df = data[O.WEATHER]
-        p_cool_max_arr = resolve_ts_or_scalar(
-            obj, data, O.POWER_COOLING, weather_df.index, default=DEFAULT_POWER_COOLING
-        ).to_numpy(dtype=np.float32, copy=False)
+        p_cool_max_arr = resolve_ts_or_scalar(obj, data, O.POWER_COOLING, weather_df.index).to_numpy(
+            dtype=np.float32, copy=False
+        )
         h_ve_arr = data[O.VENTILATION].to_numpy(dtype=np.float32, copy=False).ravel()
-        gains_lat_arr = resolve_ts_or_scalar(
-            obj, data, O.GAINS_INTERNAL_LATENT, weather_df.index, default=DEFAULT_GAINS_INTERNAL_LATENT
-        ).to_numpy(dtype=np.float32, copy=False)
-        active_cool = bool(obj.get(O.ACTIVE_COOLING, DEFAULT_ACTIVE_COOLING))
+        gains_lat_arr = resolve_ts_or_scalar(obj, data, O.GAINS_INTERNAL_LATENT, weather_df.index).to_numpy(
+            dtype=np.float32, copy=False
+        )
+        active_cool = bool(obj[O.ACTIVE_COOLING])
         if active_cool:
             p_cool_sensible, p_cool_latent = compute_latent_cooling(
                 weather=weather_df,
@@ -199,8 +204,8 @@ class R1C1(Method):
                 p_cool_max=p_cool_max_arr,
                 h_ve=h_ve_arr,
                 gains_internal_latent=gains_lat_arr,
-                temp_max_c=float(obj.get(O.TEMP_MAX, DEFAULT_TEMP_MAX)),
-                target_humidity_rel=float(obj.get(O.TARGET_HUMIDITY_REL, DEFAULT_TARGET_HUMIDITY_REL)),
+                temp_max_c=float(obj[O.TEMP_MAX]),
+                target_humidity_rel=float(obj[O.TARGET_HUMIDITY_REL]),
             )
         else:
             p_cool_sensible = p_cool
@@ -236,46 +241,7 @@ class R1C1(Method):
             - Parameters can be specified with method-specific prefixes (e.g., "hvac:temp_min")
               which will take precedence over generic parameters (e.g., "temp_min").
         """
-        obj_out = {
-            O.ID: Method.get_with_backup(obj, O.ID),
-            O.TIMEZONE: Method.get_with_backup(obj, O.TIMEZONE),
-            # Geometry
-            O.AREA: Method.get_with_method_backup(obj, O.AREA, method_type, Const.DEFAULT_AREA.value),
-            O.HEIGHT: Method.get_with_method_backup(obj, O.HEIGHT, method_type, Const.DEFAULT_HEIGHT.value),
-            O.LAT: Method.get_with_method_backup(obj, O.LAT, method_type),
-            O.LON: Method.get_with_method_backup(obj, O.LON, method_type),
-            # Controls
-            O.ACTIVE_COOLING: Method.get_with_method_backup(obj, O.ACTIVE_COOLING, method_type, DEFAULT_ACTIVE_COOLING),
-            O.ACTIVE_HEATING: Method.get_with_method_backup(obj, O.ACTIVE_HEATING, method_type, DEFAULT_ACTIVE_HEATING),
-            O.ACTIVE_GAINS_INTERNAL: Method.get_with_method_backup(obj, O.ACTIVE_GAINS_INTERNAL, method_type, True),
-            O.ACTIVE_GAINS_SOLAR: Method.get_with_method_backup(obj, O.ACTIVE_GAINS_SOLAR, method_type, True),
-            O.ACTIVE_VENTILATION: Method.get_with_method_backup(obj, O.ACTIVE_VENTILATION, method_type, True),
-            # Gains
-            O.GAINS_INTERNAL: Method.get_with_method_backup(obj, O.GAINS_INTERNAL, method_type),
-            O.GAINS_INTERNAL_COL: Method.get_with_method_backup(obj, O.GAINS_INTERNAL_COL, method_type),
-            O.GAINS_SOLAR: Method.get_with_method_backup(obj, O.GAINS_SOLAR, method_type),
-            # Power limits
-            O.POWER_COOLING: Method.get_with_method_backup(obj, O.POWER_COOLING, method_type, DEFAULT_POWER_COOLING),
-            O.POWER_HEATING: Method.get_with_method_backup(obj, O.POWER_HEATING, method_type, DEFAULT_POWER_HEATING),
-            # 1R1C RC parameters
-            O.RESISTANCE: Method.get_with_method_backup(obj, O.RESISTANCE, method_type),
-            O.CAPACITANCE: Method.get_with_method_backup(obj, O.CAPACITANCE, method_type),
-            # Temperature setpoints
-            O.TEMP_INIT: Method.get_with_method_backup(obj, O.TEMP_INIT, method_type, DEFAULT_TEMP_INIT),
-            O.TEMP_MAX: Method.get_with_method_backup(obj, O.TEMP_MAX, method_type, DEFAULT_TEMP_MAX),
-            O.TEMP_MIN: Method.get_with_method_backup(obj, O.TEMP_MIN, method_type, DEFAULT_TEMP_MIN),
-            O.DEADBAND: Method.get_with_method_backup(obj, O.DEADBAND, method_type, DEFAULT_DEADBAND),
-            # Latent cooling (issue #103)
-            O.TARGET_HUMIDITY_REL: Method.get_with_method_backup(
-                obj, O.TARGET_HUMIDITY_REL, method_type, DEFAULT_TARGET_HUMIDITY_REL
-            ),
-            O.GAINS_INTERNAL_LATENT: Method.get_with_method_backup(
-                obj, O.GAINS_INTERNAL_LATENT, method_type, DEFAULT_GAINS_INTERNAL_LATENT
-            ),
-            # Ventilation
-            O.VENTILATION: Method.get_with_method_backup(obj, O.VENTILATION, method_type, DEFAULT_VENTILATION),
-            O.VENTILATION_COL: Method.get_with_method_backup(obj, O.VENTILATION_COL, method_type),
-        }
+        obj_out = R1C1.get_relevant_objects(obj, method_type)
         run, weather_key, weather = hvac_weather(obj, data, method_type)
         windows = windows_table(obj, data, method_type)
         check_window_irradiance(run, weather_key, weather, obj, windows, method_type)
@@ -291,89 +257,10 @@ class R1C1(Method):
             ventilation_key: ventilation,
         }
 
-        # Keep legacy "<key>_COL" column names for table references (see resolve_table_and_column).
-        obj_out.update({k: v for k, v in obj.items() if isinstance(k, str) and k.endswith("_COL")})
-
         # Clean up
-        obj_out = {k: v for k, v in obj_out.items() if v is not None}
         data_out = {k: v for k, v in data_out.items() if v is not None}
 
         return obj_out, data_out
-
-    # @staticmethod
-    # def _get_input_data(obj: dict, data: dict, method_type: str = Types.HVAC) -> tuple[dict, dict]:
-    #     """Process and validate input data for HVAC calculation (R1C1).
-    #
-    #     - Resolves method-prefixed keys with fallback to shared keys
-    #     - Normalizes and caches weather (index = Columns.DATETIME)
-    #     - Passes through references to optional timeseries (windows, gains, ventilation)
-    #     - Adds optional `O.H_VE` so users can pass ventilation conductance directly
-    #     """
-    #     obj_out = {
-    #         O.ID: Method.get_with_backup(obj, O.ID),
-    #         # Controls
-    #         O.ACTIVE_COOLING: Method.get_with_method_backup(obj, O.ACTIVE_COOLING, method_type,
-    #         DEFAULT_ACTIVE_COOLING),
-    #         O.ACTIVE_HEATING: Method.get_with_method_backup(obj, O.ACTIVE_HEATING, method_type,
-    #         DEFAULT_ACTIVE_HEATING),
-    #         O.AREA: Method.get_with_method_backup(obj, O.AREA, method_type, Const.DEFAULT_AREA.value),
-    #         O.GAINS_INTERNAL: Method.get_with_method_backup(obj, O.GAINS_INTERNAL, method_type),
-    #         O.GAINS_INTERNAL_COL: Method.get_with_method_backup(obj, O.GAINS_INTERNAL_COL, method_type),
-    #         O.GAINS_SOLAR: Method.get_with_method_backup(obj, O.GAINS_SOLAR, method_type),
-    #         O.HEIGHT: Method.get_with_method_backup(obj, O.HEIGHT, method_type, Const.DEFAULT_HEIGHT.value),
-    #         O.LAT: Method.get_with_method_backup(obj, O.LAT, method_type),
-    #         O.LON: Method.get_with_method_backup(obj, O.LON, method_type),
-    #         O.POWER_COOLING: Method.get_with_method_backup(obj, O.POWER_COOLING, method_type, DEFAULT_POWER_COOLING),
-    #         O.POWER_HEATING: Method.get_with_method_backup(obj, O.POWER_HEATING, method_type, DEFAULT_POWER_HEATING),
-    #         O.RESISTANCE: Method.get_with_method_backup(obj, O.RESISTANCE, method_type),
-    #         O.CAPACITANCE: Method.get_with_method_backup(obj, O.CAPACITANCE, method_type),
-    #         O.TEMP_INIT: Method.get_with_method_backup(obj, O.TEMP_INIT, method_type, DEFAULT_TEMP_INIT),
-    #         O.TEMP_MAX: Method.get_with_method_backup(obj, O.TEMP_MAX, method_type, DEFAULT_TEMP_MAX),
-    #         O.TEMP_MIN: Method.get_with_method_backup(obj, O.TEMP_MIN, method_type, DEFAULT_TEMP_MIN),
-    #         # Ventilation: allow both the auxiliary path and direct H_ve (conductance)
-    #         O.VENTILATION: Method.get_with_method_backup(obj, O.VENTILATION, method_type, DEFAULT_VENTILATION),
-    #         O.VENTILATION_COL: Method.get_with_method_backup(obj, O.VENTILATION_COL, method_type),
-    #         O.H_VE: Method.get_with_method_backup(obj, O.H_VE, method_type),  # optional, may be scalar or Series
-    #     }
-    #
-    #     weather_key = Method.get_with_method_backup(obj, O.WEATHER, method_type, O.WEATHER)
-    #     weather = Method.get_with_backup(data, weather_key)
-    #
-    #     windows_key = Method.get_with_method_backup(obj, O.WINDOWS, method_type)
-    #     windows = Method.get_with_backup(data, windows_key) if isinstance(windows_key, str) else None
-    #
-    #     internal_key = Method.get_with_method_backup(obj, O.GAINS_INTERNAL, method_type)
-    #     internal_gains = Method.get_with_backup(data, internal_key) if isinstance(internal_key, str) else None
-    #
-    #     ventilation_key = Method.get_with_method_backup(obj, O.VENTILATION, method_type)
-    #     ventilation = Method.get_with_backup(data, ventilation_key) if isinstance(ventilation_key, str) else None
-    #
-    #     data_out = {
-    #         O.WEATHER: weather,
-    #         O.WINDOWS: windows,
-    #         internal_key: internal_gains,
-    #         ventilation_key: ventilation,
-    #     }
-    #
-    #     # Clean up Nones
-    #     obj_out = {k: v for k, v in obj_out.items() if v is not None}
-    #     data_out = {k: v for k, v in data_out.items() if v is not None}
-    #
-    #     # Weather normalization and caching
-    #     weather_cache_key = weather_key
-    #     weather_cached = _WEATHER_CACHE.get(weather_cache_key)
-    #     if weather_cached is None:
-    #         if O.WEATHER in data_out:
-    #             weather = data_out[O.WEATHER].copy()
-    #             weather = Method._strip_weather_height(weather)
-    #             weather[C.DATETIME] = pd.to_datetime(weather[C.DATETIME])
-    #             weather.set_index(C.DATETIME, inplace=True, drop=False)
-    #             data_out[O.WEATHER] = weather
-    #             _WEATHER_CACHE[weather_cache_key] = weather
-    #     else:
-    #         data_out[O.WEATHER] = weather_cached
-    #
-    #     return obj_out, data_out
 
     @staticmethod
     def _format_output(temp_in, p_heat, p_cool_sensible, p_cool_latent, obj, data, timestep) -> dict:

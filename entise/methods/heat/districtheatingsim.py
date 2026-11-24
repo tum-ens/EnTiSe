@@ -48,7 +48,12 @@ class DistrictHeatSim(Method):
     types = [Types.HEATING]
 
     required_keys = [O.WEATHER]
-    optional_keys = [O.DEMAND_KWH, O.PROFILE_TYPE, O.DHW_SHARE, O.TIMEZONE]
+    optional_keys = {
+        O.DEMAND_KWH: DEFAULT_DEMAND_KWH,
+        O.PROFILE_TYPE: DEFAULT_PROFILE_TYPE,
+        O.DHW_SHARE: DEFAULT_DHW_SHARE,
+        O.TIMEZONE: None,
+    }
 
     required_data = [O.WEATHER]
     optional_data = []
@@ -119,30 +124,19 @@ class DistrictHeatSim(Method):
         return self._format_output(ts_total_w, processed_obj, processed_data)
 
     def _get_input_data(self, obj, data, method_type=Types.HEATING):
-        profile_type = Method.get_with_method_backup(obj, O.PROFILE_TYPE, method_type, DEFAULT_PROFILE_TYPE)
-        profile_type = str(profile_type).strip().upper()
+        obj_out = self.get_relevant_objects(obj, method_type)
+        profile_type = str(obj_out[O.PROFILE_TYPE]).strip().upper()
 
         if len(profile_type) < 4:
             raise ValueError("[districtheatsim] profile_type must be like 'GBH03', 'HEF04', 'GKO01'")
 
         # Normalize subtype to 2 digits (e.g., GKO1 -> GKO01)
-        profile_type = f"{profile_type[:3]}{profile_type[3:].zfill(2)}"
-
-        obj_out = {
-            O.ID: Method.get_with_backup(obj, O.ID),
-            O.DEMAND_KWH: Method.get_with_method_backup(obj, O.DEMAND_KWH, method_type, DEFAULT_DEMAND_KWH),
-            O.PROFILE_TYPE: profile_type,
-            O.DHW_SHARE: Method.get_with_method_backup(obj, O.DHW_SHARE, method_type, DEFAULT_DHW_SHARE),
-        }
-
-        obj_out[O.TIMEZONE] = obj.get(O.TIMEZONE)
+        obj_out[O.PROFILE_TYPE] = f"{profile_type[:3]}{profile_type[3:].zfill(2)}"
 
         weather_key = Method.get_with_method_backup(obj, O.WEATHER, method_type, O.WEATHER)
         weather, step, hours = time_table(data, weather_key, site_zone(obj_out))
         weather = Method._strip_weather_height(weather)
         data_out = {O.WEATHER: weather, "step": step, "hours": hours, "run_data": data}
-
-        obj_out = {k: v for k, v in obj_out.items() if v is not None}
         return obj_out, data_out
 
     @staticmethod

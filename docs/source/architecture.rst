@@ -45,10 +45,11 @@ Method base class (entise.core.base.Method)
   - Class attributes declare the method’s surface:
     - types: list of supported timeseries types (see entise.constants.ts_types.Types)
     - name: strategy name used for selection (registered automatically)
-    - required_keys / optional_keys: scalar parameters expected in the object metadata
+    - required_keys / optional_keys: keys read from the object metadata; optional_keys may map each key to its default
     - required_data / optional_data: names of required/optional input timeseries in data
     - output_summary / output_timeseries: keys and human-readable descriptions for produced outputs
   - Provides helpers for common tasks:
+    - get_relevant_objects(obj, ts_type): resolve every declared key from the prefixed key (``hvac:area[m2]``), the plain key, then its default
     - _process_kwargs(...): merge explicit parameters with obj/data dicts
     - resolve_column(...): consistent access to method-prefixed or generic column names
     - get_with_backup(...) and get_with_method_backup(...): parameter lookup with method-specific fallbacks
@@ -98,9 +99,9 @@ Extension points (how to add a new method)
 2. Set class attributes appropriately:
    - types = [Types.PV] (or multiple types if your method supports them)
    - name = "my_method" (used as strategy selector, auto-registered via metaclass, MUST be unique across all methods)
-   - required_keys / optional_keys and required_data / optional_data
+   - required_keys / optional_keys (with each optional key's default) and required_data / optional_data
    - output_summary / output_timeseries (keys and human-readable descriptions)
-3. Implement generate(self, obj, data, results, ts_type) and return a dict with
+3. Implement generate(self, obj, data, results, ts_type), resolve its keys with get_relevant_objects, and return a dict with
    - "summary": dict of KPIs (keys should match output_summary)
    - "timeseries": pandas.DataFrame with a datetime index/column and columns as defined in output_timeseries
 4. Import your class in the package’s __init__.py of that domain so it’s importable (e.g., entise.methods.pv.__init__).

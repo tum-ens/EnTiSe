@@ -1,7 +1,7 @@
 {
   "wind_speed_model": "hellman",
   "density_model": "ideal_gas",
-  "temperature_model": "interpolation_extrapolation",
+  "temperature_model": "linear_gradient",
   "power_output_model": "power_curve",
   "density_correction": true,
   "obstacle_height": 30,

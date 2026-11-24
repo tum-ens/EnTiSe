@@ -48,7 +48,14 @@ class Demandlib(Method):
     types = [Types.HEATING]
 
     required_keys = [O.WEATHER]
-    optional_keys = [O.DEMAND_KWH, O.BUILDING_TYPE, O.BUILDING_CLASS, O.WIND_CLASS, O.HOLIDAYS_LOCATION, O.TIMEZONE]
+    optional_keys = {
+        O.DEMAND_KWH: DEFAULT_DEMAND,
+        O.BUILDING_TYPE: DEFAULT_BUILDING_TYPE,
+        O.BUILDING_CLASS: DEFAULT_BUILDING_CLASS,
+        O.WIND_CLASS: DEFAULT_WIND_CLASS,
+        O.HOLIDAYS_LOCATION: None,
+        O.TIMEZONE: None,
+    }
 
     required_data = [O.WEATHER]
     optional_data = []
@@ -108,15 +115,7 @@ class Demandlib(Method):
         return self._format_output(ts, processed_obj, processed_data)
 
     def _get_input_data(self, obj, data, method_type=Types.HEATING):
-        obj_out = {
-            O.ID: Method.get_with_backup(obj, O.ID),
-            O.DEMAND_KWH: Method.get_with_method_backup(obj, O.DEMAND_KWH, method_type, DEFAULT_DEMAND),
-            O.BUILDING_TYPE: Method.get_with_method_backup(obj, O.BUILDING_TYPE, method_type, DEFAULT_BUILDING_TYPE),
-            O.BUILDING_CLASS: Method.get_with_method_backup(obj, O.BUILDING_CLASS, method_type, DEFAULT_BUILDING_CLASS),
-            O.WIND_CLASS: Method.get_with_method_backup(obj, O.WIND_CLASS, method_type, DEFAULT_WIND_CLASS),
-            O.HOLIDAYS_LOCATION: Method.get_with_method_backup(obj, O.HOLIDAYS_LOCATION, method_type, None),
-            O.TIMEZONE: obj.get(O.TIMEZONE),
-        }
+        obj_out = self.get_relevant_objects(obj, method_type)
 
         if float(obj_out[O.DEMAND_KWH]) <= 0:
             raise ValueError("[demandlib_heat] demand must be > 0 ")
@@ -125,8 +124,6 @@ class Demandlib(Method):
         weather, step, hours = time_table(data, weather_key, site_zone(obj_out))
         weather = Method._strip_weather_height(weather)
         data_out = {O.WEATHER: weather, "step": step, "hours": hours, "run_data": data}
-
-        obj_out = {k: v for k, v in obj_out.items() if v is not None}
         return obj_out, data_out
 
     @staticmethod

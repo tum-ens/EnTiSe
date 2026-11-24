@@ -1,14 +1,14 @@
 import logging
-import math
 import re
 from abc import ABC, ABCMeta, abstractmethod
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from typing import Any, Dict, List, Tuple, Type
 
 import pandas as pd
 
 from entise.constants import SEP, VALID_TYPES, Keys
 from entise.constants import Columns as C
+from entise.constants import Objects as O
 
 logger = logging.getLogger(__name__)
 
@@ -18,6 +18,9 @@ method_registry: Dict[str, Type["Method"]] = {}
 _UNIT = re.compile(r"\[[^\]]*\]")
 _HEIGHT = re.compile(r"@\d+(?:\.\d+)?m$")
 
+# Site metadata of an object: read without a type prefix by every method.
+SITE_KEYS = (O.ID, O.TIMEZONE)
+
 
 def input_name(key: str) -> str:
     """Return the Python name of an input key: the key without its units and height.
@@ -26,6 +29,30 @@ def input_name(key: str) -> str:
         ``area[m2]`` becomes ``area`` and ``air_temperature[C]@2m`` becomes ``air_temperature``.
     """
     return _UNIT.sub("", _HEIGHT.sub("", key))
+
+
+def _scopes(ts_type: str | Sequence[str] | None) -> Tuple[str, ...]:
+    """Return the type prefixes of a call: none, one type, or several."""
+    if ts_type is None:
+        return ()
+    return (ts_type,) if isinstance(ts_type, str) else tuple(ts_type)
+
+
+def _is_missing(value: Any) -> bool:
+    """Whether an object value counts as not given: None, or a missing scalar such as NaN or pd.NA."""
+    return value is None or (pd.api.types.is_scalar(value) and bool(pd.isna(value)))
+
+
+def _same_value(a: Any, b: Any) -> bool:
+    """Whether two object values are equal; values that cannot be compared are not."""
+    if a is b:
+        return True
+    if isinstance(a, (pd.Series, pd.DataFrame)) and type(a) is type(b):
+        return a.equals(b)
+    try:
+        return bool(a == b)
+    except (TypeError, ValueError):
+        return False
 
 
 def _check_input_names(cls) -> None:
@@ -70,7 +97,8 @@ class Method(ABC, metaclass=MethodMeta):
     types: List[str]
     name: str = ""
     required_keys: List[str]
-    optional_keys: List[str] = []
+    # A list, or a mapping of each key to its default (see ``key_defaults``).
+    optional_keys: List[str] | Dict[str, Any] = []
     required_data: List[str] = []
     optional_data: List[str] = []
     output_summary: Dict[str, pd.DataFrame] = {}
@@ -123,26 +151,75 @@ class Method(ABC, metaclass=MethodMeta):
 
         raise ValueError(f"Neither '{prefixed_col}' nor '{column}' found in timeseries '{ts_key}'.")
 
-    def get_relevant_objects(self, obj: dict, ts_type: str = None) -> dict:
-        """Extract relevant objects for the method based on the timeseries type."""
-        if ts_type is None:
-            return obj
+    @classmethod
+    def key_defaults(cls) -> Dict[str, Any]:
+        """Return each declared key mapped to its default, in declaration order.
 
-        relevant_objs = {k.split(SEP, 1)[1]: v for k, v in obj.items() if k.startswith(f"{ts_type}{SEP}")}
+        Required keys have no default. ``optional_keys`` either maps each key to its
+        default or lists the keys, which then have none.
+        """
+        defaults = dict.fromkeys(cls.required_keys)
+        optional = cls.optional_keys
+        defaults.update(optional if isinstance(optional, Mapping) else dict.fromkeys(optional))
+        return defaults
 
-        expected_keys = set(self.required_keys + self.optional_keys)
-        shared_keys_set = expected_keys - set(relevant_objs.keys())
-        shared_objs = {k: v for k, v in obj.items() if k in shared_keys_set and k not in relevant_objs}
+    @classmethod
+    def get_relevant_objects(cls, obj: Mapping, ts_type: str | Sequence[str] | None = None) -> dict:
+        """Resolve the declared keys of the method from one object.
 
-        relevant_objs.update(shared_objs)
-        logger.debug(
-            f"Method '{self.__class__.__name__}':\n"
-            f"- Required keys: {self.required_keys}\n"
-            f"- Relevant objects: {relevant_objs}\n"
-            f"- Shared keys: {shared_keys_set}"
-        )
+        Each key in ``required_keys`` and ``optional_keys`` takes the first value it finds,
+        in this order:
 
-        return relevant_objs
+        1. the key prefixed with the type, ``<ts_type>:<key>``;
+        2. the key itself;
+        3. its default (see ``key_defaults``).
+
+        ``None`` and NaN count as missing, while ``False`` and ``0`` are values. The site
+        keys ``id`` and ``timezone`` are always read without a prefix. Keys without a value
+        are left out, and undeclared keys are never returned. Values are returned as given:
+        a table reference such as ``"table|column"`` is resolved by the method.
+
+        Args:
+            obj: The object's keys.
+            ts_type: The type the method generates, or several types that one call
+                generates together. Without a type, only unprefixed keys are read.
+
+        Returns:
+            dict: The site keys first, then the declared keys in declaration order.
+
+        Raises:
+            ValueError: If a key is given under two of the types with different values.
+        """
+        scopes = _scopes(ts_type)
+        resolved = {}
+        for key in SITE_KEYS:
+            value = cls.get_with_backup(obj, key)
+            if value is not None:
+                resolved[key] = value
+        for key, default in cls.key_defaults().items():
+            if key in SITE_KEYS:
+                continue
+            value = cls._scoped_value(obj, key, scopes)
+            if value is None:
+                value = cls.get_with_backup(obj, key, default)
+            if value is not None:
+                resolved[key] = value
+        return resolved
+
+    @classmethod
+    def _scoped_value(cls, obj: Mapping, key: str, scopes: Tuple[str, ...]) -> Any:
+        """Return the value of a key given under any of the scopes, or None."""
+        found = None
+        for scope in scopes:
+            scoped = f"{scope}{SEP}{key}"
+            value = cls.get_with_backup(obj, scoped)
+            if value is None:
+                continue
+            if found is None:
+                found = (scoped, value)
+            elif not _same_value(found[1], value):
+                raise ValueError(f"'{found[0]}' ({found[1]!r}) and '{scoped}' ({value!r}) give different values.")
+        return None if found is None else found[1]
 
     def _process_kwargs(self, obj: dict = None, data: dict = None, ts_type: str = None, **inputs) -> Tuple[dict, dict]:
         """Apply the keyword inputs of a direct call to copies of obj and data.
@@ -205,7 +282,7 @@ class Method(ABC, metaclass=MethodMeta):
                 f"Inputs of method '{self.name}': {self._describe_inputs(names)}."
             )
 
-        obj_keys = set(self.required_keys + self.optional_keys)
+        obj_keys = set(self.key_defaults())
         data_keys = set(self.required_data + self.optional_data)
         given: Dict[str, str] = {}
         for name, value in inputs.items():
@@ -229,8 +306,8 @@ class Method(ABC, metaclass=MethodMeta):
                     local_data[key] = value
                     value = key  # the object refers to the table by its key
             local_obj[key] = value
-            if ts_type:
-                local_obj.pop(f"{ts_type}{SEP}{key}", None)
+            for scope in _scopes(ts_type):
+                local_obj.pop(f"{scope}{SEP}{key}", None)
 
         return local_obj, local_data, results
 
@@ -312,7 +389,7 @@ class Method(ABC, metaclass=MethodMeta):
             The value from the dictionary, or the backup value if not found
         """
         value = obj.get(key, backup)
-        if value is None or (isinstance(value, float) and math.isnan(value)):
+        if _is_missing(value):
             return backup
         return value
 
@@ -348,7 +425,7 @@ class Method(ABC, metaclass=MethodMeta):
         """Return a dictionary of the method's requirements, including required and optional keys and timeseries."""
         return {
             Keys.KEYS_REQUIRED: cls.required_keys,
-            Keys.KEYS_OPTIONAL: cls.optional_keys,
+            Keys.KEYS_OPTIONAL: list(cls.optional_keys),
             Keys.DATA_REQUIRED: cls.required_data,
             Keys.DATA_OPTIONAL: cls.optional_data,
         }

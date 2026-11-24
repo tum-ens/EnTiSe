@@ -56,16 +56,23 @@ def _caps(weather: pd.DataFrame) -> pd.DataFrame:
     return caps.sample(frac=1.0, random_state=7)
 
 
-@pytest.mark.parametrize("form", ["table|column", "key_COL"])
-def test_a_power_cap_from_a_table_aligns_by_instant(form):
+def test_a_power_cap_from_a_table_aligns_by_instant():
     weather = _weather(0, 24).assign(**{"air_temperature[C]@2m": -10.0})
     caps = _caps(weather)
-    obj = _house("caps|ph") if form == "table|column" else {**_house("caps"), f"{O.POWER_HEATING}_COL": "ph"}
 
-    heat = R1C1().generate(obj, {O.WEATHER: weather, "caps": caps}, Types.HVAC)["timeseries"][HEAT].to_numpy()
+    heat = R1C1().generate(_house("caps|ph"), {O.WEATHER: weather, "caps": caps}, Types.HVAC)["timeseries"][HEAT]
+    heat = heat.to_numpy()
 
     assert heat[:12].max() == 0
     assert heat[12:].min() > 0
+
+
+def test_a_column_in_a_separate_key_is_no_longer_read():
+    weather = _weather(0, 24).assign(**{"air_temperature[C]@2m": -10.0})
+    obj = {**_house("caps"), f"{O.POWER_HEATING}_COL": "ph"}
+
+    with pytest.raises(KeyError, match=r"'caps\|<column>'"):
+        R1C1().generate(obj, {O.WEATHER: weather, "caps": _caps(weather)}, Types.HVAC)
 
 
 # -- direct calls read each table once --------------------------------------------------------------------------------
