@@ -44,8 +44,6 @@ NEEDS_ANOTHER_INPUT |= {
     ("7R2C", O.TEMP_SUPPLY): "the supply temperature acts on the share that ventilation_split gives it",
     ("5R1C", O.VENTILATION_SPLIT): "the split acts only with a supply temperature other than the outdoor air",
     ("7R2C", O.VENTILATION_SPLIT): "the split acts only with a supply temperature other than the outdoor air",
-    ("7R2C", O.T_EQ_ALPHA_SW): "the sol-air part has no weight while the windows outweigh the wall conductance",
-    ("7R2C", O.T_EQ_H_O): "the sol-air part has no weight while the windows outweigh the wall conductance",
     ("5R1C", O.AREA_M): "the mass area splits the gains only together with the total area",
     ("5R1C", O.AREA_TOT): "the total area splits the gains only together with the mass area",
 }
