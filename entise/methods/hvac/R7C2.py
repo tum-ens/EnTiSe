@@ -521,18 +521,18 @@ class R7C2(Method):
             # (Using a small epsilon to avoid division by zero if R is 0)
             h_tot = 1.0 / max((r1_aw + r_rest_aw), 1e-6)
 
-            # Calculate Window Conductance (H_win) from available window data
+            # Window conductance (H_win) of the object's own windows. The windows table can
+            # hold the windows of many objects; they are matched by id, as for the solar gains.
             h_win = 0.0
-            if O.WINDOWS in data:
-                windows_df = data[O.WINDOWS]
-                if not windows_df.empty:
-                    for _, row in windows_df.iterrows():
-                        u_val = float(row.get(C.U_VALUE, 0.0))
-                        area = float(row.get(C.AREA, 0.0))
-                        h_win += u_val * area
+            windows_df = data.get(O.WINDOWS)
+            if windows_df is not None and {O.ID, C.U_VALUE, C.AREA} <= set(windows_df.columns):
+                own = windows_df.loc[windows_df[O.ID] == obj.get(O.ID)]
+                h_win = float((own[C.U_VALUE].astype(float) * own[C.AREA].astype(float)).sum())
+            # The windows are part of the envelope, so they cannot conduct more than all of it.
+            h_win = min(h_win, h_tot)
 
             # Derive Opaque Conductance (H_op)
-            h_op = max(0.0, h_tot - h_win)
+            h_op = h_tot - h_win
 
             # 3. Calculate Weighted T_eq
             # Formula: (T_sol_air * H_op + T_air * H_win) / H_tot
