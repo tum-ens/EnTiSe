@@ -567,3 +567,58 @@ def test_alias_to_an_undeclared_key_is_rejected_at_class_creation():
 
             def generate(self, obj=None, data=None, results=None, ts_type=None, **inputs):
                 return {}
+
+
+# --- Inputs that differ only in height -------------------------------------------------
+
+
+def _two_heights() -> type:
+    """A method that reads the same quantity at two heights, as EnTiSe names weather columns."""
+
+    class _TwoHeights(Method):
+        types = [Types.WIND]
+        name = "_two_heights"
+        register = False
+        required_keys = [O.ID]
+        optional_keys = {"wind_speed[m s-1]@10m": None, "wind_speed[m s-1]@100m": None, "power[W]": None}
+
+        def generate(self, obj=None, data=None, results=None, ts_type=Types.WIND, **inputs):
+            obj, _ = self._process_kwargs(obj, data, ts_type, **inputs)
+            return obj
+
+    return _TwoHeights
+
+
+def test_inputs_that_differ_only_in_height_are_accepted_at_class_creation():
+    names = _two_heights().input_names()
+
+    assert names["wind_speed[m s-1]@10m"] == "wind_speed[m s-1]@10m"
+    assert names["wind_speed[m s-1]@100m"] == "wind_speed[m s-1]@100m"
+    assert names["power"] == "power[W]"
+    # The shared short name would be ambiguous, so it names neither input.
+    assert "wind_speed" not in names
+
+
+def test_inputs_that_differ_only_in_height_are_set_by_their_full_keys():
+    obj = _two_heights()().generate({O.ID: "t"}, {}, **{"wind_speed[m s-1]@10m": 4.0, "wind_speed[m s-1]@100m": 7.0})
+
+    assert obj["wind_speed[m s-1]@10m"] == 4.0
+    assert obj["wind_speed[m s-1]@100m"] == 7.0
+
+
+def test_the_ambiguous_short_name_raises_and_lists_the_full_keys():
+    with pytest.raises(TypeError, match=r"wind_speed.*wind_speed\[m s-1\]@100m.*wind_speed\[m s-1\]@10m"):
+        _two_heights()().generate({O.ID: "t"}, {}, wind_speed=4.0)
+
+
+def test_inputs_that_differ_in_unit_still_clash_when_heights_are_given():
+    with pytest.raises(TypeError, match="wind_speed"):
+
+        class _Units(Method):
+            types = [Types.WIND]
+            name = "_two_units"
+            register = False
+            required_keys = ["wind_speed[m s-1]@10m", "wind_speed[km h-1]@100m"]
+
+            def generate(self, obj=None, data=None, results=None, ts_type=None, **inputs):
+                return {}

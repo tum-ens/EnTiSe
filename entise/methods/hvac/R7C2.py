@@ -140,6 +140,7 @@ class R7C2(Method):
         O.GAINS_SOLAR: None,
         O.VENTILATION: DEFAULT_VENTILATION,
         O.VENTILATION_COL: None,
+        O.WINDOWS: None,
     }
 
     required_data = [O.WEATHER]
