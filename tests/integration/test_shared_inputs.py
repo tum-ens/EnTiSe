@@ -4,7 +4,6 @@ import os
 import warnings
 
 import pandas as pd
-import pytest
 
 from entise.constants import Columns as C
 from entise.constants import Objects as O
@@ -85,8 +84,8 @@ def test_electricity_leaves_the_warning_filters_of_the_process_unchanged():
     }
     weather = _weather(2030, 24)
 
+    # The suite's own filters stay in place, so only a change made by the run shows.
     with warnings.catch_warnings():
-        warnings.simplefilter("default")
         before = list(warnings.filters)
         _run([electricity], {O.WEATHER: weather})
         after = list(warnings.filters)
@@ -94,8 +93,8 @@ def test_electricity_leaves_the_warning_filters_of_the_process_unchanged():
     assert after == before
 
 
-@pytest.mark.filterwarnings("default")
 def test_hvac_after_electricity_parses_weather_across_daylight_saving():
+    # An error filter left by demandlib would make the HVAC object fail on its next warning.
     obj, data = _hvac_inputs()
     electricity = {
         O.ID: "electricity",
