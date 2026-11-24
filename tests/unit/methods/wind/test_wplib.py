@@ -53,9 +53,9 @@ def test_windlib_initialization():
     assert windlib.optional_data == [O.WIND_MODEL]
 
     # Check output definitions
-    assert f"{C.GENERATION}_{Types.WIND}" in windlib.output_summary
-    assert f"{O.GEN_MAX}_{Types.WIND}" in windlib.output_summary
-    assert f"{C.FLH}_{Types.WIND}" in windlib.output_summary
+    assert f"{Types.WIND}{SEP}{C.GENERATION}" in windlib.output_summary
+    assert f"{Types.WIND}{SEP}{O.GEN_MAX}" in windlib.output_summary
+    assert f"{Types.WIND}{SEP}{C.FLH}" in windlib.output_summary
     assert f"{C.GENERATION}_{Types.WIND}" in windlib.output_timeseries
 
 

@@ -49,9 +49,9 @@ class PVLib(Method):
     required_data = [O.WEATHER]
     optional_data = [O.PV_ARRAYS]
     output_summary = {
-        f"{C.GENERATION}_{Types.PV}": "total PV generation",
-        f"{O.GEN_MAX}_{Types.PV}": "maximum PV generation",
-        f"{C.FLH}_{Types.PV}": "full load hours",
+        f"{Types.PV}{SEP}{C.GENERATION}": "total PV generation",
+        f"{Types.PV}{SEP}{O.GEN_MAX}": "maximum PV generation",
+        f"{Types.PV}{SEP}{C.FLH}": "full load hours",
     }
     output_timeseries = {
         f"{C.GENERATION}_{Types.PV}": "PV generation",

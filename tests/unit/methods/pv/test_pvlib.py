@@ -72,9 +72,9 @@ def test_pvlib_initialization():
     assert pvlib.optional_data == [O.PV_ARRAYS]
 
     # Check output definitions
-    assert f"{C.GENERATION}_{Types.PV}" in pvlib.output_summary
-    assert f"{O.GEN_MAX}_{Types.PV}" in pvlib.output_summary
-    assert f"{C.FLH}_{Types.PV}" in pvlib.output_summary
+    assert f"{Types.PV}{SEP}{C.GENERATION}" in pvlib.output_summary
+    assert f"{Types.PV}{SEP}{O.GEN_MAX}" in pvlib.output_summary
+    assert f"{Types.PV}{SEP}{C.FLH}" in pvlib.output_summary
     assert f"{C.GENERATION}_{Types.PV}" in pvlib.output_timeseries
 
 
