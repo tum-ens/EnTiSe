@@ -342,6 +342,9 @@ mean power of the hours it covers.
   Before, it was scaled to 365 days of demand whatever the run length.
 - ``dhw:hot_water_temperature[C]`` now holds the hot water temperature;
   before, it repeated the cold one.
+- A table named by ``dhw_activity`` or ``dhw_demand_per_size[m2]`` is used,
+  and a named table missing from the data raises an error. Before, the names
+  were ignored, and the bundled demand table was always used.
 
 **GeoMA and PHT.** The night window and the hold until 09:00 use the local
 clock. The hold starts once occupancy has lasted ``night_schedule_duration[h]``
