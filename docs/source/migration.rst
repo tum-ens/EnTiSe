@@ -79,6 +79,16 @@ shared Python name is dropped, and they are set by their keys. A ``TypeError``
 is also raised if an entry in ``input_aliases`` names an input that is not
 declared or reuses another input's name. Before, declarations were not checked.
 
+**New: several types from one calculation.** This is an addition; existing
+methods need no change. A method that produces several time-series types from
+one calculation can subclass ``GroupedMethod`` from ``entise.core.grouped``
+together with ``Method``. It lists those types in ``types`` and implements
+``generate_combined``, which returns one result whose columns and summary keys
+are prefixed with their type, such as ``heating:load[W]``. The runner then calls
+the method once per object for all the types that select it, and each type gets
+its own result. Route a direct call with ``ts_type`` through ``group_result``.
+See :ref:`api_core` for the details.
+
 Constants
 ---------
 
@@ -250,6 +260,24 @@ read it.
 
 HVAC (1R0C, 1R1C, 5R1C, 7R2C)
 -----------------------------
+
+**Typed heating and cooling.** Before, an object could select an RC model for
+``heating`` or ``cooling``, although the models declared only ``hvac``. It then
+ran both controls and returned the full HVAC frame and all four summary keys
+under the typed key. Now ``heating: 1R1C`` runs only the heating control and
+returns ``indoor_temperature[C]`` and ``heating:load[W]``, with the
+``heating:`` summary keys. ``cooling: <model>`` does the same for cooling, with
+the sensible and latent loads where the model has them.
+
+- To keep the full frame, select the model for ``hvac``.
+- To get both loads as typed results from one solve, select the same model for
+  ``heating`` and ``cooling``.
+- An object that selects the same model for ``hvac`` and a typed key now raises
+  a ``ValueError``. Use one or the other.
+- A type-scoped input of the other control, such as
+  ``heating:power_cooling[W]``, now raises. Give it unscoped or under its own
+  type.
+- With typed keys, inputs scoped to ``hvac`` (``hvac:area[m2]``) are not read.
 
 **Row 0.** Before, row 0 held the initial temperature and zero load, and a
 weather table with n rows simulated n − 1 intervals. Now row ``t`` is the

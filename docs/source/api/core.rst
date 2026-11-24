@@ -29,6 +29,13 @@ Base Classes
    :undoc-members:
    :show-inheritance:
 
+Methods with several types
+--------------------------
+
+.. automodule:: entise.core.grouped
+   :members:
+   :show-inheritance:
+
 Auxiliary Base Classes
 ----------------------
 

@@ -18,6 +18,10 @@ auxiliary calculations they use.
   resolve the keywords first with `self._process_kwargs(obj, data, ts_type, **inputs)`.
   Direct calls then accept every declared input by key or by Python name. Map a
   Python name kept from an earlier release to its key in `input_aliases`.
+- For a method that produces several time-series types from one calculation,
+  subclass [`GroupedMethod`](../core/grouped.py) together with `Method` and
+  implement `generate_combined`. Route a direct call with `ts_type` through
+  `group_result`. The [RC models](hvac/_typed.py) are an example.
 - Add a built-in strategy to the [registry](../core/registry.py) and declare its
   install extra in [pyproject.toml](../../pyproject.toml), even when it has no
   optional dependencies. Include the method extra in its type group. Verify
