@@ -267,10 +267,10 @@ Without heating or cooling, the zone takes ``T_out + gains / H`` in each
 interval. Before, it held ``init_temperature[C]`` in every step. It heated
 only when the outdoor air was at or below the minimum and cooled only when it
 was at or above the maximum. Cooling demand rises, and heating stays the same
-when ``init_temperature[C]`` equals the minimum. ``init_temperature[C]`` now
-has no effect in 1R0C. Row 0 is the first interval's temperature, not an
-initial state. If you used ``init_temperature[C]`` as the setpoint, set
-``min_temperature[C]`` to that value instead.
+when ``init_temperature[C]`` equals the minimum. ``init_temperature[C]`` is
+now only the indoor temperature of row 0, as in the other RC models. It is
+optional and defaults to ``min_temperature[C]``. If you used it as the
+setpoint, set ``min_temperature[C]`` to that value instead.
 
 **Auxiliary tables.** Internal gains, ventilation and ``table|column``
 references align with the weather by timestamp. A table without timestamps is

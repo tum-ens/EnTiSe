@@ -36,7 +36,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   - In each interval the zone takes its free-running temperature `T_out + gains / H`. Heating lifts it to the minimum and cooling lowers it to the maximum, within their power limits.
   - Before, 1R0C held the indoor temperature at `init_temperature[C]` in every step. It heated only when the outdoor air was at or below the minimum, and cooled only when the outdoor air was at or above the maximum.
   - Cooling therefore missed hours in which gains pushed the zone above the maximum, and cooled down to `init_temperature[C]` instead of the maximum.
-  - `init_temperature[C]` now has no effect, because the zone has no thermal mass.
+  - `init_temperature[C]` is the indoor temperature of row 0, as in the other RC models. It is optional and defaults to `min_temperature[C]`; without thermal mass it does not change the loads. (`#135`)
   - On the 1R0C example (20–25 °C), heating is unchanged, and cooling rises from 2.1–8.8 MWh to 4.7–20.3 MWh per building.
   - The example no longer sets `set_temperature[C]` and `capacitance[J K-1]`, which 1R0C does not read. The stored outputs of its notebook show the old values until it is run again.
 - **Behavior change**: the RC models and WPLib use the inputs they declare. (`#119`)

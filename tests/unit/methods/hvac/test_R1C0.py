@@ -172,7 +172,7 @@ def test_r1c0_floats_inside_the_band_without_load():
     """Between the minimum and maximum, the zone takes its free-running temperature T_out + gains / H."""
     ts = _band_run(15.0, 600.0)
 
-    assert ts[C.TEMP_IN].tolist() == pytest.approx([21.0] * 24)
+    assert ts[C.TEMP_IN].iloc[1:].tolist() == pytest.approx([21.0] * 23)  # row 0 is the initial temperature
     assert (ts[HEAT] == 0).all() and (ts[COOL] == 0).all()
 
 
@@ -181,17 +181,31 @@ def test_r1c0_cools_down_to_the_maximum_whatever_the_outdoor_temperature():
     ts = _band_run(22.0, 800.0)
 
     assert ts[COOL].tolist() == [500] * 24
-    assert ts[C.TEMP_IN].tolist() == pytest.approx([25.0] * 24)
+    assert ts[C.TEMP_IN].iloc[1:].tolist() == pytest.approx([25.0] * 23)  # row 0 is the initial temperature
     assert (ts[HEAT] == 0).all()
 
 
 @pytest.mark.parametrize("init", [20.0, 22.0])
-def test_r1c0_heats_up_to_the_minimum_and_ignores_the_initial_temperature(init):
-    """Heating holds the minimum; 1R0C has no thermal mass, so the initial temperature has no effect."""
+def test_r1c0_heats_up_to_the_minimum_whatever_the_initial_temperature(init):
+    """Heating holds the minimum; without thermal mass, the initial temperature does not change the loads."""
     ts = _band_run(0.0, 0.0, **{O.TEMP_INIT: init})
 
     assert ts[HEAT].tolist() == [2000] * 24
-    assert ts[C.TEMP_IN].tolist() == pytest.approx([20.0] * 24)
+    assert ts[C.TEMP_IN].iloc[1:].tolist() == pytest.approx([20.0] * 23)
+
+
+def test_r1c0_row_0_is_the_initial_temperature():
+    """Row 0 reports init_temperature[C], as in the other RC models; later rows are the zone's temperature."""
+    ts = _band_run(15.0, 600.0, **{O.TEMP_INIT: 18.5})
+
+    assert ts[C.TEMP_IN].iloc[0] == pytest.approx(18.5)
+    assert ts[C.TEMP_IN].iloc[1:].tolist() == pytest.approx([21.0] * 23)
+
+
+def test_r1c0_initial_temperature_defaults_to_the_minimum():
+    ts = _band_run(15.0, 600.0)
+
+    assert ts[C.TEMP_IN].iloc[0] == pytest.approx(20.0)
 
 
 def test_r1c0_capped_or_switched_off_plant_leaves_the_zone_outside_the_band():
@@ -200,6 +214,6 @@ def test_r1c0_capped_or_switched_off_plant_leaves_the_zone_outside_the_band():
     off = _band_run(22.0, 800.0, **{O.ACTIVE_COOLING: False})
 
     assert capped[HEAT].tolist() == [1000] * 24
-    assert capped[C.TEMP_IN].tolist() == pytest.approx([10.0] * 24)
+    assert capped[C.TEMP_IN].iloc[1:].tolist() == pytest.approx([10.0] * 23)  # row 0 is the initial temperature
     assert (off[COOL] == 0).all()
-    assert off[C.TEMP_IN].tolist() == pytest.approx([30.0] * 24)
+    assert off[C.TEMP_IN].iloc[1:].tolist() == pytest.approx([30.0] * 23)  # row 0 is the initial temperature
