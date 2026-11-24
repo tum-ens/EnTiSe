@@ -74,6 +74,43 @@ def resolve_ts_or_scalar(obj: dict, data: dict, key: str, index, default=None) -
     raise TypeError(f"Unsupported type for key '{key}': {type(val)}.")
 
 
+def resolve_ts_or_scalar_by_id(obj: dict, data: dict, key: str, index) -> pd.Series:
+    """Resolve ``key`` like ``resolve_ts_or_scalar``, also from a table named without a column.
+
+    A table name without ``|column`` reads the column named by the object's ``id``, or the
+    table's only column. This is how an object names its column in a shared table of
+    internal gains or ventilation.
+    """
+    value = obj.get(key)
+    if not isinstance(value, str) or "|" in value or _is_number(value):
+        return resolve_ts_or_scalar(obj, data, key, index)
+
+    from entise.core._time import run_time
+
+    table_key = value.strip()
+    run = run_time(data)
+    if table_key not in run:
+        raise KeyError(f"Data table '{table_key}' not found for key '{key}'.")
+    df = run.align(table_key, index)
+    object_id = obj.get("id")
+    if object_id is not None and str(object_id) in df.columns:
+        return df[str(object_id)]
+    if len(df.columns) == 1:
+        return df.iloc[:, 0]
+    raise KeyError(
+        f"Table '{table_key}' for key '{key}' has no column '{object_id}' for this object. "
+        f"Name the column with '{table_key}|<column>'."
+    )
+
+
+def _is_number(text: str) -> bool:
+    try:
+        float(text)
+    except ValueError:
+        return False
+    return True
+
+
 def align_auxiliary_series(series, index, key: str, method: str) -> pd.Series:
     """Align an auxiliary strategy's output onto a model's own index.
 

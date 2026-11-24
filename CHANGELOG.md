@@ -12,7 +12,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Added
 - Added defaults to method input declarations and one resolver for an object's keys. (`#119`)
   - `optional_keys` may map each key to its default; a list still declares keys without defaults. `Method.key_defaults()` returns every declared key with its default.
-  - `Method.get_relevant_objects(obj, ts_type)` resolves each declared key from the key prefixed with the type, then the plain key, then the default. `None` and NaN count as missing, `False` and `0` are values, and `id` and `timezone` are read without a prefix. It returns only declared keys that have a value.
+  - `Method.get_relevant_objects(obj, ts_type)` resolves each declared key from the key prefixed with the type, then the plain key, then the default. `None`, NaN and `pd.NA` count as missing, `False` and `0` are values, and `id` and `timezone` are read without a prefix. It returns only declared keys that have a value.
   - It also resolves several types at once, as one calculation for heating and cooling needs. A key given under two of them with different values raises a `ValueError`.
   - Every built-in method resolves its keys through it and declares its defaults in `optional_keys`. 5R1C and 7R2C no longer keep a separate list of object keys.
 - Added iteration and value membership to `Columns`, `Objects`, `Types` and `Keys` in `entise.constants`. Their constants retain their plain-string types and values. `len()` counts constants and `items()` yields name-value pairs in declaration order. **Behavior change**: these classes cannot be instantiated, and their attributes are read-only. (`#59`)
@@ -39,8 +39,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   - On the 1R0C example (20–25 °C), heating is unchanged, and cooling rises from 2.1–8.8 MWh to 4.7–20.3 MWh per building.
   - The example no longer sets `set_temperature[C]` and `capacitance[J K-1]`, which 1R0C does not read. The stored outputs of its notebook show the old values until it is run again.
 - **Behavior change**: the RC models use the inputs they declare. (`#119`)
-  - 1R0C, 1R1C, 5R1C and 7R2C use an object's `gains_solar[W]` in place of calculated solar gains: a constant in W, `table|column`, or a table whose column is the object's `id`. Before, it was accepted and ignored. In 1R1C, 5R1C and 7R2C, `active_gains_solar=False` still switches solar gains off.
-  - 5R1C and 7R2C use `H_ve[W K-1]` in place of the ventilation input; `ventilation_split` then divides it. Before, it was ignored.
+  - 1R0C, 1R1C, 5R1C and 7R2C use an object's `gains_solar[W]` in place of calculated solar gains: a constant in W, `table|column`, or a table whose column is the object's `id` (or whose only column holds the gains). Before, it was accepted and ignored. In 1R1C, 5R1C and 7R2C, `active_gains_solar=False` still switches solar gains off.
+  - 5R1C and 7R2C use `H_ve[W K-1]` in place of the ventilation input, in the same forms; `ventilation_split` then divides it. Before, it was ignored.
   - 5R1C uses `ventilation_split`. Before, it always used 0. The split matters only when `supply_temperature[C]` differs from the outdoor air.
   - 1R1C declares `latitude[degree]` and `longitude[degree]`, which it already read for solar gains. Direct calls accept `latitude=` and `longitude=`, and `input_names()` lists them.
 - **Behavior change**: 1R0C honors `active_ventilation=False` for both scalar and timestamped ventilation inputs. The flag defaults to `True`. (`#123`)

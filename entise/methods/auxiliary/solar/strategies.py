@@ -4,7 +4,7 @@ import pandas as pd
 from entise.constants import Columns as C
 from entise.constants import Objects as O
 from entise.core.base_auxiliary import AuxiliaryMethod
-from entise.core.utils import resolve_ts_or_scalar
+from entise.core.utils import resolve_ts_or_scalar_by_id
 
 # Solar position and plane-of-array irradiance are cached per process and per
 # weather frame. Objects in the same grid cell share one solar position, which
@@ -292,7 +292,8 @@ class SolarGainsTimeSeries(AuxiliaryMethod):
     """Solar gains that the object supplies instead of having them calculated.
 
     The object's ``gains_solar[W]`` is a constant in W, a series on the weather index,
-    ``"table|column"``, or the name of a table whose column is the object's ``id``.
+    ``"table|column"``, or the name of a table whose column is the object's ``id`` or
+    whose only column holds the gains.
     """
 
     required_keys = [O.GAINS_SOLAR]
@@ -300,23 +301,11 @@ class SolarGainsTimeSeries(AuxiliaryMethod):
 
     def get_input_data(self, obj, data):
         weather = data[O.WEATHER]
-        value = obj[O.GAINS_SOLAR]
-        if isinstance(value, str) and "|" not in value and not _is_number(value):
-            # A table without a column holds the object's gains in the column named by its id.
-            obj = {**obj, O.GAINS_SOLAR: f"{value.strip()}|{obj.get(O.ID)}"}
-        gains = resolve_ts_or_scalar(obj, data, O.GAINS_SOLAR, weather.index)
+        gains = resolve_ts_or_scalar_by_id(obj, data, O.GAINS_SOLAR, weather.index)
         return {"gains": gains.to_numpy(dtype=np.float32), "weather": weather}
 
     def run(self, gains, weather):
         return pd.DataFrame({O.GAINS_SOLAR: gains}, index=weather.index)
-
-
-def _is_number(text: str) -> bool:
-    try:
-        float(text)
-    except ValueError:
-        return False
-    return True
 
 
 __all__ = [

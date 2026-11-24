@@ -2,6 +2,7 @@
 
 import math
 
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -54,7 +55,7 @@ def test_another_type_prefix_is_ignored():
     assert keys["area[m2]"] == 100.0
 
 
-@pytest.mark.parametrize("missing", [None, math.nan])
+@pytest.mark.parametrize("missing", [None, math.nan, np.float32("nan"), pd.NA])
 def test_none_and_nan_count_as_missing(missing):
     obj = {"hvac:area[m2]": missing, "area[m2]": 90.0, "hvac:power_heating[W]": missing, "power_heating[W]": missing}
     keys = _Declared.get_relevant_objects(obj, Types.HVAC)
@@ -153,3 +154,15 @@ def test_direct_call_routes_a_table_for_a_key_that_is_also_data():
     obj, data = _Declared()._process_kwargs({}, {}, Types.HVAC, ventilation=table)
     assert obj["ventilation[W K-1]"] == "ventilation[W K-1]"
     assert data["ventilation[W K-1]"] is table
+
+
+def test_several_scopes_accept_the_same_series_twice():
+    series = pd.Series([1.0, 2.0])
+    obj = {"heating:area[m2]": series, "cooling:area[m2]": series.copy()}
+    assert _Declared.get_relevant_objects(obj, (Types.HEATING, Types.COOLING))["area[m2]"] is series
+
+
+def test_a_keyword_overrides_the_key_under_every_scope():
+    scopes = (Types.HEATING, Types.COOLING)
+    obj, _ = _Declared()._process_kwargs({"heating:area[m2]": 80.0, "cooling:area[m2]": 90.0}, {}, scopes, area=60.0)
+    assert _Declared.get_relevant_objects(obj, scopes)["area[m2]"] == 60.0

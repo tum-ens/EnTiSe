@@ -1,5 +1,4 @@
 import logging
-import math
 import re
 from abc import ABC, ABCMeta, abstractmethod
 from collections.abc import Mapping, Sequence
@@ -32,10 +31,24 @@ def input_name(key: str) -> str:
     return _UNIT.sub("", _HEIGHT.sub("", key))
 
 
+def _scopes(ts_type: str | Sequence[str] | None) -> Tuple[str, ...]:
+    """Return the type prefixes of a call: none, one type, or several."""
+    if ts_type is None:
+        return ()
+    return (ts_type,) if isinstance(ts_type, str) else tuple(ts_type)
+
+
+def _is_missing(value: Any) -> bool:
+    """Whether an object value counts as not given: None, or a missing scalar such as NaN or pd.NA."""
+    return value is None or (pd.api.types.is_scalar(value) and bool(pd.isna(value)))
+
+
 def _same_value(a: Any, b: Any) -> bool:
     """Whether two object values are equal; values that cannot be compared are not."""
     if a is b:
         return True
+    if isinstance(a, (pd.Series, pd.DataFrame)) and type(a) is type(b):
+        return a.equals(b)
     try:
         return bool(a == b)
     except (TypeError, ValueError):
@@ -177,7 +190,7 @@ class Method(ABC, metaclass=MethodMeta):
         Raises:
             ValueError: If a key is given under two of the types with different values.
         """
-        scopes = () if ts_type is None else (ts_type,) if isinstance(ts_type, str) else tuple(ts_type)
+        scopes = _scopes(ts_type)
         resolved = {}
         for key in SITE_KEYS:
             value = cls.get_with_backup(obj, key)
@@ -293,8 +306,8 @@ class Method(ABC, metaclass=MethodMeta):
                     local_data[key] = value
                     value = key  # the object refers to the table by its key
             local_obj[key] = value
-            if ts_type:
-                local_obj.pop(f"{ts_type}{SEP}{key}", None)
+            for scope in _scopes(ts_type):
+                local_obj.pop(f"{scope}{SEP}{key}", None)
 
         return local_obj, local_data, results
 
@@ -376,7 +389,7 @@ class Method(ABC, metaclass=MethodMeta):
             The value from the dictionary, or the backup value if not found
         """
         value = obj.get(key, backup)
-        if value is None or (isinstance(value, float) and math.isnan(value)):
+        if _is_missing(value):
             return backup
         return value
 

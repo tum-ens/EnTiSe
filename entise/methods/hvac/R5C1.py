@@ -12,7 +12,7 @@ from entise.constants import Objects as O
 from entise.constants.constants import CP_AIR, RHO_AIR
 from entise.core._time import RUN_TIME_KEY, output_index, run_time
 from entise.core.base import Method
-from entise.core.utils import align_auxiliary_series, resolve_ts_or_scalar
+from entise.core.utils import align_auxiliary_series, resolve_ts_or_scalar, resolve_ts_or_scalar_by_id
 from entise.methods.auxiliary.internal.selector import InternalGains
 from entise.methods.auxiliary.solar.strategies import SolarGainsInactive, SolarGainsISO13790, SolarGainsTimeSeries
 from entise.methods.auxiliary.ventilation.strategies import VentilationInactive, VentilationTimeSeries
@@ -288,7 +288,7 @@ class R5C1(Method):
             ven_df = VentilationInactive().generate(obj, data)
         elif obj.get(O.H_VE) is not None:
             # A ventilation coefficient on the object takes the place of the ventilation input.
-            ven_df = resolve_ts_or_scalar(obj, data, O.H_VE, index)
+            ven_df = resolve_ts_or_scalar_by_id(obj, data, O.H_VE, index)
         else:
             ven_df = VentilationTimeSeries().generate(obj, data)
         # Align onto the model index before the split: the auxiliary carries the

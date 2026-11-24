@@ -230,7 +230,7 @@ def get_input_data(obj, data, method_type=Types.DHW):
 
     # Process data
     data_out = {
-        O.DATETIMES: Method.get_with_backup(data, obj_out[O.DATETIMES]),
+        O.DATETIMES: Method.get_with_backup(data, obj_out.get(O.DATETIMES)),
         O.DHW_ACTIVITY: Method.get_with_backup(data, O.DHW_ACTIVITY),
         O.DHW_DEMAND_PER_SIZE: Method.get_with_backup(data, O.DHW_DEMAND_PER_SIZE),
         O.TEMP_WATER_COLD: Method.get_with_backup(data, O.TEMP_WATER_COLD),
@@ -240,10 +240,10 @@ def get_input_data(obj, data, method_type=Types.DHW):
     # Validate required data
     if data_out[O.DATETIMES] is None:
         logger.error("[DHW jordanvajen]: No datetime data")
-        raise KeyError(f"Required data '{obj_out[O.DATETIMES]}' not found in input data")
+        raise KeyError(f"Required data '{obj_out.get(O.DATETIMES)}' not found in input data")
 
     # The run's instants and the site's local calendar
-    table, step, hours = time_table(data, obj_out[O.DATETIMES], site_zone(obj_out))
+    table, step, hours = time_table(data, obj_out.get(O.DATETIMES), site_zone(obj_out))
     data_out[O.DATETIMES] = table
     data_out["step"] = step
     data_out["hours"] = hours

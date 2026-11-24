@@ -13,6 +13,7 @@ import pytest
 
 from entise import Generator
 from entise.constants import Objects as O
+from entise.core.registry import get_strategy
 
 EXAMPLES = os.path.join(os.path.dirname(__file__), os.pardir, os.pardir, "examples")
 RC_EXAMPLES = {"1R0C": "hvac_1r0c", "1R1C": "hvac_1r1c", "5R1C": "hvac_5r1c", "7R2C": "hvac_7r2c"}
@@ -87,6 +88,24 @@ def test_supplied_solar_gains_can_be_a_table(model):
 
     assert _demands({**obj, O.GAINS_SOLAR: "solar"}, by_id) == constant
     assert _demands({**obj, O.GAINS_SOLAR: "solar|south"}, by_column) == constant
+
+
+@pytest.mark.parametrize("model", ["5R1C", "7R2C"])
+def test_ventilation_coefficient_can_be_a_table(model):
+    obj, data = _inputs(RC_EXAMPLES[model])
+    constant = _demands({**obj, O.H_VE: 500.0}, data)
+
+    by_id = {**data, "hve": _gains_table(data, str(obj[O.ID]), 500.0)}
+    assert _demands({**obj, O.H_VE: "hve"}, by_id) == constant
+
+
+def test_a_direct_call_takes_a_solar_gains_table():
+    obj, data = _inputs(RC_EXAMPLES["1R1C"])
+    obj = {key: value for key, value in obj.items() if key != O.ID}
+    table = _gains_table(data, O.GAINS_SOLAR, 1000.0)
+    constant = get_strategy("1R1C")().generate(obj, data, gains_solar=1000.0)["summary"]
+
+    assert get_strategy("1R1C")().generate(obj, data, gains_solar=table)["summary"] == constant
 
 
 def test_active_gains_solar_off_overrides_supplied_gains():

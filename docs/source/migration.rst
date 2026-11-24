@@ -346,12 +346,13 @@ Method inputs
 **Solar gains you supply.** 1R0C, 1R1C, 5R1C and 7R2C now use an object's
 ``gains_solar[W]`` instead of calculating solar gains. It can be a constant in
 W, ``table|column``, or the name of a table whose column is the object's
-``id``. Before, the value was accepted and ignored. ``active_gains_solar=False``
-still switches solar gains off. Remove ``gains_solar[W]`` from your objects if
-you want the calculated gains.
+``id`` (or whose only column holds the gains). Before, the value was accepted
+and ignored. In 1R1C, 5R1C and 7R2C, ``active_gains_solar=False`` still
+switches solar gains off. Remove ``gains_solar[W]`` from your objects if you
+want the calculated gains.
 
 **Ventilation in 5R1C and 7R2C.** ``H_ve[W K-1]`` now takes the place of the
-ventilation input, and ``ventilation_split`` divides it between supply air and
+ventilation input, in the same forms as supplied solar gains, and ``ventilation_split`` divides it between supply air and
 infiltration. 5R1C now uses ``ventilation_split``; before, it always used 0.
 The split changes results only when ``supply_temperature[C]`` differs from the
 outdoor air. Before, ``H_ve[W K-1]`` was ignored in both models.
