@@ -48,7 +48,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   - In each interval the zone takes its free-running temperature `T_out + gains / H`. Heating lifts it to the minimum and cooling lowers it to the maximum, within their power limits.
   - Before, 1R0C held the indoor temperature at `init_temperature[C]` in every step. It heated only when the outdoor air was at or below the minimum, and cooled only when the outdoor air was at or above the maximum.
   - Cooling therefore missed hours in which gains pushed the zone above the maximum, and cooled down to `init_temperature[C]` instead of the maximum.
-  - `init_temperature[C]` now has no effect, because the zone has no thermal mass.
+  - `init_temperature[C]` is the indoor temperature of row 0, as in the other RC models. It is optional and defaults to `min_temperature[C]`; without thermal mass it does not change the loads. (`#135`)
   - On the 1R0C example (20–25 °C), heating is unchanged, and cooling rises from 2.1–8.8 MWh to 4.7–20.3 MWh per building.
   - The example no longer sets `set_temperature[C]` and `capacitance[J K-1]`, which 1R0C does not read. The stored outputs of its notebook show the old values until it is run again.
 - **Behavior change**: the RC models and WPLib use the inputs they declare. (`#119`)
@@ -101,6 +101,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - The examples set only keys their methods read: the 7R2C example drops `alpha_sc`, the wind example drops `manufacturer`, and 7R2C declares `windows`, which it already read. A test checks the objects of every example; before, it checked two. (`#134`)
 - **Behavior change**: Jordan-Vajen DHW reads the activity and demand tables an object names with `dhw_activity` and `dhw_demand_per_size[m2]`. Before, it ignored the names: it read the activity table only from `data["dhw_activity"]`, and it always used the bundled demand table. A named table that is missing from the data raises a `ValueError`. Objects that name no table use the bundled tables, as before. (`#134`)
 - The warning about irradiance that peaks after solar noon names both common causes: labels at the interval end, or local timestamps without an offset, which are read as UTC. Before, it advised only shifting the irradiance. (`#134`)
+- **Behavior change**: WPLib reads a wind speed column without a height, such as `wind_speed[m s-1]`, at 10 m, the standard height of wind measurements, and warns once per run and table. Before, it read the column at 0 m, so the logarithmic wind profile gave a hub-height wind speed of zero and the turbine produced nothing, without a message; the `hellman` profile failed with `ZeroDivisionError`. Columns with a height are read as before. (`#135`)
 
 ### Changed
 - **Behavior change**: selecting an RC model for `heating` or `cooling` returns only that type's result (`#127`).

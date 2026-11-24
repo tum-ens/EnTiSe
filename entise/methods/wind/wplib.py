@@ -13,11 +13,36 @@ from entise.core.base import Method
 
 logger = logging.getLogger(__name__)
 
+_WIND_SPEED = C.WIND_SPEED.split("[")[0]
+
+
+def _warn_wind_speed_without_height(table: str):
+    """Return a check that warns, once per run and table, about wind speed columns without a height."""
+
+    def check(weather: pd.DataFrame) -> list:
+        _, info = Method._obtain_weather_info(weather)
+        columns = [col for col, parsed in info.items() if parsed["name"] == _WIND_SPEED and parsed["height"] is None]
+        for column in columns:
+            logger.warning(
+                "Table '%s': column '%s' has no height; WPLib reads it at %d m. Name the column "
+                "'%s@<height>m' to give its height.",
+                table,
+                column,
+                WIND_SPEED_HEIGHT,
+                C.WIND_SPEED,
+            )
+        return columns
+
+    return check
+
+
 # Default values for optional keys
 DEFAULT_TURBINE_TYPE = "SWT130/3600"  # turbine type as in register of windpowerlib
 DEFAULT_HUB_HEIGHT = 135  # in m
 DEFAULT_POWER = 1  # in W
 ROUGHNESS_LENGTH = 0.15
+# Height of a wind speed column that names none: the standard height of wind measurements.
+WIND_SPEED_HEIGHT = 10
 
 # ModelChain parameters
 MODELCHAIN_PARAMS = {
@@ -190,10 +215,14 @@ class WPLib(Method):
         df.index.name = None
 
         # Create arrays for MultiIndex using vectorized operations
-        arrays = [
-            [info.get(col, {}).get("name", col) for col in df.columns],  # variable_name
-            [int(info.get(col, {}).get("height", 0) or 0) for col in df.columns],  # height
+        names = [info.get(col, {}).get("name", col) for col in df.columns]
+        heights = [info.get(col, {}).get("height") for col in df.columns]
+        # A wind speed without a height is taken at 10 m; other quantities at 0 m, as before.
+        heights = [
+            int(height) if height is not None else WIND_SPEED_HEIGHT if name == _WIND_SPEED else 0
+            for name, height in zip(names, heights, strict=True)
         ]
+        arrays = [names, heights]  # variable_name, height
 
         df.columns = pd.MultiIndex.from_arrays(arrays, names=["variable_name", "height"])
 
@@ -237,6 +266,7 @@ class WPLib(Method):
         # Process weather data. The run returns a copy indexed by UTC instants.
         if data_out[O.WEATHER] is not None:
             regular_step(data_out[O.WEATHER].index, table=weather_key)
+            run.derived(weather_key, "wplib:wind speed without height", _warn_wind_speed_without_height(weather_key))
             data_out[O.WEATHER] = self.process_weather_data(data_out[O.WEATHER])
         else:
             logger.error("[WIND windlib]: No weather data")

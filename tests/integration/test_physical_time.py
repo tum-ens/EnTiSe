@@ -71,8 +71,7 @@ def test_rc_rows_are_intervals_starting_at_the_initial_temperature(example):
 
     hvac = _first_ts(timeseries, obj, Types.HVAC)
     assert len(hvac) == len(weather)
-    if example != "hvac_1r0c":  # 1R0C has no thermal mass, so no initial state to report
-        assert hvac[C.TEMP_IN].iloc[0] == pytest.approx(float(obj[O.TEMP_INIT]))
+    assert hvac[C.TEMP_IN].iloc[0] == pytest.approx(float(obj[O.TEMP_INIT]))
 
     # One integration rule: summary energy equals the sum of mean power times the step,
     # up to the rounding of each row to whole watts.

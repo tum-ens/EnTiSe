@@ -39,7 +39,6 @@ NEEDS_ANOTHER_INPUT = {
     for key in (O.AREA, O.HEIGHT)
 }
 NEEDS_ANOTHER_INPUT |= {
-    ("1R0C", O.TEMP_INIT): "1R0C has no thermal mass, so its initial temperature has no effect",
     ("5R1C", O.TEMP_SUPPLY): "the supply temperature acts on the share that ventilation_split gives it",
     ("7R2C", O.TEMP_SUPPLY): "the supply temperature acts on the share that ventilation_split gives it",
     ("5R1C", O.VENTILATION_SPLIT): "the split acts only with a supply temperature other than the outdoor air",

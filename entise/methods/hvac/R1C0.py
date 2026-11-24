@@ -44,7 +44,8 @@ class R1C0(TypedViews, Method):
     temperature ``T_out + gains / H``, where ``H`` is the conductance ``1 / R``
     plus ventilation. As in 1R1C, heating and cooling keep it between
     ``min_temperature[C]`` and ``max_temperature[C]``, within their power
-    limits. ``init_temperature[C]`` has no effect.
+    limits. Row 0 reports the initial temperature, ``init_temperature[C]`` or, if it
+    is not given, ``min_temperature[C]``; it does not change the loads.
 
     Select the model for ``heating``, ``cooling`` or both, instead of ``hvac``,
     to get typed results from one solve. Each typed result has the indoor
@@ -81,7 +82,8 @@ class R1C0(TypedViews, Method):
         O.POWER_COOLING: DEFAULT_POWER_COOLING,
         O.ACTIVE_HEATING: DEFAULT_ACTIVE_HEATING,
         O.ACTIVE_COOLING: DEFAULT_ACTIVE_COOLING,
-        O.TEMP_INIT: DEFAULT_TEMP_INIT,
+        # Row 0's indoor temperature; without it, the minimum (see calculate_timeseries_1r0c).
+        O.TEMP_INIT: None,
         O.TEMP_MIN: DEFAULT_TEMP_MIN,
         O.TEMP_MAX: DEFAULT_TEMP_MAX,
         # Geometry, needed for ventilation given in air changes per hour
@@ -144,9 +146,9 @@ class R1C0(TypedViews, Method):
                 - ``ventilation`` (``ventilation[W K-1]``): Ventilation rate in W/K.
                 - ``active_ventilation`` (bool): Include ventilation heat loss. Defaults to True.
                 - ``temp_min`` and ``temp_max`` (``min_temperature[C]``, ``max_temperature[C]``):
-                  Minimum and maximum indoor temperature in °C. ``temp_init``
-                  (``init_temperature[C]``) is accepted, but has no effect, because the zone
-                  has no thermal mass.
+                  Minimum and maximum indoor temperature in °C.
+                - ``temp_init`` (``init_temperature[C]``): Indoor temperature reported in row 0, in °C.
+                  Defaults to the minimum temperature. Without thermal mass it does not change the loads.
                 - ``gains_internal`` (``gains_internal[W]``): Internal heat gains in W.
                 - ``gains_solar`` (``gains_solar[W]``): Solar heat gains in W.
 
@@ -346,8 +348,9 @@ def calculate_timeseries_1r0c(obj: dict, data: dict, timestep: float) -> tuple[n
     - above the maximum, cooling removes ``H * (T_free - T_max)``, up to its power limit;
     - in between, there is no load and the zone floats at ``T_free``.
 
-    The indoor temperature is ``T_free + (P_heat - P_cool) / H``. Without thermal
-    mass, ``init_temperature[C]`` has no effect.
+    The indoor temperature is ``T_free + (P_heat - P_cool) / H``. As in the other RC
+    models, row 0 reports the initial temperature, ``init_temperature[C]`` or, if it is
+    not given, ``min_temperature[C]``. Without thermal mass it does not change the loads.
 
     Args:
         obj (dict): Building parameters: resistance, temperature limits, and
@@ -382,5 +385,8 @@ def calculate_timeseries_1r0c(obj: dict, data: dict, timestep: float) -> tuple[n
     if bool(obj[O.ACTIVE_COOLING]):
         p_cool = np.minimum(np.maximum(h_total * (temp_free - temp_max), 0), np.float32(obj[O.POWER_COOLING]))
     temp_in = temp_free + (p_heat - p_cool) / h_total
+    if len(temp_in):
+        initial = obj.get(O.TEMP_INIT)
+        temp_in[0] = temp_min if initial is None else np.float32(initial)
 
     return temp_in.astype(np.float32), p_heat.astype(np.float32), p_cool.astype(np.float32)
