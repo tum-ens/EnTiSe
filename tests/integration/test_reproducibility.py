@@ -63,6 +63,15 @@ def _hvac_1r1c():
     return objects, data
 
 
+def _hvac_1r1c_typed():
+    """Typed views (#127): one solve for heating and cooling, or heating alone."""
+    objects, data = _hvac_1r1c()
+    objects = objects.drop(columns="hvac")
+    objects[Types.HEATING] = "1R1C"
+    objects[Types.COOLING] = ["1R1C" if i % 2 == 0 else None for i in range(len(objects))]
+    return objects, data
+
+
 def _hp_ruhnau():
     objects = pd.DataFrame(
         {
@@ -103,6 +112,7 @@ def _electricity_demandlib_across_the_clock_change():
 
 CASES = {
     "hvac_1r1c": _hvac_1r1c,
+    "hvac_1r1c_typed": _hvac_1r1c_typed,
     "hvac_5r1c across the clock change": _hvac_5r1c_across_the_clock_change,
     "hvac_7r2c": _hvac_7r2c,
     "hp_ruhnau": _hp_ruhnau,

@@ -10,6 +10,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 ### Added
+- Added methods that produce several time-series types from one calculation. (`#127`)
+  - Such a method subclasses `GroupedMethod` from `entise.core.grouped` together with `Method`, and implements `generate_combined(obj, data, results, ts_types)`. It returns one result whose columns and summary keys are prefixed with their type. Each selected type gets its own columns and summary keys, plus the method's `shared_columns`.
+  - The runner calls the method's `generate_group` once per object for the types of `types` that select it, and stores the results only when every one of them is valid. It also reports a dependency cycle between an object's types instead of recursing.
+  - The object's inputs are resolved for all the selected types at once: a key scoped to one of them applies, and different values under two of them raise a `ValueError`.
+  - A direct call of `generate` with `ts_type` returns that type's result through `group_result`.
+- Added typed `heating` and `cooling` results for the four RC models: 1R0C, 1R1C, 5R1C and 7R2C. They are built on `GroupedMethod`. (`#127`)
+  - Select a model for `heating`, `cooling` or both, for example `heating: 5R1C` and `cooling: 5R1C`. The model solves the building once; each typed result has `indoor_temperature[C]` and the columns and summary keys of its type, including the sensible and latent cooling loads where the model has them.
+  - The control of a type the model is not selected for is off, so another strategy can fill that type, for example `cooling: file`. The control of a selected type keeps the object's setting, including a 5R1C or 7R2C schedule.
+  - A type-scoped input such as `heating:power_heating[W]` may set a building input or an input of its own control. Values given for both types must agree, and an input of the other control, such as `heating:power_cooling[W]`, raises a `ValueError`.
+  - Selecting the same model for `hvac` and for a typed key on one object raises a `ValueError`. `hvac` alone is unchanged.
+  - Direct calls accept `ts_type="heating"` or `"cooling"` and return the same typed result.
+  - The `heating` and `cooling` install groups now include the four RC models, and with them pvlib.
 - Added defaults to method input declarations and one resolver for an object's keys. (`#119`)
   - `optional_keys` may map each key to its default; a list still declares keys without defaults. `Method.key_defaults()` returns every declared key with its default.
   - `Method.get_relevant_objects(obj, ts_type)` resolves each declared key from the key prefixed with the type, then the plain key, then the default. `None`, NaN and `pd.NA` count as missing, `False` and `0` are values, and `id` and `timezone` are read without a prefix. It returns only declared keys that have a value.
@@ -91,6 +103,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - The warning about irradiance that peaks after solar noon names both common causes: labels at the interval end, or local timestamps without an offset, which are read as UTC. Before, it advised only shifting the irradiance. (`#134`)
 
 ### Changed
+- **Behavior change**: selecting an RC model for `heating` or `cooling` returns only that type's result (`#127`).
+  - Before, `heating: 1R1C` or `cooling: 5R1C` was accepted although only `hvac` was declared. It ran both controls and returned the full HVAC result, with the other type's columns and summary keys, under the typed key.
+  - Now the selected type's control runs, the other is off, and the result has only `indoor_temperature[C]` and the selected type's columns and summary keys.
+  - To get the previous result, select the model for `hvac`, or for both `heating` and `cooling`.
 - Every method takes the same arguments when called directly: `generate(obj=None, data=None, results=None, ts_type=..., **inputs)`. (`#86`)
   - Any input the method declares can be passed as a keyword, by its key (`**{"area[m2]": 140}`) or by its Python name, which is the key without its unit and height (`area=140`). The names of earlier releases keep working: `temp_init`, `temp_min` and `temp_max` in 1R0C and 1R1C, `temp_water_cold` and `temp_water_hot` in Jordan-Vajen DHW, `demand_kwh` in demandlib electricity, `annual_demand_kwh` in demandlib heat and DistrictHeatingSim, `temp_sink` and `temp_water` in Ruhnau, and `file` in the file loader.
   - Call the method's `input_names()` to list accepted names and the input keys they set.

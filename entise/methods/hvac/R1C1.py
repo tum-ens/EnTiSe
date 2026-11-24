@@ -15,6 +15,7 @@ from entise.methods.auxiliary.internal.selector import InternalGains
 from entise.methods.auxiliary.solar.selector import SolarGains
 from entise.methods.auxiliary.ventilation.selector import Ventilation
 from entise.methods.hvac._latent_cooling import compute_latent_cooling
+from entise.methods.hvac._typed import TYPED, TypedViews
 from entise.methods.hvac._weather import check_window_irradiance, hvac_weather, step_seconds
 from entise.methods.hvac._windows import windows_table
 from entise.methods.hvac.defaults import (
@@ -34,7 +35,7 @@ from entise.methods.hvac.defaults import (
 logger = logging.getLogger(__name__)
 
 
-class R1C1(Method):
+class R1C1(TypedViews, Method):
     """1R1C thermal RC model (single resistance, single capacitance).
 
     Purpose and scope
@@ -58,13 +59,22 @@ class R1C1(Method):
         dynamics are not required. For more detailed dynamics, consider
         5R1C (ISO 13790) or 7R2C (VDI 6007).
 
+    Typed heating and cooling
+        Select the model for ``heating``, ``cooling`` or both, instead of
+        ``hvac``, to get typed results from one solve. Each typed result has
+        the indoor temperature and the columns and summary keys of its type.
+        The control of a type the model is not selected for is off. A
+        type-scoped control input, such as ``heating:power_heating[W]``,
+        applies to its own control. ``hvac`` and a typed key cannot select
+        the same model on one object.
+
     References
         Grey-box RC modeling of buildings (overview): many texts incl.
         ISO 13790 annexes; see also VDI 6007 for extended multi-node
         approaches.
     """
 
-    types = [Types.HVAC]
+    types = [Types.HVAC, Types.HEATING, Types.COOLING]
     name = "1R1C"
     required_keys = [O.CAPACITANCE, O.RESISTANCE, O.WEATHER]
     optional_keys = {
@@ -166,6 +176,8 @@ class R1C1(Method):
             Exception: If required data is missing or invalid.
         """
         obj, data = self._process_kwargs(obj, data, ts_type, **inputs)
+        if ts_type in TYPED:
+            return self.group_result(obj, data, results, ts_type)
         require_module("hvac-1r1c", "pvlib")
         # Read the tables once for this call; every helper below reuses this run.
         data = {**data, RUN_TIME_KEY: run_time(data)}

@@ -37,6 +37,11 @@ Runner (entise.core.runner.Runner)
   - Ensures dependencies required by a method are available: either computed first for the same object or accepted if
     provided via input data.
   - Caches results per type for the object so dependencies are only computed once.
+  - Calls a method's ``generate_group(obj, data, results, ts_types)``, if it has one, once for all the types of its
+    ``types`` that select it on the object. It stores the group's results only when every one is valid. A method
+    that produces several types from one calculation gets this hook from ``entise.core.grouped.GroupedMethod``, for
+    example the RC models for ``heating`` and ``cooling``.
+  - Reports a dependency cycle between an object's types as an error.
 
 Method base class (entise.core.base.Method)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -79,7 +84,8 @@ Data flow and call sequence
    - Looks up the selected strategy (e.g., "1R1C" → HVAC.R1C1, "pvlib" → PV.PVLib).
    - Ensures all required_data are present. If a required type is configured for the same object, it resolves that first.
 
-4. Method.generate(obj, data, results, ts_type) is called to compute outputs for the type.
+4. Method.generate(obj, data, results, ts_type) is called to compute outputs for the type, or
+   Method.generate_group(obj, data, results, ts_types) for all the types the method calculates together.
 5. Runner stores the result; Generator aggregates summaries and returns (summary_df, results_dict).
 
 Execution model and performance

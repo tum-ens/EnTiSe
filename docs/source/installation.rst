@@ -36,7 +36,8 @@ Each method's reference page gives its install command. A type group
 installs all packaged methods of that type. For example, ``entise[hvac]``
 installs the four RC methods. The other groups are ``cooling``, ``dhw``,
 ``electricity``, ``heating``, ``hp``, ``mobility``, ``occupancy``, ``pv``,
-and ``wind``. Cooling and mobility currently provide the file loader.
+and ``wind``. ``heating`` and ``cooling`` include the four RC methods, which
+can fill those types. Mobility currently provides the file loader.
 
 .. list-table::
    :header-rows: 1
