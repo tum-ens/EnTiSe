@@ -512,14 +512,11 @@ class R7C2(Method):
             ghi = weather.get(C.SOLAR_GHI, None).astype(float)
             teq_opaque = weather[C.TEMP_AIR].astype(float) + alpha_sw * ghi / max(h_o, 1e-6)
 
-            # 2. Reverse Engineer Conductances to weight the temperature
-            # Get Total Resistance from RC parameters
+            # 2. Weight it by conductance, as in VDI 6007 (eq. 27/28): each element's share is its
+            # U·A over the exterior envelope's U·A, 1 / R_ges_AW = 1 / (R_1_AW + R_rest_AW + R_in).
             r1_aw = float(obj.get(O.R_1_AW))
             r_rest_aw = float(obj.get(O.R_REST_AW))
-
-            # Total Conductance (H_tot) ~ 1 / R_total
-            # (Using a small epsilon to avoid division by zero if R is 0)
-            h_tot = 1.0 / max((r1_aw + r_rest_aw), 1e-6)
+            h_tot = 1.0 / max(r1_aw + r_rest_aw + _inner_surface_resistance_aw(obj), 1e-6)
 
             # Window conductance (H_win) of the object's own windows. The windows table can
             # hold the windows of many objects; they are matched by id, as for the solar gains.
@@ -542,6 +539,24 @@ class R7C2(Method):
             else:
                 teq_series = teq_opaque
         return pd.DataFrame({"T_eq": teq_series}, index=index)
+
+
+def _inner_surface_resistance_aw(obj: dict) -> float:
+    """Return the inner surface resistance of the exterior walls, R_in in VDI 6007 eq. 28.
+
+    VDI 6007 couples the exterior walls (AW), the interior walls (IW) and the air (IL) by a
+    triangle of surface resistances. R_in is the AW corner's convective resistance to the air in
+    parallel with its radiative resistance to IW. The model takes the triangle as a star
+    (``R_alpha_star_*``), so the two sides are recovered from it: a side is
+    ``(R_IL·R_AW + R_AW·R_IW + R_IW·R_IL)`` over the star resistance of the opposite node.
+    """
+    r_il = float(obj[O.R_ALPHA_STAR_IL])
+    r_aw = float(obj[O.R_ALPHA_STAR_AW])
+    r_iw = float(obj[O.R_ALPHA_STAR_IW])
+    if r_il + r_iw <= 0:
+        return 0.0
+    # 1 / (r_iw / s + r_il / s): the AW-air and AW-IW sides in parallel.
+    return (r_il * r_aw + r_aw * r_iw + r_iw * r_il) / (r_il + r_iw)
 
 
 def calculate_timeseries_7r2c(

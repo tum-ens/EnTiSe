@@ -20,11 +20,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Added contributor guidance for method contracts, offline testing, and method merge request review. (`#109`)
 
 ### Fixed
-- **Behavior change**: 7R2C computes the window conductance of its equivalent outdoor temperature from the object's own windows. (`#131`)
-  - Before, it added `u_value × area` over every row of the windows table. With the shared example table, that is 9 buildings' windows, 761 W/K.
-  - This exceeded the wall's total conductance `1 / (R_1_AW + R_rest_AW)`, so the opaque share fell to zero. The equivalent temperature became the air temperature amplified, for example 3.4 × `T_air` for `SFH_mid`.
-  - Windows are now matched by `id`, as for the solar gains, and their conductance is capped at the wall's total.
-  - On the 7R2C example, cooling falls from 2.9–34.7 MWh to 0.6–5.8 MWh per building, and heating changes from 7.9–87.5 MWh to 16.9–82.3 MWh.
+- **Behavior change**: 7R2C weights its equivalent outdoor temperature as VDI 6007 does: each element's share is its own `U·A` over the exterior envelope's `U·A`. (`#131`, `#133`)
+  - Before, the window share added `u_value × area` over every row of the windows table. With the shared example table, that is 9 buildings' windows, 761 W/K.
+  - That sum exceeded the envelope's conductance, so the opaque share fell to zero. The equivalent temperature became the air temperature amplified, for example 3.4 × `T_air` for `SFH_mid`.
+  - Windows are now matched by `id`, as for the solar gains.
+  - The envelope's conductance is `1 / (R_1_AW + R_rest_AW + R_in)` (VDI 6007 eq. 27/28), with `R_in` the inner surface resistance of the exterior walls, recovered from `R_alpha_star_IL`, `R_alpha_star_AW` and `R_alpha_star_IW`. Before, it was `1 / (R_1_AW + R_rest_AW)`, which understated the window share. The window share is capped at 1.
+  - On the 7R2C example, cooling falls from 2.9–34.7 MWh to 0.5–4.7 MWh per building, and heating changes from 7.9–87.5 MWh to 17.0–83.8 MWh.
   - `T_eq_alpha_SW[1]` and `T_eq_h_o[W m-2 K-1]` now affect objects whose windows table has `u_value`; before, the zero opaque share removed their effect.
 - **Behavior change**: the 1R0C HVAC model keeps the indoor temperature between `min_temperature[C]` and `max_temperature[C]`, as 1R1C, 5R1C and 7R2C do. (`#129`)
   - In each interval the zone takes its free-running temperature `T_out + gains / H`. Heating lifts it to the minimum and cooling lowers it to the maximum, within their power limits.
