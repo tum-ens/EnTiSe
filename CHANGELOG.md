@@ -9,6 +9,31 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ---
 
 ## [Unreleased]
+
+## [2.0.0] Method extras, a common time contract and pandas 3 - 2026-11-24
+
+EnTiSe 2.0.0 changes the results of several methods, how EnTiSe is installed and how methods read their inputs. The [migration guide](https://entise.readthedocs.io/en/stable/migration.html) lists every change that can alter results or break an existing setup, with what to do about it. The entries below give the details.
+
+**Results that change**
+- 1R0C keeps the indoor temperature between `min_temperature[C]` and `max_temperature[C]`, like the other RC models. On the 1R0C example, heating is unchanged and cooling rises from 2.1–8.8 MWh to 4.7–20.3 MWh per building. (`#129`)
+- 7R2C weights its equivalent outdoor temperature as VDI 6007 does. Windows are matched to the object by `id`, and the envelope conductance includes the inner surface resistance. On the 7R2C example, cooling fell from 2.9–34.7 MWh to 0.5–4.7 MWh per building. (`#131`, `#133`)
+- An HVAC object that names a windows table but would get no solar gains from it raises an error; before, its solar gains were silently zero. The 7R2C example now sets its location, so its cooling rises from 0.5–4.7 MWh to 3.5–14.0 MWh per building and its heating falls from 17.0–83.8 MWh to 12.7–71.2 MWh. (`#134`)
+- Jordan-Vajen DHW reads the activity and demand tables an object names with `dhw_activity` and `dhw_demand_per_size[m2]`; before, it ignored them. (`#134`)
+- Selecting an RC model for `heating` or `cooling` returns only that type's result. Select it for `hvac`, or for both types, to get the full result. (`#127`)
+- Inputs that were accepted and ignored now take effect: `gains_solar[W]` (1R0C, 1R1C, 5R1C, 7R2C), `H_ve[W K-1]` (5R1C, 7R2C), `ventilation_split` (5R1C), WPLib's `wind_model` and the Ruhnau heat pump's `hp:`-prefixed keys. Two objects of the wind example change by −1.9 % and −2.8 %. (`#119`)
+- 1R0C's `init_temperature[C]` is only the indoor temperature of row 0; it is optional and defaults to `min_temperature[C]`. (`#135`)
+- WPLib reads a wind speed column without a height at 10 m, with a warning. Before, it read it at 0 m, and the turbine silently produced nothing. (`#135`)
+- The RC models, the Ruhnau heat pump, PV and wind follow the time contract: each row is the interval that starts at its label, so in the RC models row 0 holds the first interval's load, and energy is load times step. (`#116`)
+
+**Setup and code that need changes**
+- The default install provides the EnTiSe core. Install the methods you use as extras, such as `pip install "entise[pv-pvlib,hvac-1r1c]"`, or everything with `pip install "entise[all]"`. (`#111`)
+- EnTiSe runs on Python 3.11 to 3.14 and on pandas 2 (2.2.2 or newer) and 3. (`#120`, `#94`)
+- Custom `Method` subclasses: unknown keywords raise `TypeError`, `optional_keys` may declare defaults, and the `<key>_COL` object key is removed. (`#86`, `#119`)
+- The constant namespaces in `entise.constants` are read-only and cannot be instantiated. (`#59`)
+- PV summary values are plain numbers instead of one-element Series. (`#94`)
+
+**New:** methods that produce several time-series types from one calculation, through `entise.core.grouped.GroupedMethod`. The RC models use it for typed `heating` and `cooling` results. (`#127`)
+
 ### Added
 - Added methods that produce several time-series types from one calculation. (`#127`)
   - Such a method subclasses `GroupedMethod` from `entise.core.grouped` together with `Method`, and implements `generate_combined(obj, data, results, ts_types)`. It returns one result whose columns and summary keys are prefixed with their type. Each selected type gets its own columns and summary keys, plus the method's `shared_columns`.
@@ -122,7 +147,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
     - Like `_process_inputs`, it raises a `TypeError` for a keyword the method does not declare. Before, it ignored such keywords and accepted a declared input only under its exact key.
     - Defining a subclass raises a `TypeError` when two declared inputs share a Python name, or when an alias names an undeclared input.
   - Ruhnau declares `cop_coefficients`, which it already read from the object, as an optional key. PyLPG, demandlib electricity and 1R0C declare their tables in `required_data` and `optional_data` instead of `required_timeseries` and `optional_timeseries`, which nothing read, so `datetimes=df` and `weather=df` work there too.
-- **Behavior change**: EnTiSe requires Python 3.11 to 3.14 (`>=3.11,<3.15`); before, it supported 3.10 to 3.13. Python 3.10 has reached its end of life, and pvlib 0.16 no longer supports it. The main pipeline tests 3.11 to 3.14. (`#120`)
+- **Behavior change**: EnTiSe requires Python 3.11 or newer and is tested on 3.11 to 3.14 (`>=3.11`); before, it supported 3.10 to 3.13. Python 3.10 has reached its end of life, and pvlib 0.16 no longer supports it. The main pipeline tests 3.11 to 3.14. (`#120`)
 - EnTiSe supports pandas 2 and pandas 3 (`pandas>=2.2.2,<4`); before, it required pandas below 3. The merge request pipeline tests both pandas lines, and the main pipeline also tests the oldest supported pandas. Results are identical on pandas 2. (`#94`)
   - The methods' own code no longer emits pandas deprecation warnings on pandas 3, and the tests fail on any `FutureWarning`, or pandas 3 deprecation, raised from EnTiSe code.
   - **Behavior change**: importing the PV method no longer switches off every warning in the process (`warnings.filterwarnings("ignore")`).
