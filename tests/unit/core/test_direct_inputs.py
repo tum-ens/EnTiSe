@@ -360,7 +360,7 @@ def test_1r0c_direct_call_with_a_weather_table_equals_generator():
 @pytest.mark.parametrize("timestamped", [False, True], ids=["scalar", "timestamped"])
 def test_1r0c_direct_ventilation_keyword_overrides_prefixed_object_value(timestamped):
     weather = pd.DataFrame({C.DATETIME: pd.date_range("2026-01-01", periods=3, freq="h", tz="UTC"), C.TEMP_AIR: 0.0})
-    obj = {O.ID: "b", Types.HVAC: "1R0C", O.WEATHER: O.WEATHER, O.RESISTANCE: 2.0, O.TEMP_INIT: 22.0}
+    obj = {O.ID: "b", Types.HVAC: "1R0C", O.WEATHER: O.WEATHER, O.RESISTANCE: 2.0, O.TEMP_MIN: 22.0}
     data = {O.WEATHER: weather}
     ventilation = 50.0
     if timestamped:

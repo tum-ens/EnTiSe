@@ -20,6 +20,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Added contributor guidance for method contracts, offline testing, and method merge request review. (`#109`)
 
 ### Fixed
+- **Behavior change**: the 1R0C HVAC model keeps the indoor temperature between `min_temperature[C]` and `max_temperature[C]`, as 1R1C, 5R1C and 7R2C do. (`#129`)
+  - In each interval the zone takes its free-running temperature `T_out + gains / H`. Heating lifts it to the minimum and cooling lowers it to the maximum, within their power limits.
+  - Before, 1R0C held the indoor temperature at `init_temperature[C]` in every step. It heated only when the outdoor air was at or below the minimum, and cooled only when the outdoor air was at or above the maximum.
+  - Cooling therefore missed hours in which gains pushed the zone above the maximum, and cooled down to `init_temperature[C]` instead of the maximum.
+  - `init_temperature[C]` now has no effect, because the zone has no thermal mass.
+  - On the 1R0C example (20–25 °C), heating is unchanged, and cooling rises from 2.1–8.8 MWh to 4.7–20.3 MWh per building.
+  - The example no longer sets `set_temperature[C]` and `capacitance[J K-1]`, which 1R0C does not read. The stored outputs of its notebook show the old values until it is run again.
 - **Behavior change**: 1R0C honors `active_ventilation=False` for both scalar and timestamped ventilation inputs. The flag defaults to `True`. (`#123`)
 - **Behavior change**: a ventilation table column named with EnTiSe's own unit spelling, such as `typical[W K-1]`, `typical[m3 h-1]` or `typical[h-1]`, is read in that unit. Before, only `W/K`, `m3/h` and `1/h` were recognised, and any other unit was read as air changes per hour, so 61 W/K in a 140 m² zone became about 7,400 W/K. Both spellings are now accepted. An unrecognised unit is still read as air changes per hour, with a warning that names the unit; a column without a unit, such as an object id, is read as air changes per hour as before. (`#107`)
 - **Behavior change**: the 1R0C HVAC model converts a ventilation table in air changes per hour with the object's `area[m2]` and `height[m]`, as 1R1C, 5R1C and 7R2C do. Before, it dropped both keys, so the conversion always used the default zone of 1 m² and 2.5 m, whatever the object's size. Objects without area or height still use those defaults. Ventilation given as a number or in `W K-1` or `m3 h-1` is unchanged. (`#121`)
