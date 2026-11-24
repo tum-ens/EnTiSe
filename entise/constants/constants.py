@@ -8,6 +8,8 @@ class Constants(Enum):
     DEFAULT_NIGHT_SCHEDULE_START = "20:00"
     DEFAULT_NIGHT_SCHEDULE_END = "23:59"
     DEFAULT_LAMBDA = 0.05  # GeoMA/PHT
+    # PHT. Equal to DEFAULT_LAMBDA today, so Enum makes it an alias of that member.
+    DEFAULT_BASELINE_OFFSET = 0.05
     DEFAULT_DETECTION_THRESHOLD = 0.3
 
 

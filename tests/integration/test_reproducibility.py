@@ -21,7 +21,10 @@ from entise.core.generator import Generator
 from entise.methods.dhw.jordan_vajen import JordanVajen
 
 HERE = os.path.dirname(__file__)
+EXAMPLES = os.path.join(HERE, os.pardir, os.pardir, "examples")
 HOURS = 14 * 24
+# The first row of a window that spans the change to summer time on 27 March 2022.
+CLOCK_CHANGE = 1990
 
 # How the objects are run: (workers, batch_size, reverse the object order)
 REFERENCE = (1, None, False)
@@ -32,9 +35,21 @@ VARIANTS = {
 }
 
 
-def _weather() -> pd.DataFrame:
+def _weather(first: int = 0) -> pd.DataFrame:
     weather = pd.read_csv(os.path.join(HERE, "common_data", "weather.csv"), parse_dates=True)
-    return weather.iloc[:HOURS].reset_index(drop=True)
+    return weather.iloc[first : first + HOURS].reset_index(drop=True)
+
+
+def _example(name: str, first: int = 0):
+    """The objects and tables of an example, on a two-week weather window."""
+    folder = os.path.join(EXAMPLES, name)
+    objects = pd.read_csv(os.path.join(folder, "objects.csv"))
+    data = {"weather": _weather(first)}
+    tables = os.path.join(folder, "data")
+    if os.path.isdir(tables):
+        for file in sorted(os.listdir(tables)):
+            data[os.path.splitext(file)[0]] = pd.read_csv(os.path.join(tables, file))
+    return objects, data
 
 
 def _hvac_1r1c():
@@ -72,11 +87,28 @@ def _pv_pvlib():
     return objects, {"weather": _weather()}
 
 
+def _hvac_5r1c_across_the_clock_change():
+    # 5R1C and 7R2C share the solar position and irradiance caches with 1R1C.
+    return _example("hvac_5r1c", CLOCK_CHANGE)
+
+
+def _hvac_7r2c():
+    return _example("hvac_7r2c")
+
+
+def _electricity_demandlib_across_the_clock_change():
+    pytest.importorskip("demandlib")
+    return _example("electricity_demandlib", CLOCK_CHANGE)
+
+
 CASES = {
     "hvac_1r1c": _hvac_1r1c,
+    "hvac_5r1c across the clock change": _hvac_5r1c_across_the_clock_change,
+    "hvac_7r2c": _hvac_7r2c,
     "hp_ruhnau": _hp_ruhnau,
     "dhw_jordanvajen": _dhw_jordanvajen,
     "pv_pvlib": _pv_pvlib,
+    "electricity_demandlib across the clock change": _electricity_demandlib_across_the_clock_change,
 }
 
 
@@ -224,7 +256,8 @@ def _check_reused_hvac_workers():
     objects, data = _hvac_1r1c()
     data["weather"] = data["weather"].iloc[:48]
     generator = _HvacAcceleratorProbe(raise_on_error=True)
-    generator.add_objects([{**objects.iloc[i % len(objects)].to_dict(), O.ID: i} for i in range(4)])
+    # New ids have no rows in the windows table, so the objects run without windows.
+    generator.add_objects([{**objects.iloc[i % len(objects)].to_dict(), O.ID: i, O.WINDOWS: None} for i in range(4)])
     worker_pids = set()
 
     for mode, expected, progress in (("auto", "numba", False), ("none", "none", True), ("auto", "numba", False)):

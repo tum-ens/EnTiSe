@@ -159,10 +159,11 @@ def test_a_finer_internal_gains_table_is_averaged_to_the_weather_step(caplog):
 
 
 def test_summary_keys_written_by_two_types_are_kept_for_both(caplog):
+    # The objects get new ids, which have no rows in the windows table, so they run without windows.
     hvac_only = {
         key: value
         for key, value in HOUSE.items()
-        if key.split(":")[0] not in {"pv", "electricity", "dhw", "hp", "wind", "mobility"}
+        if key.split(":")[0] not in {"pv", "electricity", "dhw", "hp", "wind", "mobility"} and key != O.WINDOWS
     }
     heat_keys = {"heating": "demandlib_heat", "heating:demand[kWh]": 5578, "building_type": "EFH"}
     heat_keys.update({"building_class": 1, "wind_class": 0})

@@ -5,7 +5,7 @@ import os
 import pandas as pd
 import pytest
 
-from entise.constants import VALID_TYPES
+from entise.constants import SEP, VALID_TYPES
 from entise.constants import Objects as O
 from entise.core.registry import get_strategy
 
@@ -37,8 +37,12 @@ def test_example_objects_reference_tables_that_exist(example):
             assert not missing, f"{example}: '{key}' names tables that do not exist: {sorted(missing)}"
 
 
-@pytest.mark.parametrize("example", ["dhw_jordanvajen", "electricity_demandlib"])
+@pytest.mark.parametrize("example", _examples())
 def test_example_object_columns_are_keys_of_the_method(example):
+    """Every column of an example's objects is a key that one of its methods reads.
+
+    A key may carry the type it is meant for as a prefix, such as ``occupancy:lambda_occ``.
+    """
     objects = _objects(example)
     keys = {O.ID}
     for ts_type in VALID_TYPES:
@@ -46,6 +50,8 @@ def test_example_object_columns_are_keys_of_the_method(example):
             keys.add(ts_type)
             for strategy in objects[ts_type].dropna().unique():
                 method = get_strategy(strategy)
-                keys.update(method.required_keys, method.optional_keys)
+                declared = [*method.required_keys, *method.optional_keys]
+                keys.update(declared)
+                keys.update(f"{ts_type}{SEP}{key}" for key in declared)
 
     assert set(objects.columns) <= keys, f"{example}: unknown columns {sorted(set(objects.columns) - keys)}"

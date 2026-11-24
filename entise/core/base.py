@@ -55,9 +55,9 @@ def _same_value(a: Any, b: Any) -> bool:
         return False
 
 
-def _check_input_names(cls) -> None:
-    """Raise if two inputs of a method share a Python name or an alias is ambiguous."""
-    keys = list(
+def _declared_inputs(cls) -> List[str]:
+    """Return the keys of every input a method declares, in declaration order."""
+    return list(
         dict.fromkeys(
             [
                 *getattr(cls, "required_keys", []),
@@ -67,16 +67,42 @@ def _check_input_names(cls) -> None:
             ]
         )
     )
-    owner = {key: key for key in keys}
-    for key in keys:
-        name = input_name(key)
-        if owner.setdefault(name, key) != key:
-            raise TypeError(f"{cls.__name__}: inputs '{owner[name]}' and '{key}' both have the Python name '{name}'.")
+
+
+def _python_names(cls) -> Tuple[Dict[str, str], Dict[str, List[str]]]:
+    """Return the Python name of each input, and the names that inputs at several heights share.
+
+    Inputs that differ only in their height, such as ``wind_speed[m s-1]@10m`` and
+    ``wind_speed[m s-1]@100m``, share a Python name that would be ambiguous. That name
+    names none of them; they are set by their keys.
+
+    Raises:
+        TypeError: If two inputs that differ in more than their height share a Python name.
+    """
+    owners: Dict[str, List[str]] = {}
+    for key in _declared_inputs(cls):
+        owners.setdefault(input_name(key), []).append(key)
+    names: Dict[str, str] = {}
+    shared: Dict[str, List[str]] = {}
+    for name, keys in owners.items():
+        if len(keys) == 1:
+            names[name] = keys[0]
+        elif len({_HEIGHT.sub("", key) for key in keys}) == 1:
+            shared[name] = keys
+        else:
+            raise TypeError(f"{cls.__name__}: inputs '{keys[0]}' and '{keys[1]}' both have the Python name '{name}'.")
+    return names, shared
+
+
+def _check_input_names(cls) -> None:
+    """Raise if two inputs of a method share a Python name or an alias is ambiguous."""
+    keys = _declared_inputs(cls)
+    names, _ = _python_names(cls)
     for alias, key in getattr(cls, "input_aliases", {}).items():
         if key not in keys:
             raise TypeError(f"{cls.__name__}: alias '{alias}' names '{key}', which is not a declared input.")
-        if owner.get(alias, key) != key:
-            raise TypeError(f"{cls.__name__}: alias '{alias}' for '{key}' is already a name of '{owner[alias]}'.")
+        if names.get(alias, key) != key:
+            raise TypeError(f"{cls.__name__}: alias '{alias}' for '{key}' is already a name of '{names[alias]}'.")
 
 
 class MethodMeta(ABCMeta):
@@ -127,12 +153,12 @@ class Method(ABC, metaclass=MethodMeta):
         """Return every name ``generate`` accepts for an input, mapped to the input's key.
 
         Each declared input is accepted by its key, by its Python name (see ``input_name``),
-        and by the names in ``input_aliases``.
+        and by the names in ``input_aliases``. Inputs that differ only in their height share
+        no Python name; they are accepted by their keys.
         """
-        keys = dict.fromkeys([*cls.required_keys, *cls.optional_keys, *cls.required_data, *cls.optional_data])
-        names = {key: key for key in keys}
-        for key in keys:
-            names.setdefault(input_name(key), key)
+        names = {key: key for key in _declared_inputs(cls)}
+        for name, key in _python_names(cls)[0].items():
+            names.setdefault(name, key)
         names.update(cls.input_aliases)
         return names
 
@@ -277,6 +303,13 @@ class Method(ABC, metaclass=MethodMeta):
         names = self.input_names()
         unknown = [name for name in inputs if name not in names]
         if unknown:
+            shared = _python_names(type(self))[1].get(unknown[0])
+            if shared:
+                raise TypeError(
+                    f"{type(self).__name__}.generate(): '{unknown[0]}' is ambiguous; inputs "
+                    f"{', '.join(repr(key) for key in sorted(shared))} differ only in height. "
+                    "Pass the input by its key, for example **{" + repr(sorted(shared)[0]) + ": ...}."
+                )
             raise TypeError(
                 f"{type(self).__name__}.generate() got an unexpected keyword argument '{unknown[0]}'. "
                 f"Inputs of method '{self.name}': {self._describe_inputs(names)}."
@@ -313,8 +346,13 @@ class Method(ABC, metaclass=MethodMeta):
 
     @staticmethod
     def _describe_inputs(names: Dict[str, str]) -> str:
-        """List the Python names of the inputs, each with its key where that differs."""
+        """List the Python names of the inputs, each with its key where that differs.
+
+        An input without a Python name, such as one of several heights of a quantity, is listed by its key.
+        """
         described = [name if name == key else f"{name} ({key})" for name, key in names.items() if name.isidentifier()]
+        named = {key for name, key in names.items() if name.isidentifier()}
+        described += [key for key in dict.fromkeys(names.values()) if key not in named]
         return ", ".join(sorted(described, key=str.lower))
 
     @staticmethod

@@ -444,9 +444,11 @@ def check_irradiance_labels(frame: pd.DataFrame, longitude: float, *, table: str
     if offset > 0.5 * step_hours:
         logger.warning(
             "Irradiance in table '%s' peaks about %.1f h after solar noon. EnTiSe reads each row as the mean over "
-            "the interval that starts at its label; these values look labelled at the interval end, as Open-Meteo "
-            "labels them. Shift the irradiance columns one row earlier, for example "
-            "`df[columns] = df[columns].shift(-1)`.",
+            "the interval that starts at its label. Two causes are common: the values are labelled at the interval "
+            "end, as Open-Meteo labels them, so shift the irradiance columns one row earlier "
+            "(`df[columns] = df[columns].shift(-1)`); or the timestamps are local times without an offset, which "
+            "EnTiSe reads as UTC, so localize them first "
+            "(`df['datetime'] = df['datetime'].dt.tz_localize('Europe/Berlin', ambiguous='infer')`).",
             table,
             offset,
         )

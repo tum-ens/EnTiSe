@@ -430,3 +430,44 @@ def test_jordan_vajen_time_resolution():
     hourly_total = result_hourly["summary"][f"{Types.DHW}{SEP}volume_total[l]"]
     daily_total = result_daily["summary"][f"{Types.DHW}{SEP}volume_total[l]"]
     assert 0.5 * hourly_total <= daily_total <= 1.5 * hourly_total
+
+
+# The tables an object names
+def _named_table_inputs():
+    from entise.methods.dhw.jordanvajen.activity import _get_activity_data, _get_demand_data
+
+    obj = {O.ID: "named", O.DWELLING_SIZE: 100, O.DATETIMES: "weather", O.SEED: 42}
+    data = {"weather": create_sample_weather(days=14)}
+    return obj, data, _get_activity_data("jordan_vajen"), _get_demand_data("jordan_vajen")
+
+
+def test_jordan_vajen_reads_the_activity_table_the_object_names():
+    obj, data, activity, _ = _named_table_inputs()
+    faster = activity.assign(**{"flow_rate[l s-1]": activity["flow_rate[l s-1]"] * 3})
+    power = f"{Types.DHW}:power_max[W]"
+
+    default = JordanVajen().generate(obj, data)["summary"][power]
+    named = JordanVajen().generate({**obj, O.DHW_ACTIVITY: "my_activity"}, {**data, "my_activity": faster})
+    by_key = JordanVajen().generate(obj, {**data, O.DHW_ACTIVITY: faster})
+
+    assert named["summary"][power] > 2 * default
+    assert named["summary"] == by_key["summary"]
+
+
+def test_jordan_vajen_reads_the_demand_table_the_object_names():
+    obj, data, _, demand = _named_table_inputs()
+    double = demand.assign(**{O.YEARLY_DHW_DEMAND: demand[O.YEARLY_DHW_DEMAND] * 2})
+    volume = f"{Types.DHW}:volume_total[l]"
+
+    default = JordanVajen().generate(obj, data)["summary"][volume]
+    named = JordanVajen().generate({**obj, O.DHW_DEMAND_PER_SIZE: "my_demand"}, {**data, "my_demand": double})
+
+    assert named["summary"][volume] > 1.5 * default
+
+
+@pytest.mark.parametrize("key", [O.DHW_ACTIVITY, O.DHW_DEMAND_PER_SIZE])
+def test_jordan_vajen_raises_for_a_named_table_that_is_missing(key):
+    obj, data, _, _ = _named_table_inputs()
+
+    with pytest.raises(ValueError, match="no_such_table"):
+        JordanVajen().generate({**obj, key: "no_such_table"}, data)

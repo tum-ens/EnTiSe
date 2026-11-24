@@ -73,9 +73,11 @@ argument before the call. Alternatively, declare it in ``optional_keys``.
 **Declarations are checked when the class is defined**, including classes with
 ``register = False``. A ``TypeError`` is raised if two declared inputs have the
 same Python name, which is the key without its unit and height, for example
-``area[m2]`` and ``area[ft2]``. It is also raised if an entry in
-``input_aliases`` names an input that is not declared or reuses another input's
-name. Before, declarations were not checked.
+``area[m2]`` and ``area[ft2]``. Inputs that differ only in their height, such as
+``wind_speed[m s-1]@10m`` and ``wind_speed[m s-1]@100m``, are allowed: their
+shared Python name is dropped, and they are set by their keys. A ``TypeError``
+is also raised if an entry in ``input_aliases`` names an input that is not
+declared or reuses another input's name. Before, declarations were not checked.
 
 Constants
 ---------
@@ -193,8 +195,9 @@ mean, sum or maximum over the interval that ends at its label; values measured
 at the label stay where they are.
 
 EnTiSe warns when irradiance in a weather table peaks about one step after
-solar noon, which indicates end labels. The check needs at least 14 days of
-hourly or longer data.
+solar noon. That indicates end labels, or local timestamps without an offset,
+which are read as UTC; the warning names both. The check needs at least 14 days
+of hourly or longer data.
 
 **EnTiSe's Open-Meteo service** now returns start-labelled data: it moves the
 interval quantities one hour earlier, requests one more day so the last hour is
@@ -282,7 +285,12 @@ weather's steps, which changed its energy. Before, 5R1C and 7R2C gave NaN temper
 timestamps of a table, and ``table|column`` power caps failed.
 
 **Windows.** An object that names a windows table missing from the data raises
-an error; before, its solar gains were silently zero. 1R0C now uses its
+an error; before, its solar gains were silently zero. So does an object whose
+windows would get no solar gains: it has no ``latitude[degree]`` and
+``longitude[degree]``, or the table has no row with its ``id``. An ``id`` of
+``"1"`` does not match ``1``; the error shows both types. Add the location,
+remove ``windows``, or set ``active_gains_solar`` to ``False``. Objects that
+supply ``gains_solar[W]`` are not checked. 1R0C now uses its
 ``latitude[degree]`` and ``longitude[degree]`` for solar gains; before, they
 were dropped, so its solar gains were always zero.
 
@@ -334,6 +342,9 @@ mean power of the hours it covers.
   Before, it was scaled to 365 days of demand whatever the run length.
 - ``dhw:hot_water_temperature[C]`` now holds the hot water temperature;
   before, it repeated the cold one.
+- A table named by ``dhw_activity`` or ``dhw_demand_per_size[m2]`` is used,
+  and a named table missing from the data raises an error. Before, the names
+  were ignored, and the bundled demand table was always used.
 
 **GeoMA and PHT.** The night window and the hold until 09:00 use the local
 clock. The hold starts once occupancy has lasted ``night_schedule_duration[h]``

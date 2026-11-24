@@ -289,6 +289,16 @@ def test_end_labelled_irradiance_is_reported(caplog):
     assert any("'weather'" in r.getMessage() and "shift" in r.getMessage() for r in caplog.records)
 
 
+def test_the_irradiance_label_warning_names_both_causes(caplog):
+    """A peak one step after noon comes from end labels or from local times read as UTC."""
+    with caplog.at_level(logging.WARNING, logger="entise.core._time"):
+        T.check_irradiance_labels(_irradiance(4000, 24 * 14, shift=-1), LONGITUDE, table="weather")
+
+    message = " ".join(r.getMessage() for r in caplog.records)
+    assert "shift(-1)" in message
+    assert "tz_localize" in message
+
+
 def test_start_labelled_irradiance_is_not_reported(caplog):
     with caplog.at_level(logging.WARNING, logger=T.__name__):
         offset = T.check_irradiance_labels(_irradiance(4000, 24 * 14), LONGITUDE, table="weather")

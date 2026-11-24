@@ -185,6 +185,21 @@ class JordanVajen(Method):
         return _format_output(processed_data, ts_volume, ts_energy, ts_power, water_temp)
 
 
+def _named_table(obj: dict, data: dict, key: str):
+    """Return the table the object names for ``key``, or the table under ``key`` in ``data``.
+
+    Raises:
+        ValueError: If the object names a table that is not in ``data``.
+    """
+    name = obj.get(key)
+    if isinstance(name, str) and name.strip():
+        table = Method.get_with_backup(data, name)
+        if table is None:
+            raise ValueError(f"Object '{obj.get(O.ID)}' names the {key} table '{name}', which is not in the data.")
+        return table
+    return Method.get_with_backup(data, key)
+
+
 def get_input_data(obj, data, method_type=Types.DHW):
     """Process and validate input data for DHW demand calculation.
 
@@ -231,8 +246,8 @@ def get_input_data(obj, data, method_type=Types.DHW):
     # Process data
     data_out = {
         O.DATETIMES: Method.get_with_backup(data, obj_out.get(O.DATETIMES)),
-        O.DHW_ACTIVITY: Method.get_with_backup(data, O.DHW_ACTIVITY),
-        O.DHW_DEMAND_PER_SIZE: Method.get_with_backup(data, O.DHW_DEMAND_PER_SIZE),
+        O.DHW_ACTIVITY: _named_table(obj_out, data, O.DHW_ACTIVITY),
+        O.DHW_DEMAND_PER_SIZE: _named_table(obj_out, data, O.DHW_DEMAND_PER_SIZE),
         O.TEMP_WATER_COLD: Method.get_with_backup(data, O.TEMP_WATER_COLD),
         O.TEMP_WATER_HOT: Method.get_with_backup(data, O.TEMP_WATER_HOT),
     }
@@ -249,9 +264,11 @@ def get_input_data(obj, data, method_type=Types.DHW):
     data_out["hours"] = hours
     data_out["datetimes_index"] = output_index(table.index, obj_out, data).to_series()
 
-    # Get activity data if not provided
+    # Use the bundled tables if none is given
     if data_out[O.DHW_ACTIVITY] is None:
         data_out[O.DHW_ACTIVITY] = _get_activity_data("jordan_vajen")
+    if data_out[O.DHW_DEMAND_PER_SIZE] is None:
+        data_out[O.DHW_DEMAND_PER_SIZE] = _get_demand_data("jordan_vajen")
 
     # The object's seed wins; otherwise the run seed, the object's id and the type place its random stream.
     data_out["rng"] = method_rng(data, obj.get(O.ID), method_type, seed=obj_out.get(O.SEED))
@@ -297,7 +314,7 @@ def calculate_timeseries(obj, data):
     step = data["step"]
 
     # Statistical demand of the dwelling size
-    demand_data = _get_demand_data("jordan_vajen")
+    demand_data = data[O.DHW_DEMAND_PER_SIZE]
     sizes = demand_data[O.DWELLING_SIZE].values
     idx = np.abs(sizes - dwelling_size).argmin()
     m3_per_m2_a = demand_data.iloc[idx][O.YEARLY_DHW_DEMAND]
