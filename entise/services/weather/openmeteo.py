@@ -336,8 +336,9 @@ class OpenMeteoProvider(WeatherProvider):
         self.client = openmeteo_requests.Client(session=retry_session)
 
     # Test convenience wrapper expected by unit tests
-    def _validate_features(self, features: List[str]) -> List[str]:
-        return super()._validate_features(features, FEATURES)
+    @staticmethod
+    def _validate_features(features: List[str], available_features: dict = FEATURES) -> List[str]:
+        return WeatherProvider._validate_features(features, available_features)
 
     def _remove_cache_file(self):
         """Remove the cache file after data retrieval."""
@@ -431,7 +432,7 @@ class OpenMeteoProvider(WeatherProvider):
         # Make API request
         try:
             response = self.client.weather_api(self.url, params=params)[0]
-            df = self._response_to_dataframe(response, params["hourly"])
+            df = self._response_to_dataframe(response, validated_features)
         except Exception as e:
             logger.error(f"Error retrieving data from Open-Meteo API: {e}")
             raise

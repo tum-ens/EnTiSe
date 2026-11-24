@@ -118,9 +118,9 @@ class R1C0(TypedViews, Method):
 
     def generate(
         self,
-        obj: dict = None,
-        data: dict = None,
-        results: dict = None,
+        obj: dict | None = None,
+        data: dict | None = None,
+        results: dict | None = None,
         ts_type: str = Types.HVAC,
         **inputs,
     ) -> dict:
@@ -335,7 +335,9 @@ class R1C0(TypedViews, Method):
         return {"summary": summary, "timeseries": df}
 
 
-def calculate_timeseries_1r0c(obj: dict, data: dict, timestep: float) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+def calculate_timeseries_1r0c(
+    obj: dict, data: dict, timestep: float | np.floating
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Calculate HVAC time series using a 1R0C model.
 
     The zone has a heat transfer coefficient ``H = 1 / R + H_ve`` and no thermal

@@ -33,8 +33,8 @@ _BUILTIN_STRATEGIES = {
 }
 
 
-def register(cls: Type[Method], strategy_name: str = None):
-    name = (strategy_name or getattr(cls, "name", cls.__name__)).lower()
+def register(cls: Type[Method], strategy_name: str | None = None):
+    name = (strategy_name or getattr(cls, "name", None) or cls.__name__).lower()
     if name in method_registry or name in _BUILTIN_STRATEGIES:
         raise ValueError(f"Duplicate strategy name: '{name}' is already registered.")
     method_registry[name] = cls

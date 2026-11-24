@@ -70,9 +70,9 @@ class Demandlib(Method):
 
     def generate(
         self,
-        obj: dict = None,
-        data: dict = None,
-        results: dict = None,
+        obj: dict | None = None,
+        data: dict | None = None,
+        results: dict | None = None,
         ts_type: str = Types.HEATING,
         **inputs,
     ) -> dict:

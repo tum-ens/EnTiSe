@@ -126,9 +126,9 @@ class R1C1(TypedViews, Method):
 
     def generate(
         self,
-        obj: dict = None,
-        data: dict = None,
-        results: dict = None,
+        obj: dict | None = None,
+        data: dict | None = None,
+        results: dict | None = None,
         ts_type: str = Types.HVAC,
         **inputs,
     ) -> dict:
@@ -321,7 +321,9 @@ class R1C1(TypedViews, Method):
 _G_TOT_EPS = np.float32(1e-9)
 
 
-def calculate_timeseries_1r1c(obj: dict, data: dict, timestep: float) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+def calculate_timeseries_1r1c(
+    obj: dict, data: dict, timestep: float | np.floating
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Dispatch to numpy or numba path based on the active accelerator.
 
     The two paths implement the same physics (analytical exponential
@@ -344,7 +346,9 @@ def calculate_timeseries_1r1c(obj: dict, data: dict, timestep: float) -> tuple[n
     return _calculate_timeseries_numpy(obj, data, timestep)
 
 
-def _calculate_timeseries_numpy(obj: dict, data: dict, timestep: float) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+def _calculate_timeseries_numpy(
+    obj: dict, data: dict, timestep: float | np.floating
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Calculate HVAC time series using a 1R1C model (pure numpy path).
 
     Integrates the lumped-capacitance ODE

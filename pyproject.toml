@@ -128,3 +128,22 @@ line-ending = "auto"
 
 [tool.ruff.lint.isort]
 known-first-party = ["entise"]
+
+[tool.mypy]
+python_version = "3.11"
+
+[[tool.mypy.overrides]]
+# These packages ship no type information.
+module = [
+    "demandlib.*",
+    "districtheatingsim.*",
+    "joblib.*",
+    "numba.*",
+    "pandas.*",
+    "pvlib.*",
+    "retry_requests.*",
+    "scipy.*",
+    "tqdm.*",
+    "windpowerlib.*",
+]
+ignore_missing_imports = true

@@ -49,8 +49,8 @@ class WeatherProvider(ABC):
         return weather
 
     @staticmethod
-    def use_default_features(metadata: Dict[str, dict]) -> set:
-        """Return set of default features based on metadata dictionary."""
+    def use_default_features(metadata: Dict[str, dict]) -> List[str]:
+        """Return the default features of a metadata dictionary."""
         return [key for key, val in metadata.items() if val.get("default") is True]
 
     @staticmethod

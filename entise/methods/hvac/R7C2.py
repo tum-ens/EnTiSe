@@ -174,9 +174,9 @@ class R7C2(TypedViews, Method):
 
     def generate(
         self,
-        obj: dict = None,
-        data: dict = None,
-        results: dict = None,
+        obj: dict | None = None,
+        data: dict | None = None,
+        results: dict | None = None,
         ts_type: str = Types.HVAC,
         **inputs,
     ) -> dict:
@@ -443,8 +443,8 @@ class R7C2(TypedViews, Method):
 
             # 2. Weight it by conductance, as in VDI 6007 (eq. 27/28): each element's share is its
             # U·A over the exterior envelope's U·A, 1 / R_ges_AW = 1 / (R_1_AW + R_rest_AW + R_in).
-            r1_aw = float(obj.get(O.R_1_AW))
-            r_rest_aw = float(obj.get(O.R_REST_AW))
+            r1_aw = float(obj[O.R_1_AW])
+            r_rest_aw = float(obj[O.R_REST_AW])
             h_tot = 1.0 / max(r1_aw + r_rest_aw + _inner_surface_resistance_aw(obj), 1e-6)
 
             # Window conductance (H_win) of the object's own windows. The windows table can
