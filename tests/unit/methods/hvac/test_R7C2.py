@@ -5,6 +5,7 @@ import pytest
 from entise.constants import SEP, Types
 from entise.constants import Columns as C
 from entise.constants import Objects as O
+from entise.methods.hvac.defaults import DEFAULT_T_EQ_ALPHA_SW, DEFAULT_T_EQ_H_O
 from entise.methods.hvac.R7C2 import R7C2, clamp_power, split_gains_7r2c
 
 
@@ -1023,3 +1024,42 @@ def test_r7c2_power_cooling_caps_total_load(basic_7r2c_object):
 
     total_col = f"{Types.COOLING}{SEP}{C.LOAD}[W]"
     assert ts[total_col].max() <= 800.0 + 1
+
+
+def _windows(object_id: str, area: float, u_value: float = 1.5) -> pd.DataFrame:
+    return pd.DataFrame(
+        {
+            O.ID: [object_id],
+            "orientation[degree]": [180],
+            "tilt[degree]": [90],
+            C.AREA: [area],
+            "g_value[1]": [0.6],
+            C.U_VALUE: [u_value],
+            "shading[1]": [1.0],
+        }
+    )
+
+
+def test_r7c2_windows_of_other_objects_do_not_change_the_result(basic_7r2c_object, minimal_weather):
+    """Only the object's own windows set the window conductance of the equivalent outdoor temperature."""
+    own = _windows("test_7r2c", 10.0)
+    shared = pd.concat([own, _windows("neighbour", 200.0)], ignore_index=True)
+    obj = {**basic_7r2c_object, O.WINDOWS: "windows"}
+
+    alone = R7C2().generate(obj, {O.WEATHER: minimal_weather, "windows": own}, Types.HVAC)
+    with_neighbour = R7C2().generate(obj, {O.WEATHER: minimal_weather, "windows": shared}, Types.HVAC)
+
+    pd.testing.assert_frame_equal(alone["timeseries"], with_neighbour["timeseries"])
+    assert alone["summary"] == with_neighbour["summary"]
+
+
+def test_r7c2_equivalent_temperature_stays_between_air_and_sol_air(basic_7r2c_object, minimal_weather):
+    """Windows that conduct more than the whole wall still give a weighted mean, not an amplified air temperature."""
+    obj = {**basic_7r2c_object, O.WINDOWS: "windows"}
+    data = {O.WEATHER: minimal_weather, O.WINDOWS: _windows("test_7r2c", 100.0)}  # 150 W/K > 1 / (R_1 + R_rest)
+
+    teq = R7C2()._calc_teq_series(obj, data, minimal_weather, minimal_weather.index)["T_eq"]
+
+    sol_air = minimal_weather[C.TEMP_AIR] + DEFAULT_T_EQ_ALPHA_SW * minimal_weather[C.SOLAR_GHI] / DEFAULT_T_EQ_H_O
+    assert (teq >= minimal_weather[C.TEMP_AIR] - 1e-9).all()
+    assert (teq <= sol_air + 1e-9).all()
