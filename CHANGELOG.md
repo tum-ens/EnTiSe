@@ -39,6 +39,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Fixed
 - The Open-Meteo provider accepts a range that ends today. It requests the day after `end_date` to get the interval values of the last hour, but the archive serves days only up to today (UTC) and rejected the whole request. For a range ending today, the last hour of each interval quantity, such as radiation or precipitation, is now `NaN`, with a warning. (`#137`)
 - A method that cannot be imported fails the strict documentation build. Before, the method reference only printed the error and left the method out. The `file` method lists its types in sorted order, so its reference pages no longer change between builds. (`#137`)
+- The solar gains of the RC models take the solar position from pvlib's numba solver only when EnTiSe's accelerator uses numba (`entise.set_accelerator`, `ENTISE_ACCELERATOR`). Before, they always asked for it, and pvlib warned and fell back to numpy on every call when numba was missing or switched off. Both solvers give the same positions, so results are unchanged. (`#138`)
 - **Behavior change**: 7R2C weights its equivalent outdoor temperature as VDI 6007 does: each element's share is its own `U·A` over the exterior envelope's `U·A`. (`#131`, `#133`)
   - Before, the window share added `u_value × area` over every row of the windows table. With the shared example table, that is 9 buildings' windows, 761 W/K.
   - That sum exceeded the envelope's conductance, so the opaque share fell to zero. The equivalent temperature became the air temperature amplified, for example 3.4 × `T_air` for `SFH_mid`.
@@ -147,6 +148,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - `requires-python` no longer has an upper bound; EnTiSe is tested on Python 3.11 to 3.14. The `numba` extra requires numba 0.60 or newer, the first release that supports numpy 2. (`#137`)
 - PHT's `baseline_offset` default comes from its own constant, `Constants.DEFAULT_BASELINE_OFFSET` (0.05). Output is unchanged. (`#134`)
 
+- The pipeline's lint job is required: Ruff lint, Ruff formatting and mypy must pass. The repository is formatted with Ruff, and `pyproject.toml` configures mypy. Method signatures annotate their `None` defaults explicitly; `Method.generate` declares `ts_type: str`. The test suite ignores only the warnings that come from dependencies. (`#138`)
+- `entise.methods.dhw.jordanvajen` exports its five public helpers (`daily_volume`, `days_in_year`, `event_shares`, `local_holidays`, `sample_volume`) explicitly, in place of star imports. Names its modules imported, such as `pd`, are no longer available from the package. (`#138`)
 ### Removed
 - Removed the `setup.py` script and the unused `[tool.setuptools]` settings. Hatchling builds the package; `setup.py` failed when run. (`#137`)
 - **Behavior change**: removed the `<key>_COL` object key that named the column of a table reference, such as `power_heating[W]_COL`. Write the reference as `table|column` instead, for example `power_heating[W]: caps|ph`. A table reference without a column now raises an error that shows this form. `gains_internal_column` and `ventilation_column` are unchanged. (`#119`)

@@ -43,8 +43,8 @@ stages:
 
 lint:
   extends: .python-job
-  # Existing Ruff lint, formatting and mypy failures are tracked as advisory.
-  allow_failure: true
+  # Required. Ruff and mypy come from the dev extra as of UV_EXCLUDE_NEWER, so advancing it
+  # can bring new findings.
   script:
     - |
       status=0
