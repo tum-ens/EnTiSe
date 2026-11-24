@@ -25,7 +25,7 @@ Key Features
 - Multiple time series types including DHW, HVAC, PV, and more in the works.
 - Flexible pipeline- and strategy-based architecture for customizable time series generation.
 - Support for dependent methods to create related time series.
-- Two access patterns: batch processing via TimeSeriesGenerator or direct method imports for individual control.
+- Two access patterns: batch processing via Generator or direct method imports for individual control.
 
 Getting Started
 ================
@@ -74,7 +74,7 @@ Or clone the repository and install in development mode:
 
 .. code-block:: bash
 
-   git clone https://github.com/tum-ens/need/entise.git
+   git clone https://github.com/tum-ens/entise.git
    cd entise
    pip install -e ".[dev]"
 
@@ -97,76 +97,92 @@ Repository Structure
 Usage Guidelines
 =================
 
-Basic Usage
-------------
-
-EnTiSe provides two flexible ways to generate time series data:
+Install the two method extras for the examples below with
+``pip install "entise[hvac-1r1c,pv-pvlib]"``.
 
 Batch Processing
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+----------------
 
-For generating multiple time series at once, you can use the `Generator` and either add objects one by one or in bulk using DataFrames or dictionaries:
+Use ``Generator`` to run methods for one or more objects. This example
+generates 24 hours of HVAC demand for one building using synthetic weather.
+
+.. quickstart-batch-start
 
 .. code-block:: python
+
+   import pandas as pd
 
    from entise import Generator
 
-   # Initialize the generator
-   gen = Generator()
+   hours = pd.date_range("2025-01-01", periods=24, freq="h", tz="UTC")
+   weather = pd.DataFrame(
+       {
+           "air_temperature[C]": 0.0,
+           "relative_humidity[1]": 0.7,
+           "surface_air_pressure[Pa]": 101325.0,
+       },
+       index=hours,
+   )
 
-   # Add objects (e.g., buildings)
+   gen = Generator(raise_on_error=True)
    gen.add_objects({
        "id": "building1",
        "hvac": "1R1C",
-       "resistance": 2.0,
-       "capacitance": 1e5,
-       "temp_min": 20.0,
-       "temp_max": 24.0,
+       "weather": "weather",
+       "timezone": "UTC",
+       "resistance[K W-1]": 0.006,
+       "capacitance[J K-1]": 1.1e7,
+       "init_temperature[C]": 20.0,
+       "min_temperature[C]": 20.0,
+       "max_temperature[C]": 24.0,
+       "gains_internal[W]": 0.0,
+       "gains_solar[W]": 0.0,
    })
 
-   # Prepare input data (e.g., weather)
-   data = {
-       "weather": pd.DataFrame({
-           "temp_out": [0.0] * 24,
-       }, index=pd.date_range("2025-01-01", periods=24, freq="h"))
-   }
+   summary, series = gen.generate({"weather": weather}, workers=1)
+   hvac = series["building1"]["hvac"]
+   print(summary)
+   print(hvac.head())
 
-   # Generate time series
-   summary, df = gen.generate(data)
+.. quickstart-batch-end
 
 Direct Method Access
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+--------------------
 
-For more granular access you can call a method directly:
+Call the method directly for a single PV system. This example uses four
+hours of synthetic midday irradiance in Munich.
+
+.. quickstart-direct-start
 
 .. code-block:: python
 
+   import pandas as pd
+
    from entise.methods.pv import PVLib
 
-   pv = PVLib()
-   result = pv.generate(
-       latitude=48.1,  # latitude[degree]
-       longitude=11.6,  # longitude[degree]
-       power=5000,  # power[W], rated power of the system
-       weather=weather_df,  # DataFrame with solar radiation data
+   hours = pd.date_range("2025-06-21 10:00", periods=4, freq="h", tz="UTC")
+   weather = pd.DataFrame(
+       {
+           "global_horizontal_irradiance[W m-2]": [620.0, 660.0, 640.0, 580.0],
+           "direct_normal_irradiance[W m-2]": [600.0, 630.0, 620.0, 580.0],
+           "diffuse_horizontal_irradiance[W m-2]": [100.0, 100.0, 100.0, 100.0],
+           "air_temperature[C]": 20.0,
+           "wind_speed[m s-1]": 2.0,
+       },
+       index=hours,
    )
 
-   summary = result["summary"]
-   timeseries = result["timeseries"]
+   result = PVLib().generate(
+       latitude=48.1, longitude=11.6, altitude=520, power=5000,
+       azimuth=180, tilt=30, weather=weather,
+   )
+   print(result["summary"])
+   print(result["timeseries"])
 
-Every method takes the same arguments: ``generate(obj=None, data=None, results=None, ts_type=..., **inputs)``.
-Use ``PVLib.input_names()`` to discover which names the method accepts. It maps each accepted name
-to its full input key. The mapping includes the full key, its Python name without the unit and height
-(such as ``power`` for ``power[W]``), and any aliases from earlier releases.
+.. quickstart-direct-end
 
-You can pass a dictionary or a pandas Series row as ``obj`` and supply individual inputs as
-keywords in the same call. A keyword value overrides both the unprefixed key and the key
-prefixed with the active time series type, such as ``pv:power[W]``. A keyword value of ``None``
-leaves the object value in place. Pass a table input such as ``weather`` as a DataFrame or as
-the name of a table in ``data``. Unknown names and two non-None keyword values for the same
-input raise ``TypeError``.
-
-For more detailed examples, check the `examples` directory.
+See the `Getting Started guide <https://entise.readthedocs.io/en/latest/getting_started.html>`_
+and the examples directory for more ways to use EnTiSe.
 
 Supported or Planned Time Series Types
 ---------------------------------------
@@ -212,17 +228,22 @@ Follow instructions there to document any updates.
 
 License and Citation
 =====================
-| The code of this repository is licensed under the **MIT License** (MIT).
-| See `LICENSE <LICENSE>`_ for rights and obligations.
-| Copyright: `EnTiSe <https://gitlab.lrz.de/tum-ens/need/entise>`_ (c) `TU Munich - ENS <https://www.epe.ed.tum.de/en/ens/homepage/>`_ | `MIT <LICENSE>`_
+EnTiSe's own code is distributed under the `MIT License <LICENSE>`_.
+Independently installed dependencies and external services have their own
+terms. See the `third-party licensing guide
+<https://entise.readthedocs.io/en/latest/installation.html#third-party-licenses>`_
+for upstream licenses and data attribution.
 
+If you use EnTiSe in research, cite Doepfert, M., & Hamacher, T. (2026).
+`EnTiSe: A Python framework for scalable synthetic energy time-series generation
+<https://doi.org/10.1016/j.softx.2026.102784>`_. *SoftwareX*, 35, 102784.
 
 .. |badge_license| image:: https://img.shields.io/badge/license-MIT-blue
     :target: LICENSE
     :alt: License
 
 .. |badge_documentation| image:: https://img.shields.io/badge/docs-available-brightgreen
-    :target: https://gitlab.lrz.de/tum-ens/need/entise
+    :target: https://entise.readthedocs.io
     :alt: Documentation
 
 .. |badge_contributing| image:: https://img.shields.io/badge/contributions-welcome-brightgreen

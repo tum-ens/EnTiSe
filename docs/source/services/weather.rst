@@ -6,6 +6,35 @@ The Weather Service module provides a modular approach to retrieving weather dat
 
 Install the service with ``pip install "entise[weather]"``.
 
+.. _open-meteo-terms:
+
+Open-Meteo data and API terms
+-----------------------------
+
+`Weather data by Open-Meteo <https://open-meteo.com/>`_ is licensed
+under `CC BY 4.0 <https://creativecommons.org/licenses/by/4.0/>`_.
+Credit Open-Meteo where you display its data, link the license and
+describe any changes. See the `Open-Meteo data license
+<https://open-meteo.com/en/licence#licence>`_.
+
+The hosted API has separate `terms of use
+<https://open-meteo.com/en/terms>`_. Open-Meteo limits its free hosted
+endpoint to non-commercial use and applies request quotas. Check the
+terms for your use of the hosted service.
+
+.. _example-weather-attribution:
+
+Sample weather
+--------------
+
+The examples use `weather data by Open-Meteo
+<https://open-meteo.com/>`_ under
+`CC BY 4.0 <https://creativecommons.org/licenses/by/4.0/>`_.
+EnTiSe converted units, renamed columns, relabelled hourly irradiance
+at the start of each interval and added mid-interval solar elevation.
+The notice beside ``examples/common_data/weather.csv`` describes the
+changes in detail.
+
 Architecture
 ------------
 
