@@ -42,6 +42,51 @@ the unused ``weather`` keyword on demandlib electricity. See
 :ref:`direct_input_names` for an example that combines an object row and
 keywords.
 
+Custom methods
+--------------
+
+This section applies if you subclass ``Method`` yourself.
+
+**Unknown keywords raise** ``TypeError``. ``_process_kwargs`` and
+``_process_inputs`` accept only the inputs the method declares, by key or by
+Python name, and raise for any other keyword. Before, ``_process_kwargs``
+ignored keywords it did not know, and accepted a declared input only under its
+exact key. So ``power=...`` for ``power[W]`` was ignored and now takes effect.
+
+``_process_kwargs`` **takes** ``ts_type`` **as its third argument**, before the
+inputs: ``_process_kwargs(obj, data, ts_type, **inputs)``. Pass the inputs by
+keyword. Built-in methods follow this pattern:
+
+.. code-block:: python
+
+    # Before
+    def generate(self, obj=None, data=None, results=None, ts_type=None, *, power=None, scale=None):
+        obj, data = self._process_kwargs(obj, data, power=power, scale=scale)
+
+    # Now
+    def generate(self, obj=None, data=None, results=None, ts_type="pv", **inputs):
+        obj, data = self._process_kwargs(obj, data, ts_type, **inputs)
+
+Read any setting that is not an input, such as ``scale`` above, from your own
+argument before the call. Alternatively, declare it in ``optional_keys``.
+
+**Declarations are checked when the class is defined**, including classes with
+``register = False``. A ``TypeError`` is raised if two declared inputs have the
+same Python name, which is the key without its unit and height, for example
+``area[m2]`` and ``area[ft2]``. It is also raised if an entry in
+``input_aliases`` names an input that is not declared or reuses another input's
+name. Before, declarations were not checked.
+
+Constants
+---------
+
+``Columns``, ``Objects``, ``Types`` and ``Keys`` in ``entise.constants`` are
+read-only namespaces. Their values are still plain strings. ``Types()`` and the
+other classes cannot be instantiated; that raises ``TypeError``. Assigning an
+attribute raises ``AttributeError``, also through
+``mock.patch.object(Types, "DHW", ...)``. In tests, patch the name where your
+code looks it up instead, for example ``mock.patch("mypackage.module.Types", ...)``.
+
 Timestamps
 ----------
 
@@ -196,6 +241,10 @@ type that wrote it (``hvac:heating:demand[Wh]`` and
 ran last overwrote the other's value. Columns that only one type reports keep
 their names.
 
+**PV summary values are numbers.** Each ``pv:*`` summary value is now a plain
+number. Before, it was a one-element Series. Drop any ``.iloc[0]`` you used to
+read it.
+
 HVAC (1R0C, 1R1C, 5R1C, 7R2C)
 -----------------------------
 
@@ -233,6 +282,11 @@ recognised, and every other unit was read as air changes per hour. Both
 spellings are accepted. 1R0C now converts air changes per hour with the
 object's ``area[m2]`` and ``height[m]``; before, it always used the default
 zone of 1 m² and 2.5 m.
+
+**1R0C ventilation switch.** ``active_ventilation=False`` now switches off
+ventilation in 1R0C, as it already did in 1R1C, 5R1C and 7R2C. Before, 1R0C
+ignored the flag and always applied ventilation. The flag still defaults to
+``True``.
 
 **Weather key.** PV and wind now use the table named by the object's
 ``weather`` key, like the other methods. Before, they always read ``weather``.
@@ -284,6 +338,10 @@ Other changes
   back to NumPy silently.
 - PyLPG raises an error if the engine leaves minutes of the run without
   output. Before, they were filled with zero.
+- Importing the PV method no longer switches off every warning in the process.
+  Before, it called ``warnings.filterwarnings("ignore")`` for the whole
+  process. Warnings from your own code and other libraries that it hid now
+  appear again.
 - Solar gains of objects in the same 0.1° cell share one solar position, taken
   at the cell centre, so results no longer depend on object order. Gains change
   slightly for objects away from a cell centre.
