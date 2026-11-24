@@ -65,7 +65,11 @@ def analyze_results(
             c = next(iter([c for c in building_data.columns if pd.api.types.is_numeric_dtype(building_data[c])]))
             total_W = building_data[c] * (3_600_000.0 / timestep_s)
 
-        dhw_share = float(objects_row.get("dhw_share", 0.0)) if isinstance(objects_row, dict) else float(objects_row.get("dhw_share", 0.0))
+        dhw_share = (
+            float(objects_row.get("dhw_share", 0.0))
+            if isinstance(objects_row, dict)
+            else float(objects_row.get("dhw_share", 0.0))
+        )
         dhw_W = total_W * dhw_share
         space_W = total_W - dhw_W
         return space_W, dhw_W

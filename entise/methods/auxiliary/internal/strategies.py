@@ -120,7 +120,7 @@ class InternalTimeSeries(AuxiliaryMethod):
         except KeyError as err:
             log.error('Internal gains column "%s" does not exist', col)
             raise Warning(
-                f"Neither explicit (column name) or implicit (column id) are specified." f"Given input column: {col}"
+                f"Neither explicit (column name) or implicit (column id) are specified.Given input column: {col}"
             ) from err
         # Match the dtype of the constant/inactive paths so downstream
         # consumers (e.g. the R1C1 numba wrapper) get a zero-copy view.

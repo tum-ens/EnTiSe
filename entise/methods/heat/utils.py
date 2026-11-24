@@ -17,12 +17,7 @@ def create_try_file(idx_hour_full: pd.DatetimeIndex, temperature: pd.Series, pre
     """
 
     col_widths = [8, 8, 3, 3, 3, 6, 5, 4, 5, 2, 5, 4, 5, 5, 4, 5, 3]
-    col_names = [
-        "RW", "HW", "MM", "DD", "HH",
-        "t", "p", "WR", "WG", "N",
-        "x", "RF", "B", "D", "A",
-        "E", "IL"
-    ]
+    col_names = ["RW", "HW", "MM", "DD", "HH", "t", "p", "WR", "WG", "N", "x", "RF", "B", "D", "A", "E", "IL"]
 
     n = len(idx_hour_full)
 

@@ -5,7 +5,6 @@ This script demonstrates how to use the 5R1C method to generate indoor temperatu
 loads based on outdoor weather conditions and building properties.
 """
 
-
 import matplotlib.pyplot as plt
 import pandas as pd
 

@@ -63,7 +63,6 @@ Backwards-friendly comma-separated inputs:
 - python examples/benchmark.py run --methods pv_pvlib,hp_ruhnau --workers 1,2,4 --objects 50,100 --repeats 3 --plot
 """
 
-
 import argparse
 import fnmatch
 import os
@@ -199,9 +198,7 @@ def benchmark_one(
             dt = time.perf_counter() - t0
 
         # Serialize any captured warnings for visibility (non-fatal)
-        warn_txt = "; ".join(
-            [f"{type(w.message).__name__}: {str(w.message)}" for w in wlist]
-        ) if wlist else None
+        warn_txt = "; ".join([f"{type(w.message).__name__}: {str(w.message)}" for w in wlist]) if wlist else None
 
         return {
             "method": method,

@@ -1100,9 +1100,9 @@ def test_r1c1_deadband_default_zero_matches_omitted():
 
     # Bit-exact equality of every column.
     for col in ts_no_db.columns:
-        assert (
-            ts_no_db[col].to_numpy() == ts_db_zero[col].to_numpy()
-        ).all(), f"deadband=0 diverged from omitted deadband on column {col}"
+        assert (ts_no_db[col].to_numpy() == ts_db_zero[col].to_numpy()).all(), (
+            f"deadband=0 diverged from omitted deadband on column {col}"
+        )
 
 
 def test_r1c1_heating_with_deadband_targets_upper_band():
@@ -1294,9 +1294,9 @@ def test_r1c1_deadband_stays_off_when_entering_band_from_above():
     # reached by the intervals before the first fire is temp[1 : first_fire + 1].
     reached = temp[1 : first_fire + 1]
     entered_band = (reached >= T_min) & (reached <= T_min + deadband + 1e-3)
-    assert (
-        entered_band.any()
-    ), "T never crossed into the band before firing — cannot verify off-branch hysteresis with this scenario."
+    assert entered_band.any(), (
+        "T never crossed into the band before firing — cannot verify off-branch hysteresis with this scenario."
+    )
     # Every pre-fire step has heat == 0 by construction of `first_fire`.
     assert (heat[:first_fire] == 0).all()
 
@@ -1343,8 +1343,8 @@ def test_r1c1_wide_deadband_does_not_double_fire():
 
     # The primary claim: no step ever fires both.
     both = (p_heat > 0) & (p_cool > 0)
-    assert (
-        not both.any()
-    ), f"Heating and cooling fired simultaneously on {int(both.sum())} steps — wide-band mutex broken."
+    assert not both.any(), (
+        f"Heating and cooling fired simultaneously on {int(both.sum())} steps — wide-band mutex broken."
+    )
     # Sanity: at least *some* actuator fires during the run.
     assert (p_heat > 0).any() or (p_cool > 0).any()

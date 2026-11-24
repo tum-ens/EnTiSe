@@ -58,9 +58,7 @@ class WeatherProvider(ABC):
         """Ensure requested features are in the list of available features."""
         missing = [f for f in features if f not in available_features]
         if missing:
-            raise ValueError(
-                f"Requested features not available: {missing}. " f"Available: {sorted(available_features)}"
-            )
+            raise ValueError(f"Requested features not available: {missing}. Available: {sorted(available_features)}")
         return features
 
     def calculate_derived_variables(self, df: pd.DataFrame, variables: Optional[List[str]] = None) -> pd.DataFrame:

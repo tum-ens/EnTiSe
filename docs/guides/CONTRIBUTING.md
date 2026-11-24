@@ -142,43 +142,43 @@ This style is straightforward and well-suited for research projects, as it provi
    ```python
    """Brief module description.
 
-    This module demonstrates the Google-style docstring format. It provides
-    several examples of documenting different types of objects and methods.
+   This module demonstrates the Google-style docstring format. It provides
+   several examples of documenting different types of objects and methods.
 
-    Attributes:
-        module_level_variable1 (int): Module level variables can be documented here.
-        module_level_variable2 (str): An example of an inline attribute docstring.
-    """
+   Attributes:
+       module_level_variable1 (int): Module level variables can be documented here.
+       module_level_variable2 (str): An example of an inline attribute docstring.
+   """
    ```
 
 2. **Function Docstring**
     ```python
-    def example_function(param1: int, param2: str = 'default') -> bool:
-         """Summary of the function.
+    def example_function(param1: int, param2: str = "default") -> bool:
+        """Summary of the function.
 
-         Args:
-              param1 (int): The first parameter.
-              param2 (str): The second parameter. Defaults to 'default'.
+        Args:
+             param1 (int): The first parameter.
+             param2 (str): The second parameter. Defaults to 'default'.
 
-         Returns:
-              bool: A boolean value indicating success.
+        Returns:
+             bool: A boolean value indicating success.
 
-         Raises:
-              ValueError: If the parameter is invalid.
-         """
+        Raises:
+             ValueError: If the parameter is invalid.
+        """
     ```
 
 3. **Generator Function Docstring**
     ```python
     def example_generator(param: int) -> Iterator[int]:
-         """Summary of the generator function.
+        """Summary of the generator function.
 
-         Args:
-              param (int): The parameter for the generator.
+        Args:
+             param (int): The parameter for the generator.
 
-         Yields:
-              int: The next value in the sequence.
-         """
+        Yields:
+             int: The next value in the sequence.
+        """
     ```
 
 4. **Class Docstring with Attributes**
@@ -215,6 +215,7 @@ This style is straightforward and well-suited for research projects, as it provi
             msg (str): Explanation of the error.
             code (int): Error code.
         """
+
         def __init__(self, msg: str, code: int = None):
             self.msg = msg
             self.code = code

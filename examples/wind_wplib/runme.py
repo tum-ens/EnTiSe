@@ -68,7 +68,7 @@ def analyze_results(df: dict, objects: pd.DataFrame, data: dict, save_figures: b
 
             # Plot the time series
             df[obj_id][Types.WIND].plot(ax=axes[i], color="#1f77b4", linewidth=1)
-            axes[i].set_title(f"Turbine: {turbine_type}, Power: {power/1e6:.1f}MW")
+            axes[i].set_title(f"Turbine: {turbine_type}, Power: {power / 1e6:.1f}MW")
             axes[i].set_xlabel("Time")
             axes[i].set_ylabel("Power (W)")
             axes[i].grid(True)
@@ -158,7 +158,7 @@ def analyze_results(df: dict, objects: pd.DataFrame, data: dict, save_figures: b
             axes[i].axvline(x=rated_speed, color="orange", linestyle="--", alpha=0.7, label="Rated speed")
             axes[i].axvline(x=cut_out_speed, color="red", linestyle="--", alpha=0.7, label="Cut-out speed")
 
-            axes[i].set_title(f"Turbine: {turbine_type}, Power: {power/1e6:.1f}MW")
+            axes[i].set_title(f"Turbine: {turbine_type}, Power: {power / 1e6:.1f}MW")
             axes[i].set_xlabel("Wind Speed (m/s)")
             axes[i].set_ylabel("Power (W)")
             axes[i].grid(True)
@@ -314,7 +314,7 @@ def analyze_results(df: dict, objects: pd.DataFrame, data: dict, save_figures: b
 
             # Create heatmap
             im = axes[i].imshow(daily_pivot, aspect="auto", cmap="viridis")
-            axes[i].set_title(f"Turbine: {turbine_type}, Power: {power/1e6:.1f}MW")
+            axes[i].set_title(f"Turbine: {turbine_type}, Power: {power / 1e6:.1f}MW")
             axes[i].set_xlabel("Hour of Day")
             axes[i].set_ylabel("Day of Year")
             axes[i].set_xticks(range(0, 24, 6))  # Show fewer ticks for readability
