@@ -41,3 +41,9 @@ def test_fileloader_wrong_type():
     loader = FileLoader()
     with pytest.raises(TypeError, match="Expected a DataFrame for key 'not_a_dataframe'"):
         loader.generate(obj, data)
+
+
+def test_fileloader_lists_its_types_in_a_stable_order():
+    # The method reference pages list these types; a set would reorder them between builds.
+    assert isinstance(FileLoader.types, list)
+    assert FileLoader.types == sorted(FileLoader.types)

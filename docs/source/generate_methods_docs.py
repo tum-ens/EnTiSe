@@ -3,8 +3,6 @@ import inspect
 import os
 import pkgutil
 
-from jinja2 import Template
-
 from entise.constants import VALID_TYPES
 from entise.core.base import Method
 from entise.core.base_auxiliary import AuxiliaryMethod
@@ -14,13 +12,16 @@ TEMPLATE_PATH = "./_templates/method.rst"
 BASE_OUTPUT_DIR = "./methods"  # Base folder for output
 
 
-def discover_method_classes(package_name):
+def discover_method_classes(package_name, on_error=None):
     """
     Discover and return a list of classes within the given package that are
     subclasses of Method.
 
     Parameters:
       package_name (str): The package to search (e.g., "entise.methods").
+      on_error (callable): Called with a message for each module that cannot be
+        imported. The default prints it. The Sphinx build passes a warning, so
+        a strict build fails instead of leaving the method out of the docs.
 
     Returns:
       list: A list of discovered method classes.
@@ -40,7 +41,7 @@ def discover_method_classes(package_name):
             # If it's a package, recursively discover classes in its submodules
             if is_pkg:
                 # Recursively discover classes in the subpackage
-                subpackage_classes = discover_method_classes(module_name)
+                subpackage_classes = discover_method_classes(module_name, on_error)
                 discovered_classes.update(subpackage_classes)
 
             # Iterate over classes defined in the module
@@ -54,7 +55,7 @@ def discover_method_classes(package_name):
                 ):  # Exclude the base Method class
                     discovered_classes.add(obj)
         except Exception as e:
-            print(f"Could not import module/package {module_name}: {e}")
+            (on_error or print)(f"Could not import module/package {module_name}: {e}")
             continue
     return sorted(discovered_classes, key=lambda cls: (cls.__module__, cls.__name__))
 
@@ -311,6 +312,9 @@ def generate_docs_for_method(cls, timeseries_type, template_path, output_dir):
       - output_dir: Directory to save the generated documentation.
     """
     metadata = extract_method_metadata(cls)
+
+    # Jinja2 comes with the docs requirements; discovering the methods does not need it.
+    from jinja2 import Template
 
     # Load the Jinja2 template
     with open(template_path, "r", encoding="utf-8") as f:

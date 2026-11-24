@@ -62,7 +62,7 @@ class FileLoader(Method):
         >>> summary, timeseries = gen.generate(data)  # data contains external time series
     """
 
-    types = VALID_TYPES  # Adapt as needed
+    types = sorted(VALID_TYPES)
     name = "file"
 
     required_keys = [O.ID, O.FILE]

@@ -289,6 +289,17 @@ intervals.
 **Energy.** All four models report demand as the sum of load times step. 5R1C
 and 7R2C used the trapezoidal rule.
 
+**7R2C equivalent outdoor temperature.** 7R2C weights the equivalent outdoor
+temperature as VDI 6007 does: each element's share is its own ``U·A`` over
+the ``U·A`` of the exterior envelope, which now includes the inner surface
+resistance ``R_in``. Windows are matched to the object by ``id``, as for the
+solar gains. Before, the window share summed ``u_value × area`` over every row
+of the windows table, so with a shared table the opaque share fell to zero and
+the equivalent temperature became the air temperature amplified. Cooling
+falls, often strongly; on the 7R2C example it went from 2.9–34.7 MWh to
+0.5–4.7 MWh per building before the example gained its solar gains.
+Recalculate 7R2C results that you compare with earlier runs.
+
 **1R0C indoor temperature.** 1R0C keeps the indoor temperature between
 ``min_temperature[C]`` and ``max_temperature[C]``, like the other RC models.
 Without heating or cooling, the zone takes ``T_out + gains / H`` in each

@@ -203,3 +203,29 @@ def test_the_service_emits_no_pandas_deprecation_warnings():
         if hasattr(pd.errors, "Pandas4Warning"):
             warnings.simplefilter("error", pd.errors.Pandas4Warning)
         _get("Europe/Berlin")
+
+
+def test_a_range_ending_today_does_not_request_tomorrow(monkeypatch, caplog):
+    # The archive accepts end dates up to today (UTC); asking for the day after fails the whole request.
+    monkeypatch.setattr("entise.services.weather.openmeteo._utc_today", lambda: date(2022, 6, 2))
+
+    with caplog.at_level("WARNING"):
+        df, calls = _get("Europe/Berlin", start="2022-06-01", end="2022-06-02")
+
+    assert calls[0]["end_date"] == "2022-06-02"
+    assert len(df) == 48
+    assert df[C.DATETIME].iloc[-1] == pd.Timestamp("2022-06-02 23:00", tz="Europe/Berlin")
+    # Only the hourly means of the last hour lack their following value.
+    assert df[GHI].iloc[:-1].notna().all() and np.isnan(df[GHI].iloc[-1])
+    assert df[RAIN].iloc[:-1].notna().all() and np.isnan(df[RAIN].iloc[-1])
+    assert df[TEMP].notna().all()
+    assert GHI in caplog.text and RAIN in caplog.text and TEMP not in caplog.text
+
+
+def test_a_range_ending_yesterday_still_requests_the_extra_day(monkeypatch):
+    monkeypatch.setattr("entise.services.weather.openmeteo._utc_today", lambda: date(2022, 6, 3))
+
+    df, calls = _get("Europe/Berlin", start="2022-06-01", end="2022-06-02")
+
+    assert calls[0]["end_date"] == "2022-06-03"
+    assert df[GHI].notna().all()

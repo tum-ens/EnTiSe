@@ -29,7 +29,7 @@ dependencies = [
     "pandas>=2.2.2,<4",
     "tqdm>=4.0.0",
 ]
-requires-python = ">=3.11,<3.15"
+requires-python = ">=3.11"
 
 [project.optional-dependencies]
 dhw-jordanvajen = ["holidays>=0.50", "scipy"]
@@ -79,7 +79,7 @@ docs = [
     "sphinx-rtd-theme",
 ]
 numba = [
-    "numba>=0.59",
+    "numba>=0.60",
 ]
 # Commented out for PyPI compatibility - install manually if needed
 # districtheatingsim = [
@@ -90,9 +90,6 @@ numba = [
 "Homepage" = "https://gitlab.lrz.de/tum-ens/need/entise"
 "Bug Tracker" = "https://gitlab.lrz.de/tum-ens/need/entise/-/issues"
 "Documentation" = "https://entise.readthedocs.io"
-
-[tool.setuptools]
-packages = ["entise"]
 
 [tool.hatch.version]
 source = "vcs"
