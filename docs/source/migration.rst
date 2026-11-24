@@ -79,6 +79,16 @@ shared Python name is dropped, and they are set by their keys. A ``TypeError``
 is also raised if an entry in ``input_aliases`` names an input that is not
 declared or reuses another input's name. Before, declarations were not checked.
 
+**New: several types from one calculation.** This is an addition; existing
+methods need no change. A method that produces several time-series types from
+one calculation can subclass ``GroupedMethod`` from ``entise.core.grouped``
+together with ``Method``. It lists those types in ``types`` and implements
+``generate_combined``, which returns one result whose columns and summary keys
+are prefixed with their type, such as ``heating:load[W]``. The runner then calls
+the method once per object for all the types that select it, and each type gets
+its own result. Route a direct call with ``ts_type`` through ``group_result``.
+See :ref:`api_core` for the details.
+
 Constants
 ---------
 
