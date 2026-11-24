@@ -3,8 +3,6 @@ import inspect
 import os
 import pkgutil
 
-from jinja2 import Template
-
 from entise.constants import VALID_TYPES
 from entise.core.base import Method
 from entise.core.base_auxiliary import AuxiliaryMethod
@@ -314,6 +312,9 @@ def generate_docs_for_method(cls, timeseries_type, template_path, output_dir):
       - output_dir: Directory to save the generated documentation.
     """
     metadata = extract_method_metadata(cls)
+
+    # Jinja2 comes with the docs requirements; discovering the methods does not need it.
+    from jinja2 import Template
 
     # Load the Jinja2 template
     with open(template_path, "r", encoding="utf-8") as f:
