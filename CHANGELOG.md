@@ -37,6 +37,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Added contributor guidance for method contracts, offline testing, and method merge request review. (`#109`)
 
 ### Fixed
+- The Open-Meteo provider accepts a range that ends today. It requests the day after `end_date` to get the interval values of the last hour, but the archive serves days only up to today (UTC) and rejected the whole request. For a range ending today, the last hour of each interval quantity, such as radiation or precipitation, is now `NaN`, with a warning. (`#137`)
+- A method that cannot be imported fails the strict documentation build. Before, the method reference only printed the error and left the method out. The `file` method lists its types in sorted order, so its reference pages no longer change between builds. (`#137`)
 - **Behavior change**: 7R2C weights its equivalent outdoor temperature as VDI 6007 does: each element's share is its own `U·A` over the exterior envelope's `U·A`. (`#131`, `#133`)
   - Before, the window share added `u_value × area` over every row of the windows table. With the shared example table, that is 9 buildings' windows, 761 W/K.
   - That sum exceeded the envelope's conductance, so the opaque share fell to zero. The equivalent temperature became the air temperature amplified, for example 3.4 × `T_air` for `SFH_mid`.
@@ -142,8 +144,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Documented how to contribute time-series methods in the shared `add-method` skill. (`#110`)
 - **Behavior change**: the Ruhnau heat pump reads keys prefixed with `hp:` before the plain keys, like the other methods. Before, it ignored them. (`#119`)
 - **Behavior change**: `Method.get_relevant_objects` resolves the declared keys with defaults (see *Added*). Before, it returned every key prefixed with the type, with the prefix removed, and the declared keys without defaults; no built-in method called it. Built-in methods declare `optional_keys` as a mapping, so code that adds lists to it, such as `PVLib.optional_keys + [...]`, must use `list(...)` or `get_requirements()`, which still returns lists. (`#119`)
+- `requires-python` no longer has an upper bound; EnTiSe is tested on Python 3.11 to 3.14. The `numba` extra requires numba 0.60 or newer, the first release that supports numpy 2. (`#137`)
+- PHT's `baseline_offset` default comes from its own constant, `Constants.DEFAULT_BASELINE_OFFSET` (0.05). Output is unchanged. (`#134`)
 
 ### Removed
+- Removed the `setup.py` script and the unused `[tool.setuptools]` settings. Hatchling builds the package; `setup.py` failed when run. (`#137`)
 - **Behavior change**: removed the `<key>_COL` object key that named the column of a table reference, such as `power_heating[W]_COL`. Write the reference as `table|column` instead, for example `power_heating[W]: caps|ph`. A table reference without a column now raises an error that shows this form. `gains_internal_column` and `ventilation_column` are unchanged. (`#119`)
 - Removed unused domestic hot water reference tables from the repository and packages. Jordan-Vajen retains its two active input tables and applies the 10 °C cold-water default directly. (`#126`)
 
