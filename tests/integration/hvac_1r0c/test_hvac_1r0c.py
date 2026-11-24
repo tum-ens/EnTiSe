@@ -53,7 +53,7 @@ def test_hvac_1r0c_ventilation_activation(timestamped):
         O.WEATHER: O.WEATHER,
         O.TIMEZONE: "UTC",
         O.RESISTANCE: 2.0,
-        O.TEMP_INIT: 22.0,
+        O.TEMP_MIN: 22.0,
         O.VENTILATION: 50.0,
     }
     if timestamped:
@@ -74,7 +74,7 @@ def test_hvac_1r0c_ventilation_activation(timestamped):
     summary, timeseries = generator.generate(data, workers=1, show_progress=False)
     heating = summary[f"{Types.HEATING}{SEP}{C.DEMAND}[Wh]"]
 
-    # At 0 °C outdoors, conduction accounts for 11 W in every hour.
+    # Heating holds 22 °C at 0 °C outdoors; conduction accounts for 11 W in every hour.
     assert heating.loc["zero"] == pytest.approx(33.0)
     assert heating.loc["enabled"] == pytest.approx(3333.0)
     assert heating.loc["default"] == heating.loc["enabled"]

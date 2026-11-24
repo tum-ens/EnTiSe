@@ -39,6 +39,12 @@ class R1C0(Method):
     cooling demands over the simulation period. This model is typically used for
     building energy performance analysis and HVAC load calculations.
 
+    The zone has no thermal mass. In each interval it takes its free-running
+    temperature ``T_out + gains / H``, where ``H`` is the conductance ``1 / R``
+    plus ventilation. As in 1R1C, heating and cooling keep it between
+    ``min_temperature[C]`` and ``max_temperature[C]``, within their power
+    limits. ``init_temperature[C]`` has no effect.
+
     Attributes:
         types (list): A list of applicable types for the method. In this case, it
             includes only Types.HVAC.
@@ -127,9 +133,10 @@ class R1C0(Method):
                 - ``active_heating`` and ``active_cooling`` (bool): Whether heating and cooling are active.
                 - ``ventilation`` (``ventilation[W K-1]``): Ventilation rate in W/K.
                 - ``active_ventilation`` (bool): Include ventilation heat loss. Defaults to True.
-                - ``temp_init``, ``temp_min`` and ``temp_max`` (``init_temperature[C]``,
-                  ``min_temperature[C]``, ``max_temperature[C]``): Initial, minimum and maximum
-                  indoor temperature in °C.
+                - ``temp_min`` and ``temp_max`` (``min_temperature[C]``, ``max_temperature[C]``):
+                  Minimum and maximum indoor temperature in °C. ``temp_init``
+                  (``init_temperature[C]``) is accepted, but has no effect, because the zone
+                  has no thermal mass.
                 - ``gains_internal`` (``gains_internal[W]``): Internal heat gains in W.
                 - ``gains_solar`` (``gains_solar[W]``): Solar heat gains in W.
 
@@ -352,130 +359,51 @@ class R1C0(Method):
 def calculate_timeseries_1r0c(obj: dict, data: dict, timestep: float) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Calculate HVAC time series using a 1R0C model.
 
-    This function simulates the thermal behavior of a building using a simple
-    one-resistance (1R0C) model. It calculates the indoor temperature
-    and the heating and cooling power required to maintain comfort conditions.
+    The zone has a heat transfer coefficient ``H = 1 / R + H_ve`` and no thermal
+    mass. Without heating or cooling it takes the free-running temperature
+    ``T_free = T_out + (Q_solar + Q_internal) / H`` in every interval. As in the
+    other RC models, heating and cooling keep the indoor temperature between
+    ``min_temperature[C]`` and ``max_temperature[C]``:
+
+    - below the minimum, heating supplies ``H * (T_min - T_free)``, up to its power limit;
+    - above the maximum, cooling removes ``H * (T_free - T_max)``, up to its power limit;
+    - in between, there is no load and the zone floats at ``T_free``.
+
+    The indoor temperature is ``T_free + (P_heat - P_cool) / H``. Without thermal
+    mass, ``init_temperature[C]`` has no effect.
 
     Args:
-        obj (dict): A dictionary containing building parameters such as thermal
-            resistance, initial temperature, temperature limits, and
-            heating/cooling capabilities.
-        data (dict): A dictionary containing time-series data such as weather
-            information, solar gains, internal gains, and ventilation rates.
-        timestep (float): The time step in seconds for the simulation.
+        obj (dict): Building parameters: resistance, temperature limits, and
+            heating and cooling switches and power limits.
+        data (dict): Time series: weather, solar gains, internal gains and
+            ventilation in W/K.
+        timestep (float): The time step in seconds. Row t is the interval [t, t + step).
 
     Returns:
         tuple: A tuple containing:
-            - temp_in (np.ndarray): Array of indoor temperatures over time.
-            - p_heat (np.ndarray): Array of heating power over time.
-            - p_cool (np.ndarray): Array of cooling power over time.
-
-    Notes:
-        - The function simulates the building's thermal behavior time step by time step
-        - At each time step, it calculates the net heat transfer, the required heating
-          and cooling power, and the resulting indoor temperature
-        - The simulation accounts for thermal inertia, heat gains, and heat losses
-        - The function uses NumPy for efficient numerical computations and is trimmed for speed
+            - temp_in (np.ndarray): Indoor temperature in each interval.
+            - p_heat (np.ndarray): Mean heating power in each interval.
+            - p_cool (np.ndarray): Mean cooling power in each interval.
     """
-    # Get objects
-    thermal_resistance = np.float32(obj[O.RESISTANCE])
-    temp_init = np.float32(obj[O.TEMP_INIT])
     temp_min = np.float32(obj[O.TEMP_MIN])
     temp_max = np.float32(obj[O.TEMP_MAX])
-    active_heat = bool(obj[O.ACTIVE_HEATING])
-    active_cool = bool(obj[O.ACTIVE_COOLING])
-    power_heat_max = np.float32(obj[O.POWER_HEATING])
-    power_cool_max = np.float32(obj[O.POWER_COOLING])
 
-    # Get data
     weather = data[O.WEATHER]
     temp_air = weather[C.TEMP_AIR].to_numpy(dtype=np.float32, copy=False)
     solar_gains = data[O.GAINS_SOLAR].to_numpy(dtype=np.float32, copy=False).ravel()
     internal_gains = data[O.GAINS_INTERNAL].to_numpy(dtype=np.float32, copy=False).ravel()
     ventilation = data[O.VENTILATION].to_numpy(dtype=np.float32, copy=False).ravel()
 
-    n_steps = temp_air.shape[0]
-    temp_in = np.empty(n_steps, dtype=np.float32)
-    p_heat = np.zeros(n_steps, dtype=np.float32)
-    p_cool = np.zeros(n_steps, dtype=np.float32)
+    h_total = np.float32(1.0) / np.float32(obj[O.RESISTANCE]) + ventilation
+    temp_free = temp_air + (solar_gains + internal_gains) / h_total
 
-    # Precompute invariants for the inner loop (these reduce the number of divisions to speed up calculations)
-    inv_resistance = np.float32(1.0) / thermal_resistance
-    # inv_timestep = np.float32(1.0) / timestep
+    zeros = np.zeros_like(temp_free)
+    p_heat = zeros
+    p_cool = zeros
+    if bool(obj[O.ACTIVE_HEATING]):
+        p_heat = np.minimum(np.maximum(h_total * (temp_min - temp_free), 0), np.float32(obj[O.POWER_HEATING]))
+    if bool(obj[O.ACTIVE_COOLING]):
+        p_cool = np.minimum(np.maximum(h_total * (temp_free - temp_max), 0), np.float32(obj[O.POWER_COOLING]))
+    temp_in = temp_free + (p_heat - p_cool) / h_total
 
-    # Heat Demand  is equal to ((timesteps count * set temp- sum of outdoor temps) * (1/R))
-    # Row t is the interval [t, t + step), driven by the forcing of row t.
-    for t in range(n_steps):
-        # Passive heat transfer and gains
-        net_transfer = calc_net_heat_transfer(
-            temp_air[t], temp_init, solar_gains[t], internal_gains[t], ventilation[t], inv_resistance
-        )
-
-        # Heating power
-        p_heat[t] = calc_heating_power(temp_air[t], temp_min, net_transfer, power_heat_max, active_heat)
-
-        # Cooling power
-        p_cool[t] = calc_cooling_power(temp_air[t], temp_max, net_transfer, power_cool_max, active_cool)
-
-        temp_in[t] = temp_init
-
-    return temp_in, p_heat, p_cool
-
-
-def calc_net_heat_transfer(
-    temp_air: float,
-    temp_init: float,
-    solar_gains: float,
-    internal_gains: float,
-    ventilation: float,
-    inv_resistance: float,
-) -> float:
-    """Calculate net heat transfer for a building zone."""
-    delta_temp = temp_air - temp_init
-    conduction_loss = delta_temp * inv_resistance
-    ventilation_loss = ventilation * delta_temp
-    return conduction_loss + ventilation_loss + solar_gains + internal_gains
-
-
-def calc_heating_power(
-    temp_air: float,
-    temp_min: float,
-    net_transfer: float,
-    power_heat_max: float,
-    active: bool,
-) -> float:
-    """Calculate required heating power for a building zone."""
-    if not active:
-        return 0
-
-    if temp_air > temp_min:
-        return 0
-
-    required_heating_power = -net_transfer
-
-    if required_heating_power > 0:
-        return min(required_heating_power, power_heat_max)
-
-    return 0
-
-
-def calc_cooling_power(
-    temp_air: float,
-    temp_max: float,
-    net_transfer: float,
-    power_cool_max: float,
-    active: bool,
-) -> float:
-    """Calculate required cooling power for a building zone."""
-    if not active:
-        return 0
-
-    if temp_air < temp_max:
-        return 0
-
-    required_cooling_power = net_transfer
-
-    if required_cooling_power > 0:
-        return min(required_cooling_power, power_cool_max)
-
-    return 0
+    return temp_in.astype(np.float32), p_heat.astype(np.float32), p_cool.astype(np.float32)

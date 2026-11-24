@@ -146,3 +146,60 @@ def test_r1c0_air_changes_without_geometry_use_the_default_volume(minimal_weathe
 
     h_ve = 0.5 * Const.DEFAULT_AREA.value * Const.DEFAULT_HEIGHT.value * 1.2 * 1000 / 3600
     assert _air_change_heating_load(minimal_weather) == pytest.approx(20.0 * (1.0 + h_ve), abs=1.0)
+
+
+def _band_run(temp_air: float, gains: float, **keys) -> pd.DataFrame:
+    """Run 1R0C for 24 constant hours with H = 100 W/K, no ventilation and an indoor band of 20-25 °C."""
+    index = pd.date_range("2025-01-01", periods=24, freq="h", tz="UTC")
+    weather = pd.DataFrame({C.DATETIME: index, C.TEMP_AIR: np.full(24, temp_air)}, index=index)
+    obj = {
+        O.ID: "band",
+        O.RESISTANCE: 0.01,
+        O.VENTILATION: 0.0,
+        O.GAINS_INTERNAL: gains,
+        O.TEMP_MIN: 20.0,
+        O.TEMP_MAX: 25.0,
+        **keys,
+    }
+    return R1C0().generate(obj, {O.WEATHER: weather})[K.TIMESERIES]
+
+
+HEAT = f"{Types.HEATING}{SEP}{C.LOAD}[W]"
+COOL = f"{Types.COOLING}{SEP}{C.LOAD}[W]"
+
+
+def test_r1c0_floats_inside_the_band_without_load():
+    """Between the minimum and maximum, the zone takes its free-running temperature T_out + gains / H."""
+    ts = _band_run(15.0, 600.0)
+
+    assert ts[C.TEMP_IN].tolist() == pytest.approx([21.0] * 24)
+    assert (ts[HEAT] == 0).all() and (ts[COOL] == 0).all()
+
+
+def test_r1c0_cools_down_to_the_maximum_whatever_the_outdoor_temperature():
+    """Gains that push the zone above the maximum are cooled away, also when it is cooler outside."""
+    ts = _band_run(22.0, 800.0)
+
+    assert ts[COOL].tolist() == [500] * 24
+    assert ts[C.TEMP_IN].tolist() == pytest.approx([25.0] * 24)
+    assert (ts[HEAT] == 0).all()
+
+
+@pytest.mark.parametrize("init", [20.0, 22.0])
+def test_r1c0_heats_up_to_the_minimum_and_ignores_the_initial_temperature(init):
+    """Heating holds the minimum; 1R0C has no thermal mass, so the initial temperature has no effect."""
+    ts = _band_run(0.0, 0.0, **{O.TEMP_INIT: init})
+
+    assert ts[HEAT].tolist() == [2000] * 24
+    assert ts[C.TEMP_IN].tolist() == pytest.approx([20.0] * 24)
+
+
+def test_r1c0_capped_or_switched_off_plant_leaves_the_zone_outside_the_band():
+    """With too little power, or with the plant off, the zone ends up where the available power leaves it."""
+    capped = _band_run(0.0, 0.0, **{O.POWER_HEATING: 1000.0})
+    off = _band_run(22.0, 800.0, **{O.ACTIVE_COOLING: False})
+
+    assert capped[HEAT].tolist() == [1000] * 24
+    assert capped[C.TEMP_IN].tolist() == pytest.approx([10.0] * 24)
+    assert (off[COOL] == 0).all()
+    assert off[C.TEMP_IN].tolist() == pytest.approx([30.0] * 24)

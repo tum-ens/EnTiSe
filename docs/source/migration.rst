@@ -209,6 +209,17 @@ intervals.
 **Energy.** All four models report demand as the sum of load times step. 5R1C
 and 7R2C used the trapezoidal rule.
 
+**1R0C indoor temperature.** 1R0C keeps the indoor temperature between
+``min_temperature[C]`` and ``max_temperature[C]``, like the other RC models.
+Without heating or cooling, the zone takes ``T_out + gains / H`` in each
+interval. Before, it held ``init_temperature[C]`` in every step. It heated
+only when the outdoor air was at or below the minimum and cooled only when it
+was at or above the maximum. Cooling demand rises, and heating stays the same
+when ``init_temperature[C]`` equals the minimum. ``init_temperature[C]`` now
+has no effect in 1R0C. Row 0 is the first interval's temperature, not an
+initial state. If you used ``init_temperature[C]`` as the setpoint, set
+``min_temperature[C]`` to that value instead.
+
 **Auxiliary tables.** Internal gains, ventilation and ``table|column``
 references align with the weather by timestamp. A table without timestamps is
 used row by row only if it has one row per weather step, with a warning; any
