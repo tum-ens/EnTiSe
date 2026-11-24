@@ -9,11 +9,12 @@ import os
 import numpy as np
 import pandas as pd
 
+from entise._optional import requires_extra
+
 # Constants
 SECONDS_PER_MINUTE = 60
 MINUTES_PER_HOUR = 60
 HOURS_PER_DAY = 24
-DAYS_PER_YEAR = 365.0
 SECONDS_PER_HOUR = SECONDS_PER_MINUTE * MINUTES_PER_HOUR
 SECONDS_PER_DAY = SECONDS_PER_HOUR * HOURS_PER_DAY
 LITERS_PER_M3 = 1000.0
@@ -76,42 +77,6 @@ def _convert_time_to_seconds_of_day(time_strings: pd.Series) -> np.ndarray:
     ).values
 
 
-def _find_nearest_activity_times(activity_times: np.ndarray, seconds_of_day: np.ndarray) -> np.ndarray:
-    """
-    Find the nearest activity time for each timestamp.
-
-    This function finds the nearest activity time for each timestamp using binary search.
-
-    Parameters:
-    -----------
-    activity_times : np.ndarray
-        Array of activity times in seconds of day
-    seconds_of_day : np.ndarray
-        Array of timestamp times in seconds of day
-
-    Returns:
-    --------
-    np.ndarray
-        Array of indices into activity_times for each timestamp
-    """
-    # Sort activity times for searchsorted
-    order = np.argsort(activity_times)
-    times_sorted = activity_times[order]
-
-    # Find nearest activity slot for every timestamp
-    pos = np.searchsorted(times_sorted, seconds_of_day, side="left")
-    left = np.clip(pos - 1, 0, len(times_sorted) - 1)
-    right = np.clip(pos, 0, len(times_sorted) - 1)
-
-    # Determine whether left or right index is closer
-    left_diff = np.abs(seconds_of_day - times_sorted[left])
-    right_diff = np.abs(seconds_of_day - times_sorted[right])
-    choose_right = right_diff < left_diff
-
-    # Return the index of the nearest activity time
-    return np.where(choose_right, right, left), order
-
-
 def _sample_event_volumes(
     mean_flow: float, sigma_relative: float, num_events: int, rng: np.random.Generator
 ) -> np.ndarray:
@@ -137,7 +102,8 @@ def _sample_event_volumes(
     np.ndarray
         Array of sampled volumes
     """
-    from scipy.stats import truncnorm
+    with requires_extra("dhw-jordanvajen", "scipy"):
+        from scipy.stats import truncnorm
 
     mu = mean_flow
     sigma = mu * sigma_relative

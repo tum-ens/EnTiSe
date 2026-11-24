@@ -7,6 +7,7 @@ from entise.constants import Objects as O
 from entise.constants import Types
 from entise.core.base import Method
 from entise.core.base_auxiliary import AuxiliaryMethod
+from entise.methods.auxiliary._align import align_to_weather
 
 log = logging.getLogger(__name__)
 
@@ -101,7 +102,7 @@ class InternalTimeSeries(AuxiliaryMethod):
 
     def get_input_data(self, obj, data):
         gains_key = obj.get(O.GAINS_INTERNAL)
-        gains_ts = data.get(gains_key)
+        gains_ts = align_to_weather(data, gains_key)
         input_data = {
             O.ID: obj.get(O.ID, None),
             O.GAINS_INTERNAL_COL: obj.get(O.GAINS_INTERNAL_COL, None),
@@ -119,13 +120,11 @@ class InternalTimeSeries(AuxiliaryMethod):
         except KeyError as err:
             log.error('Internal gains column "%s" does not exist', col)
             raise Warning(
-                f"Neither explicit (column name) or implicit (column id) are specified." f"Given input column: {col}"
+                f"Neither explicit (column name) or implicit (column id) are specified.Given input column: {col}"
             ) from err
         # Match the dtype of the constant/inactive paths so downstream
         # consumers (e.g. the R1C1 numba wrapper) get a zero-copy view.
-        return pd.DataFrame(
-            {O.GAINS_INTERNAL: internal_gains.astype(np.float32, copy=False)}, index=internal_gains.index
-        )
+        return pd.DataFrame({O.GAINS_INTERNAL: internal_gains.astype(np.float32)}, index=internal_gains.index)
 
 
 class InternalOccupancy(Method):

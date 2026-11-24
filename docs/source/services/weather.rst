@@ -4,6 +4,37 @@ Weather Service
 
 The Weather Service module provides a modular approach to retrieving weather data from various sources. It includes a base ``WeatherProvider`` interface, specific provider implementations, and a ``WeatherService`` facade for easy access to weather data.
 
+Install the service with ``pip install "entise[weather]"``.
+
+.. _open-meteo-terms:
+
+Open-Meteo data and API terms
+-----------------------------
+
+`Weather data by Open-Meteo <https://open-meteo.com/>`_ is licensed
+under `CC BY 4.0 <https://creativecommons.org/licenses/by/4.0/>`_.
+Credit Open-Meteo where you display its data, link the license and
+describe any changes. See the `Open-Meteo data license
+<https://open-meteo.com/en/licence#licence>`_.
+
+The hosted API has separate `terms of use
+<https://open-meteo.com/en/terms>`_. Open-Meteo limits its free hosted
+endpoint to non-commercial use and applies request quotas. Check the
+terms for your use of the hosted service.
+
+.. _example-weather-attribution:
+
+Sample weather
+--------------
+
+The examples use `weather data by Open-Meteo
+<https://open-meteo.com/>`_ under
+`CC BY 4.0 <https://creativecommons.org/licenses/by/4.0/>`_.
+EnTiSe converted units, renamed columns, relabelled hourly irradiance
+at the start of each interval and added mid-interval solar elevation.
+The notice beside ``examples/common_data/weather.csv`` describes the
+changes in detail.
+
 Architecture
 ------------
 
@@ -15,6 +46,32 @@ The Weather Service is designed with a modular architecture:
    * Currently includes ``OpenMeteoProvider`` for retrieving data from the Open-Meteo API.
 
 3. **WeatherService Facade**: A facade that provides a simple interface for accessing weather data from different providers.
+
+Time Labels and Time Zones
+--------------------------
+
+The service returns data on EnTiSe's :ref:`time contract <time-contract>`:
+
+* **Start labels.** Each row is labelled at the start of its hour. Open-Meteo
+  labels its hourly aggregates (radiation means, precipitation, rain and
+  snowfall sums, evapotranspiration, sunshine duration and gusts) at the end of
+  the hour, so the service moves them one hour earlier. Instantaneous values,
+  such as air temperature, wind speed or the ``*_instant`` radiation variables,
+  keep their labels.
+* **One extra day.** To fill the last requested hour, the service requests one
+  more day than ``end_date`` and drops it again, so the result covers the local
+  days from ``start_date`` to ``end_date``, both included.
+* **Solar elevation.** ``solar_elevation_angle[degree]`` is the sun's elevation
+  at the middle of each hour.
+* **Time zones.** ``timezone`` sets both the local days of the request and the
+  zone of the returned timestamps:
+
+  * ``None`` (default): UTC days and UTC timestamps;
+  * an IANA name, such as ``"Europe/Berlin"``: that zone's local days and
+    timestamps. Case and surrounding spaces are ignored;
+  * ``"auto"``: the zone Open-Meteo assigns to the location.
+
+  Any other value raises a ``ValueError`` before the request.
 
 Usage Examples
 --------------

@@ -37,6 +37,11 @@ Runner (entise.core.runner.Runner)
   - Ensures dependencies required by a method are available: either computed first for the same object or accepted if
     provided via input data.
   - Caches results per type for the object so dependencies are only computed once.
+  - Calls a method's ``generate_group(obj, data, results, ts_types)``, if it has one, once for all the types of its
+    ``types`` that select it on the object. It stores the group's results only when every one is valid. A method
+    that produces several types from one calculation gets this hook from ``entise.core.grouped.GroupedMethod``, for
+    example the RC models for ``heating`` and ``cooling``.
+  - Reports a dependency cycle between an object's types as an error.
 
 Method base class (entise.core.base.Method)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -45,10 +50,11 @@ Method base class (entise.core.base.Method)
   - Class attributes declare the method’s surface:
     - types: list of supported timeseries types (see entise.constants.ts_types.Types)
     - name: strategy name used for selection (registered automatically)
-    - required_keys / optional_keys: scalar parameters expected in the object metadata
+    - required_keys / optional_keys: keys read from the object metadata; optional_keys may map each key to its default
     - required_data / optional_data: names of required/optional input timeseries in data
     - output_summary / output_timeseries: keys and human-readable descriptions for produced outputs
   - Provides helpers for common tasks:
+    - get_relevant_objects(obj, ts_type): resolve every declared key from the prefixed key (``hvac:area[m2]``), the plain key, then its default
     - _process_kwargs(...): merge explicit parameters with obj/data dicts
     - resolve_column(...): consistent access to method-prefixed or generic column names
     - get_with_backup(...) and get_with_method_backup(...): parameter lookup with method-specific fallbacks
@@ -78,7 +84,8 @@ Data flow and call sequence
    - Looks up the selected strategy (e.g., "1R1C" → HVAC.R1C1, "pvlib" → PV.PVLib).
    - Ensures all required_data are present. If a required type is configured for the same object, it resolves that first.
 
-4. Method.generate(obj, data, results, ts_type) is called to compute outputs for the type.
+4. Method.generate(obj, data, results, ts_type) is called to compute outputs for the type, or
+   Method.generate_group(obj, data, results, ts_types) for all the types the method calculates together.
 5. Runner stores the result; Generator aggregates summaries and returns (summary_df, results_dict).
 
 Execution model and performance
@@ -88,8 +95,8 @@ Execution model and performance
   (e.g., preprocessed weather). Use workers=1 for deterministic debugging or small jobs; use -1 to utilize all cores.
 - Error handling: By default, errors inside a method propagate. Configure raise_on_error on the Generator to adapt
   handling if you wish to catch/record errors (implementation may vary per version).
-- Determinism: Methods that include stochastic elements should accept a seed in the object metadata to make runs
-  reproducible.
+- Determinism: Methods that include stochastic elements should accept a seed in the object metadata and draw from
+  ``entise.core._random.method_rng``, which also applies the run seed of ``Generator.generate(..., seed=...)``.
 
 Extension points (how to add a new method)
 ------------------------------------------
@@ -98,9 +105,9 @@ Extension points (how to add a new method)
 2. Set class attributes appropriately:
    - types = [Types.PV] (or multiple types if your method supports them)
    - name = "my_method" (used as strategy selector, auto-registered via metaclass, MUST be unique across all methods)
-   - required_keys / optional_keys and required_data / optional_data
+   - required_keys / optional_keys (with each optional key's default) and required_data / optional_data
    - output_summary / output_timeseries (keys and human-readable descriptions)
-3. Implement generate(self, obj, data, results, ts_type) and return a dict with
+3. Implement generate(self, obj, data, results, ts_type), resolve its keys with get_relevant_objects, and return a dict with
    - "summary": dict of KPIs (keys should match output_summary)
    - "timeseries": pandas.DataFrame with a datetime index/column and columns as defined in output_timeseries
 4. Import your class in the package’s __init__.py of that domain so it’s importable (e.g., entise.methods.pv.__init__).

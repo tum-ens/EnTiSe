@@ -1,5 +1,7 @@
 import logging
+from collections.abc import Callable
 from contextlib import contextmanager
+from os import getpid
 from typing import Any, Dict, List, Tuple
 
 import pandas as pd
@@ -7,10 +9,15 @@ from joblib import Parallel, delayed
 from joblib import parallel as joblib_parallel
 from tqdm import tqdm
 
-from entise.constants import VALID_TYPES
+from entise.constants import SEP, VALID_TYPES
 from entise.constants import Keys as K
 from entise.constants import Objects as O
+from entise.core._random import check_run_seed
+from entise.core._time import RUN_TIME_KEY, UTC, RunTime
 from entise.core.runner import Runner
+from entise.perf import _get_accelerator_mode, _use_accelerator_mode
+
+logger = logging.getLogger(__name__)
 
 
 @contextmanager
@@ -46,6 +53,49 @@ def tqdm_joblib(tqdm_object):
             tqdm_object.close()
         except Exception:
             pass
+
+
+def _process_with_accelerator(
+    process_object: Callable[[dict, Dict[str, pd.DataFrame]], Dict[str, Any]],
+    obj: dict,
+    data: Dict[str, pd.DataFrame],
+    mode: str,
+    caller_pid: int,
+) -> Dict[str, Any]:
+    """Use the submitting process mode for this task in a different process."""
+    if getpid() == caller_pid:
+        return process_object(obj, data)
+    with _use_accelerator_mode(mode):
+        return process_object(obj, data)
+
+
+def _merge_summaries(obj_id: Any, summaries: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
+    """Merge the summaries of an object's types into one mapping.
+
+    A key that two or more types write, such as ``heating:demand[Wh]`` from an
+    HVAC model and from a heat profile, is kept for each of them, prefixed with
+    the type that wrote it (``hvac:heating:demand[Wh]``). Keys written by one
+    type keep their names.
+    """
+    writers: Dict[str, List[str]] = {}
+    for ts_type, values in summaries.items():
+        for key in values:
+            writers.setdefault(key, []).append(ts_type)
+    shared = {key for key, types in writers.items() if len(types) > 1}
+    if shared:
+        example = min(shared)
+        logger.warning(
+            "Object '%s': the types %s all report %s; each value is kept with its type as a prefix, for example '%s'.",
+            obj_id,
+            sorted({ts_type for key in shared for ts_type in writers[key]}),
+            sorted(shared),
+            f"{writers[example][0]}{SEP}{example}",
+        )
+    merged: Dict[str, Any] = {}
+    for ts_type, values in summaries.items():
+        for key, value in values.items():
+            merged[f"{ts_type}{SEP}{key}" if key in shared else key] = value
+    return merged
 
 
 class Generator:
@@ -97,10 +147,13 @@ class Generator:
         pre_dispatch: int | str = "2*n_jobs",
         backend: str = "loky",
         show_progress: bool = True,
+        utc: bool = False,
+        seed: int | None = None,
     ) -> Tuple[pd.DataFrame, Dict[str, pd.DataFrame]]:
         """
         Generates time series data by processing objects in parallel or sequentially
-        based on the number of workers specified. Supports batching to reduce
+        based on the number of workers specified. Process workers use the accelerator
+        mode selected at the time of this call. Supports batching to reduce
         scheduling and serialization overhead when running in parallel.
 
         Args:
@@ -118,6 +171,17 @@ class Generator:
                 "threading" for threads). Defaults to "loky".
             show_progress (bool, optional): If True, display a progress bar. In
                 parallel mode, the bar updates on batch completion. Defaults to True.
+            utc (bool, optional): Methods index their outputs with ``output_index``,
+                which uses each object's site time zone (the ``timezone`` key, UTC if
+                not set). If True, those outputs are indexed in UTC instead. Methods
+                that pass a table through, such as ``file``, keep its index.
+                Defaults to False.
+            seed (int | None, optional): Run seed for methods that draw random numbers.
+                Each object and time series type draws from its own stream, derived
+                from the run seed, the object's ``id`` and the type, so results do not
+                depend on the order of the objects, the number of workers, the batch
+                size or the process. An object's own ``seed`` takes precedence. If
+                None, such methods draw different numbers in every run. Defaults to None.
 
         Returns:
             Tuple[pd.DataFrame, Dict[str, pd.DataFrame]]: A tuple containing the
@@ -126,12 +190,18 @@ class Generator:
 
         Raises:
             ValueError: If no objects are added to the processing pipeline before
-            calling this method.
+            calling this method, or if ``seed`` is negative.
+            TypeError: If ``seed`` is not an integer.
         """
         if self.objects.empty:
             raise ValueError("No objects have been added for processing.")
+        seed = check_run_seed(seed)
+
+        # Read every time table once for the whole run. The caller's mapping is not changed.
+        data = {**data, RUN_TIME_KEY: RunTime(data, utc=utc, seed=seed)}
 
         object_params = self.objects.to_dict("records")
+        self._warn_missing_time_zones(object_params)
 
         # Fast path: sequential
         if workers == 1:
@@ -168,14 +238,40 @@ class Generator:
             prefer="processes" if backend == "loky" else None,
         )
 
+        mode = _get_accelerator_mode()
+        caller_pid = getpid()
+        tasks = (
+            delayed(_process_with_accelerator)(self._safe_process_object, obj, data, mode, caller_pid)
+            for obj in object_params
+        )
+
         # Execute with a progress bar that advances by the number of objects completed
         if show_progress:
             with tqdm_joblib(tqdm(total=n, disable=not show_progress, unit="obj")):
-                results = process(delayed(self._safe_process_object)(obj, data) for obj in object_params)
+                results = process(tasks)
         else:
-            results = process(delayed(self._safe_process_object)(obj, data) for obj in object_params)
+            results = process(tasks)
 
         return self._collect_results(results)
+
+    def _warn_missing_time_zones(self, object_params: List[dict]) -> None:
+        """Warn once per run about objects whose local calendar falls back to UTC."""
+        missing = []
+        for obj in object_params:
+            value = obj.get(O.TIMEZONE)
+            if value is None or (not isinstance(value, str) and pd.isna(value)) or not str(value).strip():
+                missing.append(str(obj.get(O.ID)))
+        if not missing:
+            return
+        shown = ", ".join(missing[:10]) + (f" and {len(missing) - 10} more" if len(missing) > 10 else "")
+        self.logger.warning(
+            "Objects without '%s' use %s as their local calendar and output time zone: %s. "
+            "Set '%s' to an IANA name such as 'Europe/Berlin'.",
+            O.TIMEZONE,
+            UTC.key,
+            shown,
+            O.TIMEZONE,
+        )
 
     def _process_object(self, obj: dict, data: Dict[str, pd.DataFrame]) -> Dict[str, Any]:
         obj_id = obj.get(O.ID, None)
@@ -185,11 +281,9 @@ class Generator:
         executor = Runner(keys, data, strategies)
         main_outputs = executor.run_methods()
 
-        summary = {}
-        timeseries = {}
-        for ts_type, result in main_outputs.items():
-            summary.update(result.get(K.SUMMARY, {}))
-            timeseries[ts_type] = result.get(K.TIMESERIES, pd.DataFrame())
+        timeseries = {ts_type: result.get(K.TIMESERIES, pd.DataFrame()) for ts_type, result in main_outputs.items()}
+        summaries = {ts_type: result.get(K.SUMMARY, {}) for ts_type, result in main_outputs.items()}
+        summary = _merge_summaries(obj_id, summaries)
 
         return {O.ID: obj_id, K.SUMMARY: summary, K.TIMESERIES: timeseries}
 

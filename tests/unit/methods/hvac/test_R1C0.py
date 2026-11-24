@@ -108,3 +108,112 @@ def test_r1c0_constant_internal_gains(minimal_weather, dummy_windows):
     assert K.TIMESERIES in result
     assert isinstance(result[K.TIMESERIES], pd.DataFrame)
     assert C.TEMP_IN in result[K.TIMESERIES]
+
+
+def _air_change_heating_load(minimal_weather, **geometry):
+    """Mean heating load of a 1R0C zone at 0 °C outside whose ventilation is 0.5 air changes per hour."""
+    vent = pd.DataFrame({"rate[1/h]": np.full(24, 0.5)}, index=minimal_weather.index)
+    obj = {
+        O.ID: "obj1",
+        O.RESISTANCE: 1.0,
+        O.TEMP_INIT: 20.0,
+        O.TEMP_MIN: 20.0,
+        O.TEMP_MAX: 24.0,
+        O.POWER_HEATING: 1e6,
+        O.VENTILATION: "vent",
+        O.VENTILATION_COL: "rate[1/h]",
+        **geometry,
+    }
+    data = {O.WEATHER: minimal_weather, "vent": vent}
+    result = R1C0().generate(obj, data, Types.HVAC)
+    return result[K.TIMESERIES][f"{Types.HEATING}{SEP}{C.LOAD}[W]"].mean()
+
+
+@pytest.mark.parametrize("area", [100.0, 200.0])
+def test_r1c0_air_changes_use_the_zone_volume(minimal_weather, area):
+    """Ventilation in air changes per hour scales with the object's area and height."""
+    h_ve = 0.5 * area * 2.6 * 1.2 * 1000 / 3600
+    expected = 20.0 * (1.0 + h_ve)
+
+    load = _air_change_heating_load(minimal_weather, **{O.AREA: area, O.HEIGHT: 2.6})
+
+    assert load == pytest.approx(expected, abs=1.0)
+
+
+def test_r1c0_air_changes_without_geometry_use_the_default_volume(minimal_weather):
+    """Without area and height, the default zone volume applies."""
+    from entise.constants import Constants as Const
+
+    h_ve = 0.5 * Const.DEFAULT_AREA.value * Const.DEFAULT_HEIGHT.value * 1.2 * 1000 / 3600
+    assert _air_change_heating_load(minimal_weather) == pytest.approx(20.0 * (1.0 + h_ve), abs=1.0)
+
+
+def _band_run(temp_air: float, gains: float, **keys) -> pd.DataFrame:
+    """Run 1R0C for 24 constant hours with H = 100 W/K, no ventilation and an indoor band of 20-25 °C."""
+    index = pd.date_range("2025-01-01", periods=24, freq="h", tz="UTC")
+    weather = pd.DataFrame({C.DATETIME: index, C.TEMP_AIR: np.full(24, temp_air)}, index=index)
+    obj = {
+        O.ID: "band",
+        O.RESISTANCE: 0.01,
+        O.VENTILATION: 0.0,
+        O.GAINS_INTERNAL: gains,
+        O.TEMP_MIN: 20.0,
+        O.TEMP_MAX: 25.0,
+        **keys,
+    }
+    return R1C0().generate(obj, {O.WEATHER: weather})[K.TIMESERIES]
+
+
+HEAT = f"{Types.HEATING}{SEP}{C.LOAD}[W]"
+COOL = f"{Types.COOLING}{SEP}{C.LOAD}[W]"
+
+
+def test_r1c0_floats_inside_the_band_without_load():
+    """Between the minimum and maximum, the zone takes its free-running temperature T_out + gains / H."""
+    ts = _band_run(15.0, 600.0)
+
+    assert ts[C.TEMP_IN].iloc[1:].tolist() == pytest.approx([21.0] * 23)  # row 0 is the initial temperature
+    assert (ts[HEAT] == 0).all() and (ts[COOL] == 0).all()
+
+
+def test_r1c0_cools_down_to_the_maximum_whatever_the_outdoor_temperature():
+    """Gains that push the zone above the maximum are cooled away, also when it is cooler outside."""
+    ts = _band_run(22.0, 800.0)
+
+    assert ts[COOL].tolist() == [500] * 24
+    assert ts[C.TEMP_IN].iloc[1:].tolist() == pytest.approx([25.0] * 23)  # row 0 is the initial temperature
+    assert (ts[HEAT] == 0).all()
+
+
+@pytest.mark.parametrize("init", [20.0, 22.0])
+def test_r1c0_heats_up_to_the_minimum_whatever_the_initial_temperature(init):
+    """Heating holds the minimum; without thermal mass, the initial temperature does not change the loads."""
+    ts = _band_run(0.0, 0.0, **{O.TEMP_INIT: init})
+
+    assert ts[HEAT].tolist() == [2000] * 24
+    assert ts[C.TEMP_IN].iloc[1:].tolist() == pytest.approx([20.0] * 23)
+
+
+def test_r1c0_row_0_is_the_initial_temperature():
+    """Row 0 reports init_temperature[C], as in the other RC models; later rows are the zone's temperature."""
+    ts = _band_run(15.0, 600.0, **{O.TEMP_INIT: 18.5})
+
+    assert ts[C.TEMP_IN].iloc[0] == pytest.approx(18.5)
+    assert ts[C.TEMP_IN].iloc[1:].tolist() == pytest.approx([21.0] * 23)
+
+
+def test_r1c0_initial_temperature_defaults_to_the_minimum():
+    ts = _band_run(15.0, 600.0)
+
+    assert ts[C.TEMP_IN].iloc[0] == pytest.approx(20.0)
+
+
+def test_r1c0_capped_or_switched_off_plant_leaves_the_zone_outside_the_band():
+    """With too little power, or with the plant off, the zone ends up where the available power leaves it."""
+    capped = _band_run(0.0, 0.0, **{O.POWER_HEATING: 1000.0})
+    off = _band_run(22.0, 800.0, **{O.ACTIVE_COOLING: False})
+
+    assert capped[HEAT].tolist() == [1000] * 24
+    assert capped[C.TEMP_IN].iloc[1:].tolist() == pytest.approx([10.0] * 23)  # row 0 is the initial temperature
+    assert (off[COOL] == 0).all()
+    assert off[C.TEMP_IN].iloc[1:].tolist() == pytest.approx([30.0] * 23)  # row 0 is the initial temperature

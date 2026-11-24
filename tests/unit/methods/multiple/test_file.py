@@ -19,8 +19,10 @@ def test_fileloader_success(sample_data):
     result = loader.generate(obj, data)
 
     assert "timeseries" in result
-    assert result["timeseries"].equals(sample_data)
     assert isinstance(result["timeseries"], pd.DataFrame)
+    # The values come back unchanged on the same instants (in UTC, as the object sets no time zone).
+    assert list(result["timeseries"]["value"]) == list(sample_data["value"])
+    assert result["timeseries"].index.equals(sample_data.index.as_unit("us"))
 
 
 def test_fileloader_missing_key():
@@ -39,3 +41,9 @@ def test_fileloader_wrong_type():
     loader = FileLoader()
     with pytest.raises(TypeError, match="Expected a DataFrame for key 'not_a_dataframe'"):
         loader.generate(obj, data)
+
+
+def test_fileloader_lists_its_types_in_a_stable_order():
+    # The method reference pages list these types; a set would reorder them between builds.
+    assert isinstance(FileLoader.types, list)
+    assert FileLoader.types == sorted(FileLoader.types)

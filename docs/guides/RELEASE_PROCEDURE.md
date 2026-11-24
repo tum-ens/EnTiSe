@@ -1,203 +1,131 @@
-# Release Procedure
+# Release procedure
 
-This release procedure outlines the steps for managing releases in the GitLab environment.<br>
-These symbols help with orientation:
-- 🐙 GitLab
-- 💠 git (Bash)
-- 📝 File
-- 💻 Command Line (CMD)
-- 🧪 Testing
+EnTiSe uses annotated Git tags and Hatch VCS for package versions. Stable
+releases use `vMAJOR.MINOR.PATCH` and release candidates use
+`vMAJOR.MINOR.PATCHrcN`, for example `v2.0.0rc1`. A release tag is immutable.
+If the source changes or a published version is unusable, cut a new
+candidate or patch release from a reviewed commit.
 
+## Configure LRZ GitLab and the package indexes
 
-## Version Numbers
+A maintainer configures these settings before the first rehearsal.
 
-This software follows the [Semantic Versioning (SemVer)](https://semver.org/).<br>
-It always has the format `MAJOR.MINOR.PATCH`, e.g. `1.0.0`.
+- Protect `main`. Disable direct pushes and force pushes, restrict merges to
+  maintainers, and require review and a successful pipeline for merges. The
+  tag pipeline checks the tagged commit against the first-parent history of
+  `main`. The branch rules ensure those commits have passed review.
+- Protect tags matching `v*` and limit tag creation to maintainers. Check
+  inherited or overlapping tag rules for broader access.
+- In **Settings → CI/CD → Protected environments**, protect `testpypi` and
+  `pypi`. Allow only the release maintainers to deploy. Set a required
+  deployment approval on `pypi` from the release maintainer group and keep
+  pipeline-triggerer self-approval disabled. A maintainer approves the
+  deployment and starts the manual job once approval is recorded. Confirm
+  the LRZ project tier exposes both protections and approvals before issuing
+  the production credential. [GitLab deployment approvals](https://docs.gitlab.com/ci/environments/deployment_approvals/)
+- Create separate API tokens scoped to the `entise` project on TestPyPI and
+  PyPI. In **Settings → CI/CD → Variables**, add `TEST_PYPI_API_TOKEN` with
+  environment scope `testpypi` and `PYPI_API_TOKEN` with scope `pypi`.
+  Mark both variables protected, masked and hidden, and disable variable
+  expansion. Use the exact environment names and restrict pipeline variable
+  overrides and access to the publishing runner. PyPI Trusted Publishing
+  supports GitLab.com. The self-managed LRZ project uses API tokens.
+  [GitLab CI/CD variables](https://docs.gitlab.com/ci/variables/),
+  [PyPI Trusted Publishing](https://docs.pypi.org/trusted-publishers/adding-a-publisher/)
+- Confirm a trusted runner can execute jobs on the protected tags. Verify
+  that the two upload jobs receive only their environment's respective token.
+  Build, verification and post-upload jobs use public read access to the
+  indexes.
 
-**Note**: This project uses `hatch-vcs` for automatic versioning based on Git tags. The version is automatically derived from the latest Git tag.
+## Prepare and review the source
 
+1. Start a release issue and use the **Release_Checklist** merge request
+   template for the release into `main`. Summarize the release in
+   [CHANGELOG.md](../../CHANGELOG.md), move the entries out of `[Unreleased]`
+   into a dated release heading, and review the migration notes and examples.
+2. Merge the release only after review and the required checks pass,
+   including strict Sphinx and the supported Python and pandas matrix.
+   Native PyLPG is the only advisory job; review its result before tagging.
+3. Fetch `main` and its tags, confirm the exact reviewed merge commit and
+   record its SHA in the release issue. Use the same GitLab project for the
+   review, tag and release pipeline.
 
-## Release Process
+## Rehearse on TestPyPI
 
-### 1. 🧪 Run Complete Test Suite
-- **Unit Tests**: Run pytest to ensure all tests pass:
-    ```bash
-    pytest
-    ```
-- **Coverage Check**: Verify test coverage meets requirements:
-    ```bash
-    pytest --cov
-    ```
-- **Multi-Environment Testing**: Run tox to test across multiple Python versions/environments:
-    ```bash
-    tox
-    ```
-- **Build Test**: Verify the package builds correctly:
-    ```bash
-    uv build
-    ```
+Tag the reviewed commit with an unused candidate version and push just that
+tag. Substitute the reviewed merge SHA in the example. Create every release
+tag annotated (`git tag -a`). Hatch VCS takes the version from `git describe`,
+which prefers annotated tags and, of two on one commit, the newer one. So a
+final tag on a candidate's commit must be annotated and created after it.
 
-### 2. 📝 Update the `CHANGELOG.md`
-- **File**: Open the CHANGELOG.md file and add a new entry under the `[Unreleased]` section.
-- **Commit**: Commit your changes to the changelog, noting all new features, changes, and fixes.
-- **Version Entry**: Format the new version entry as follows:
-    ```markdown
-    ## [1.0.0] Short description - 2024-12-15
+```bash
+git fetch origin refs/heads/main:refs/remotes/origin/main --tags
+reviewed_sha=REPLACE_WITH_REVIEWED_MERGE_SHA
+tag=v2.0.0rc1
+git log -1 "$reviewed_sha"
+git tag -a "$tag" "$reviewed_sha" -m "Release candidate $tag"
+git push origin "refs/tags/$tag"
+```
 
-    ### Added
-    - New feature
-    - Another new feature
+1. Wait for the tag pipeline's build and verification stages. The build
+   creates one sdist and one wheel using the tag and saves them with
+   `dist/SHA256SUMS`. The required release jobs run the support matrix,
+   strict Sphinx and clean installs of the wheel, the wheel with
+   `pv-pvlib`, and the sdist. Review the results and the advisory logs.
+2. Download the `release:build` artifacts and verify both files from the
+   artifact directory with `sha256sum --check --strict SHA256SUMS`. Save the
+   manifest with the release issue. GitLab retains these artifacts for 30 days
+   by default. Keep the build and verification artifacts in GitLab if the
+   approval window may be longer.
+3. Have a release maintainer start `release:upload:testpypi`. Review
+   `release:verify:testpypi`, which uses the exact version's TestPyPI JSON
+   record, verifies the published and downloaded hashes for both files, and
+   installs the downloaded wheel in a fresh environment. Dependencies come
+   from PyPI. Check the rendered project description and record the pipeline
+   link and result. Candidate tags have no production publishing job.
+4. If the rehearsal identifies a source issue, fix it through review and
+   repeat the rehearsal with a new candidate tag.
 
-    ### Changed
-    - Change to existing feature
+## Publish the final release
 
-    ### Fixed
-    - Bug fix
-    ```
+1. After a successful rehearsal, create and push the unused final tag
+   (for example, `v2.0.0`) on the reviewed commit, annotated and in the same
+   way as the candidate. Follow the same build,
+   checksum and TestPyPI steps for the final tag. TestPyPI now verifies the
+   final version's files, which are the files promoted to PyPI.
+2. Review the final tag, commit, manifest and successful
+   `release:verify:testpypi` result. Have an eligible production approver
+   approve the `pypi` deployment in GitLab and start
+   `release:upload:pypi` as an authorized release maintainer. The job
+   compares the build manifest with the TestPyPI verification record and
+   uploads the matching wheel and sdist.
+3. Wait for `release:verify:pypi` to verify both downloads and install the
+   exact version in a clean environment. Record that result and review the
+   release on [PyPI](https://pypi.org/project/entise/). For a second clean
+   install from PyPI, use the version you published.
 
-### 3. 🐙 Create Release Issue and Branch
-- **Template**: Use the `📝Release_Checklist` template for the issue.
-- **Issue**: Create a new issue with the title `Release - Version - 1.0.0`.
-- **Branch**: Create a release branch:
-    ```bash
-    git checkout develop  # or main if working directly from main
-    git pull
-    git checkout -b release/1.0.0
-    ```
-- **Push**: Push the release branch to GitLab:
-    ```bash
-    git push --set-upstream origin release/1.0.0
-    ```
+   ```bash
+   version=2.0.0
+   work=$(mktemp -d)
+   (
+     cd "$work"
+     uv venv --python 3.12 verify-env
+     uv pip install --python verify-env/bin/python --default-index https://pypi.org/simple/ "entise==$version"
+     verify-env/bin/python -I -c 'from importlib.metadata import version; import entise, sys; assert entise.__version__ == version("entise") == sys.argv[1]' "$version"
+   )
+   ```
+4. Create the GitLab Release for the final tag with the changelog notes,
+   pipeline link and SHA-256 manifest.
+5. Merge `main` back into `develop` through a merge request from `main`,
+   with a merge commit. Don't squash, and don't delete the source branch.
+   `develop` then contains the release tag, so its development versions
+   count from it. Confirm that `git describe origin/develop` starts with the
+   new tag, for example `v2.0.0-2-g…`.
+6. Check that Read the Docs built the tag and that the stable documentation
+   shows the new version.
 
-### 4. 🐙 Create Merge Request and Review
-- **Merge Request**: In GitLab, open a merge request (MR) from `release/1.0.0` into `main`.
-- **Review**: Assign reviewers to the MR and ensure all tests pass.
-- **CI/CD**: Verify that all CI/CD pipelines pass successfully.
-- **Merge**: Once approved, merge the MR into main and delete the release branch.
-
-### 5. 💠 Tag the Release (CRITICAL STEP)
-- **Checkout main**: Ensure you're on the latest main branch:
-    ```bash
-    git checkout main
-    git pull
-    ```
-- **Check for commits after merge**: Verify if you need to recreate the tag:
-    ```bash
-    git log --oneline v1.0.0..HEAD
-    ```
-    If this shows commits, you need to delete and recreate the tag.
-
-- **Delete existing tag** (if it exists and commits were made after):
-    ```bash
-    # Delete local tag
-    git tag -d v1.0.0
-    # Delete remote tag
-    git push origin :refs/tags/v1.0.0
-    ```
-- **Create new tag**: Tag the release pointing to the latest main:
-    ```bash
-    git tag -a v1.0.0 -m "Release 1.0.0"
-    git push origin v1.0.0
-    ```
-
-### 6. 🐙 Create GitLab Release
-- **GitLab Release Page**: Go to the GitLab project's Releases section and create a new release linked to the v1.0.0 tag.
-- **Release Notes**: Add release notes using information from the changelog.
-
-## PyPI Release (Manual Process)
-
-### 1. 🧪 Test on Test-PyPI First
-- **Build the package** with the new tag:
-    ```bash
-    # Clean previous builds
-    uv run python -c "import shutil; shutil.rmtree('dist', ignore_errors=True)"
-
-    # Build with hatch-vcs (version automatically from tag)
-    uv build
-    ```
-- **Upload to Test-PyPI**:
-    ```bash
-    uv publish --repository testpypi
-    ```
-- **Verify on Test-PyPI**: Check [https://test.pypi.org/project/entise/](https://test.pypi.org/project/entise/)
-- **Test Installation from Test-PyPI**:
-    ```bash
-    # Create a clean test environment
-    uv venv test_env
-    source test_env/bin/activate  # On Windows: test_env\Scripts\activate
-
-    # Install from Test-PyPI
-    uv pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ entise
-
-    # Test basic functionality
-    python -c "import entise; print('Import successful')"
-    # Run any basic functionality tests here
-
-    # Clean up
-    deactivate
-    rm -rf test_env
-    ```
-
-### 2. 🧪 Final Pre-Release Testing
-- **Functional Testing**: Verify the Test-PyPI package works as expected
-- **Dependency Check**: Ensure all dependencies are correctly specified and installable
-- **Documentation**: Verify that the package metadata and description display correctly on Test-PyPI
-
-### 3. 💻 Publish to PyPI
-- **Final Build** (if needed):
-    ```bash
-    # Only if you haven't built already or made changes
-    uv run python -c "import shutil; shutil.rmtree('dist', ignore_errors=True)"
-    uv build
-    ```
-- **Upload to PyPI**:
-    ```bash
-    uv publish
-    ```
-- **Enter Credentials**: Use your PyPI username and password (or API token) when prompted.
-
-### 4. ✅ Post-Release Verification
-- **Verify on PyPI**: Check [https://pypi.org/project/entise/](https://pypi.org/project/entise/) to confirm the release.
-- **Test Installation from PyPI**:
-    ```bash
-    # Create fresh environment
-    uv venv verify_env
-    source verify_env/bin/activate  # On Windows: verify_env\Scripts\activate
-
-    # Install from PyPI
-    uv pip install entise==1.0.0  # replace with actual version number
-
-    # Test functionality
-    python -c "import entise; print('PyPI installation successful')"
-
-    # Clean up
-    deactivate
-    rm -rf verify_env
-    ```
-- **Update Documentation**: Update any documentation that references version numbers.
-
-### 5. 💠 Merge Back to Develop (if using GitFlow)
-- **Merge main into develop**:
-    ```bash
-    git checkout develop
-    git pull
-    git merge main
-    git push
-    ```
-
-## Important Notes
-
-- **Automatic Versioning**: This project uses `hatch-vcs` - versions are automatically determined from Git tags. No manual version file updates needed.
-- **Tag Timing is Critical**: Always create/recreate the tag AFTER merging to main to ensure it points to the correct commit.
-- **Test-PyPI First**: Always test on Test-PyPI before publishing to PyPI to catch any packaging issues.
-- **Manual Publishing**: This project uses manual PyPI publishing - no automatic CI/CD deployment.
-- **Clean Builds**: Always clean the `dist/` folder before building to avoid uploading old artifacts.
-- **Credentials**: Ensure your PyPI credentials are set up correctly (consider using API tokens instead of passwords).
-- **Rollback Plan**: If issues arise post-release, you can yank the release on PyPI and fix issues in a patch version.
-
-## Troubleshooting
-
-- **Version not updating**: Make sure your tag points to the latest commit after merging.
-- **Test-PyPI upload fails**: Each version can only be uploaded once to Test-PyPI. Use a different version for testing.
-- **Import errors after installation**: Check that all dependencies are correctly specified in `pyproject.toml`.
-- **Package not found**: Wait a few minutes after uploading - PyPI can take time to process new releases.
+If an upload fails partway, retry the upload job with the retained artifacts.
+The publisher can reuse already uploaded files with matching hashes. A digest
+mismatch or expired artifact requires investigation before proceeding. Leave
+existing tags and published files intact. If users need to avoid a bad
+production version, yank it on PyPI and release a reviewed patch.

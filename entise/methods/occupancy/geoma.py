@@ -9,9 +9,10 @@ from entise.constants import Keys as K
 from entise.constants import Objects as O
 from entise.constants import Types
 from entise.constants.general import SEP
+from entise.core._time import output_index, site_zone
 from entise.core.base import Method
 
-from .utils import apply_nightly_schedule
+from .utils import DEFAULT_NIGHT_SCHEDULE_DURATION_H, apply_nightly_schedule, electricity_table
 
 logger = logging.getLogger(__name__)
 
@@ -35,13 +36,28 @@ class GeoMA(Method):
     Related methods
         See also PHT (Page–Hinkley Test) for change-point based
         detection on the same input.
+
+    Night schedule
+        The evening window (``night_schedule_start``–``night_schedule_end``) is
+        read on the local clock of the object's ``timezone`` (UTC if unset). Once
+        occupancy has lasted ``night_schedule_duration[h]`` hours without a break
+        inside the window (default 1 h), it is held until 09:00 local time on the
+        next day, also on the days when the clocks change. The output is indexed
+        like the electricity input, in the site time zone.
     """
 
     types = [Types.OCCUPANCY]
     name = "GeoMA"
     required_keys = []
     required_data = [Types.ELECTRICITY]
-    optional_keys = [O.LAMBDA, O.NIGHT_SCHEDULE, O.NIGHT_SCHEDULE_START, O.NIGHT_SCHEDULE_END]
+    optional_keys = {
+        O.LAMBDA: Const.DEFAULT_LAMBDA.value,
+        O.NIGHT_SCHEDULE: Const.DEFAULT_NIGHT_SCHEDULE.value,
+        O.NIGHT_SCHEDULE_START: Const.DEFAULT_NIGHT_SCHEDULE_START.value,
+        O.NIGHT_SCHEDULE_END: Const.DEFAULT_NIGHT_SCHEDULE_END.value,
+        O.NIGHT_SCHEDULE_DURATION: DEFAULT_NIGHT_SCHEDULE_DURATION_H,
+        O.TIMEZONE: None,
+    }
     output_summary = {
         f"{Types.OCCUPANCY}{SEP}{O.OCCUPANCY_AVG}": "average occupancy",
     }
@@ -51,16 +67,12 @@ class GeoMA(Method):
 
     def generate(
         self,
-        obj: dict = None,
-        data: dict = None,
-        results: dict = None,
+        obj: dict | None = None,
+        data: dict | None = None,
+        results: dict | None = None,
         ts_type: str = Types.OCCUPANCY,
-        *,
-        lambda_occ: float = None,
-        night_schedule: bool = None,
-        night_schedule_start: int = None,
-        night_schedule_end: int = None,
-    ):
+        **inputs,
+    ) -> dict:
         """
         Generate a binary occupancy schedule from electricity demand using GeoMA.
 
@@ -71,10 +83,13 @@ class GeoMA(Method):
         Args:
             obj (dict, optional):
                 Object parameters. Relevant keys (under the current method type) include:
+
                 - O.LAMBDA (float): Exponential smoothing parameter in (0, 1].
                 - O.NIGHT_SCHEDULE (bool): Whether to enforce a nightly schedule.
                 - O.NIGHT_SCHEDULE_START (int): Start hour of nightly off period [0-23].
                 - O.NIGHT_SCHEDULE_END (int): End hour of nightly off period [0-23].
+                - O.NIGHT_SCHEDULE_DURATION (float): Hours of occupancy inside the evening
+                  window that trigger the hold until 09:00 local time (default 1).
             data (dict, optional):
                 Not used directly for this method. The electricity time series is expected
                 to be present in results under Types.ELECTRICITY.
@@ -84,13 +99,21 @@ class GeoMA(Method):
                 with a datetime column Columns.DATETIME and at least one power column.
             ts_type (str, optional):
                 Target time series type. Defaults to Types.OCCUPANCY.
-            lambda_occ (float, optional): Exponential smoothing factor for the EWM used
-                to compute the geometric moving average. Typical range (0.05–0.5).
-            night_schedule (bool, optional): If True, apply nightly zeroing.
-            night_schedule_start (int, optional): Hour of day marking the start of
-                the nightly off period (e.g., 18:00).
-            night_schedule_end (int, optional):  Hour of day marking the end of the
-                nightly off period (e.g., 00:00).
+            **inputs: Any input of the method, by its key or by its Python name (the key
+                without its unit, such as ``area`` for ``area[m2]``). Keywords override the
+                same keys in ``obj``. For example:
+
+                - ``electricity`` (DataFrame): The electricity time series, in place of the
+                  electricity result in ``results``.
+                - ``lambda_occ`` (float): Exponential smoothing factor for the EWM used to compute the
+                  geometric moving average. Typical range (0.05–0.5).
+                - ``night_schedule`` (bool): If True, apply nightly zeroing.
+                - ``night_schedule_start`` (int): Hour of day marking the start of the nightly off period
+                  (e.g., 18:00).
+                - ``night_schedule_end`` (int): Hour of day marking the end of the nightly off period
+                  (e.g., 00:00).
+                - ``night_schedule_duration`` (``night_schedule_duration[h]``): Hours of occupancy inside
+                  the evening window that trigger the hold until 09:00 local time (default 1).
 
         Returns:
             dict: A dictionary with two keys:
@@ -110,14 +133,7 @@ class GeoMA(Method):
         """
 
         # Process keyword arguments
-        processed_obj, processed_data = self._process_kwargs(
-            obj,
-            data,
-            lambda_occ=lambda_occ,
-            night_schedule=night_schedule,
-            night_schedule_start=night_schedule_start,
-            night_schedule_end=night_schedule_end,
-        )
+        processed_obj, processed_data, results = self._process_inputs(obj, data, results, ts_type, **inputs)
 
         # Get input data
         processed_obj, processed_data = self._get_input_data(processed_obj, processed_data, results, ts_type)
@@ -125,52 +141,37 @@ class GeoMA(Method):
         # Compute temperature and energy demand
         occ_schedule = calculate_timeseries(processed_obj, processed_data)
 
-        return self._format_output(occ_schedule, processed_data)
+        return self._format_output(occ_schedule, processed_obj, processed_data)
 
     def _get_input_data(
-        self, obj: dict, data: dict, results: dict, method_type: str = Types.OCCUPANCY
+        self, obj: dict, data: dict, results: dict | None, method_type: str = Types.OCCUPANCY
     ) -> tuple[dict, dict]:
-        obj_out = {
-            O.ID: Method.get_with_backup(obj, O.ID),
-            O.LAMBDA: Method.get_with_method_backup(obj, O.LAMBDA, method_type, Const.DEFAULT_LAMBDA.value),
-            O.NIGHT_SCHEDULE: Method.get_with_method_backup(
-                obj, O.NIGHT_SCHEDULE, method_type, Const.DEFAULT_NIGHT_SCHEDULE.value
-            ),
-            O.NIGHT_SCHEDULE_START: Method.get_with_method_backup(
-                obj, O.NIGHT_SCHEDULE_START, method_type, Const.DEFAULT_NIGHT_SCHEDULE_START.value
-            ),
-            O.NIGHT_SCHEDULE_END: Method.get_with_method_backup(
-                obj, O.NIGHT_SCHEDULE_END, method_type, Const.DEFAULT_NIGHT_SCHEDULE_END.value
-            ),
-        }
+        obj_out = self.get_relevant_objects(obj, method_type)
 
         # Store required results
+        results = results or {}
         data_out = {k: results[k][K.TIMESERIES] for k in self.required_data if k in results}
 
         # Clean up
-        obj_out = {k: v for k, v in obj_out.items() if v is not None}
         data_out = {k: v for k, v in data_out.items() if v is not None}
 
-        # Safe datetime handling
+        # The electricity series by instant, from a built-in method's index or a file's datetime column
         if Types.ELECTRICITY in data_out:
-            electricity_demand = data_out[Types.ELECTRICITY].copy()
-            electricity_demand[C.DATETIME] = pd.to_datetime(electricity_demand[C.DATETIME], utc=True)
-            electricity_demand.set_index(C.DATETIME, inplace=True, drop=True)
-            data_out[Types.ELECTRICITY] = electricity_demand
+            data_out[Types.ELECTRICITY] = electricity_table(data_out[Types.ELECTRICITY])
+        data_out["run_data"] = data if data is not None else {}
 
         return obj_out, data_out
 
     @staticmethod
-    def _format_output(occ_schedule, data):
+    def _format_output(occ_schedule, obj, data):
         summary = {
             f"{Types.OCCUPANCY}{SEP}{O.OCCUPANCY_AVG}": round(occ_schedule[O.OCCUPANCY].mean(), 2),
         }
 
         df = pd.DataFrame(
             {f"{Types.OCCUPANCY}{SEP}{C.OCCUPANCY}": occ_schedule[O.OCCUPANCY]},
-            index=data[Types.ELECTRICITY].index,
+            index=output_index(data[Types.ELECTRICITY].index, obj, data["run_data"]),
         )
-        df.index.name = C.DATETIME
 
         return {"summary": summary, "timeseries": df}
 
@@ -237,7 +238,11 @@ def calculate_timeseries(obj: dict, data: dict) -> pd.DataFrame:
 
     if nightly_schedule:
         df_occ_schedule = apply_nightly_schedule(
-            df_occ_schedule, obj[O.NIGHT_SCHEDULE_START], obj[O.NIGHT_SCHEDULE_END]
+            df_occ_schedule,
+            obj[O.NIGHT_SCHEDULE_START],
+            obj[O.NIGHT_SCHEDULE_END],
+            zone=site_zone(obj),
+            duration_h=float(obj.get(O.NIGHT_SCHEDULE_DURATION, DEFAULT_NIGHT_SCHEDULE_DURATION_H)),
         )
 
     return df_occ_schedule

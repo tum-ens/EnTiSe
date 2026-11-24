@@ -5,7 +5,6 @@ This module contains tests for the helper functions used by the JordanVajen clas
 to generate DHW demand time series.
 """
 
-
 import numpy as np
 import pandas as pd
 
@@ -17,7 +16,6 @@ from entise.methods.dhw.jordanvajen.temperature import _get_water_temperatures
 from entise.methods.dhw.jordanvajen.utils import (
     SEASONAL_FACTOR,
     _convert_time_to_seconds_of_day,
-    _find_nearest_activity_times,
     _sample_event_volumes,
 )
 
@@ -35,30 +33,6 @@ def test_convert_time_to_seconds_of_day():
     expected = np.array([0, 5415, 43230, 86399])
     result = _convert_time_to_seconds_of_day(time_strings)
     np.testing.assert_array_equal(result, expected)
-
-
-def test_find_nearest_activity_times():
-    """Test the _find_nearest_activity_times function."""
-    # Create sample activity times
-    activity_times = np.array([0, 3600, 7200, 10800, 14400, 18000, 21600, 25200, 28800, 32400, 36000])
-
-    # Test exact matches
-    seconds_of_day = np.array([0, 7200, 14400, 21600, 28800, 36000])
-    expected_indices = np.array([0, 2, 4, 6, 8, 10])
-    result, _ = _find_nearest_activity_times(activity_times, seconds_of_day)
-    np.testing.assert_array_equal(result, expected_indices)
-
-    # Test nearest matches
-    seconds_of_day = np.array([1800, 5400, 9000, 12600, 16200, 19800, 23400, 27000, 30600, 34200, 37800])
-    expected_indices = np.array([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
-    result, _ = _find_nearest_activity_times(activity_times, seconds_of_day)
-    np.testing.assert_array_equal(result, expected_indices)
-
-    # Test edge cases
-    seconds_of_day = np.array([-1000, 100000])  # Before first and after last
-    expected_indices = np.array([0, 10])  # Should clamp to first and last
-    result, _ = _find_nearest_activity_times(activity_times, seconds_of_day)
-    np.testing.assert_array_equal(result, expected_indices)
 
 
 def test_sample_event_volumes():
@@ -164,7 +138,7 @@ def test_get_demand_data():
     assert not result.empty
 
 
-def test_get_water_temperatures():
+def test_get_water_temperatures(caplog):
     """Test the _get_water_temperatures function."""
     # Create sample data
     obj = {O.TEMP_WATER_COLD: 10, O.TEMP_WATER_HOT: 60}
@@ -188,13 +162,11 @@ def test_get_water_temperatures():
     assert np.all(result[O.TEMP_WATER_COLD] == 10)
     assert np.all(result[O.TEMP_WATER_HOT] == 60)
 
-    # Test with missing cold water temperature (should use VDI4655 method)
     obj = {O.TEMP_WATER_HOT: 60}
-    result = _get_water_temperatures(obj, data, weather)
-
-    # Check that cold water temperature is calculated
-    assert O.TEMP_WATER_COLD in result.columns
-    assert not np.isnan(result[O.TEMP_WATER_COLD]).any()
+    with caplog.at_level("ERROR"):
+        result = _get_water_temperatures(obj, data, weather)
+    assert np.all(result[O.TEMP_WATER_COLD] == defaults.DEFAULT_TEMP_COLD)
+    assert not caplog.records
 
     # Test with missing hot water temperature (should use default)
     obj = {O.TEMP_WATER_COLD: 10}

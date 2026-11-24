@@ -5,6 +5,7 @@ import pytest
 from entise.constants import SEP, Types
 from entise.constants import Columns as C
 from entise.constants import Objects as O
+from entise.methods.hvac.defaults import DEFAULT_T_EQ_ALPHA_SW, DEFAULT_T_EQ_H_O
 from entise.methods.hvac.R7C2 import R7C2, clamp_power, split_gains_7r2c
 
 
@@ -156,9 +157,9 @@ def test_r7c2_cooling_demand_hot_weather(basic_7r2c_object):
     cooling_demand = result["summary"][f"{Types.COOLING}{SEP}{C.DEMAND}[Wh]"]
 
     # With hot outdoor temp, high solar gains, and initial high temp, should need cooling
-    assert (
-        cooling_demand > 0 or result["timeseries"][C.TEMP_IN].max() > 24.5
-    ), "Should have cooling demand or temperature above setpoint in hot weather"
+    assert cooling_demand > 0 or result["timeseries"][C.TEMP_IN].max() > 24.5, (
+        "Should have cooling demand or temperature above setpoint in hot weather"
+    )
     assert heating_demand >= 0, "Heating demand should be zero or minimal"
 
 
@@ -804,9 +805,9 @@ def test_r7c2_deadband_default_zero_matches_omitted(basic_7r2c_object):
     ts_zero = R7C2().generate(obj_zero, {O.WEATHER: weather.copy()}, Types.HVAC)["timeseries"]
 
     for col in ts_no.columns:
-        assert np.array_equal(
-            ts_no[col].to_numpy(), ts_zero[col].to_numpy()
-        ), f"deadband=0 diverged from omitted on column {col}"
+        assert np.array_equal(ts_no[col].to_numpy(), ts_zero[col].to_numpy()), (
+            f"deadband=0 diverged from omitted on column {col}"
+        )
 
 
 def test_r7c2_heating_with_deadband_targets_upper_band(basic_7r2c_object):
@@ -903,12 +904,12 @@ def test_r7c2_deadband_latches_across_in_band_transient(basic_7r2c_object):
     )
 
     tail = slice(-24, None)
-    assert (
-        p_db[tail].sum() > p_no[tail].sum() * 1.5
-    ), f"Deadband heater tail sum {p_db[tail].sum()} not meaningfully greater than baseline {p_no[tail].sum()}."
-    assert not np.array_equal(
-        p_no[tail], p_db[tail]
-    ), "Deadband produced identical output to baseline in the mild tail — state machine not exercised."
+    assert p_db[tail].sum() > p_no[tail].sum() * 1.5, (
+        f"Deadband heater tail sum {p_db[tail].sum()} not meaningfully greater than baseline {p_no[tail].sum()}."
+    )
+    assert not np.array_equal(p_no[tail], p_db[tail]), (
+        "Deadband produced identical output to baseline in the mild tail — state machine not exercised."
+    )
 
 
 def test_r7c2_wide_deadband_does_not_double_fire(basic_7r2c_object):
@@ -943,9 +944,9 @@ def test_r7c2_wide_deadband_does_not_double_fire(basic_7r2c_object):
     p_cool = ts[f"{Types.COOLING}{SEP}{C.LOAD}[W]"].to_numpy()
 
     both = (p_heat > 0) & (p_cool > 0)
-    assert (
-        not both.any()
-    ), f"Heating and cooling fired simultaneously on {int(both.sum())} steps — wide-band mutex broken."
+    assert not both.any(), (
+        f"Heating and cooling fired simultaneously on {int(both.sum())} steps — wide-band mutex broken."
+    )
     assert (p_heat > 0).any() or (p_cool > 0).any()
 
 
@@ -1023,3 +1024,70 @@ def test_r7c2_power_cooling_caps_total_load(basic_7r2c_object):
 
     total_col = f"{Types.COOLING}{SEP}{C.LOAD}[W]"
     assert ts[total_col].max() <= 800.0 + 1
+
+
+def _windows(object_id: str, area: float, u_value: float = 1.5) -> pd.DataFrame:
+    return pd.DataFrame(
+        {
+            O.ID: [object_id],
+            "orientation[degree]": [180],
+            "tilt[degree]": [90],
+            C.AREA: [area],
+            "g_value[1]": [0.6],
+            C.U_VALUE: [u_value],
+            "shading[1]": [1.0],
+        }
+    )
+
+
+def test_r7c2_windows_of_other_objects_do_not_change_the_result(basic_7r2c_object, minimal_weather):
+    """Only the object's own windows set the window conductance of the equivalent outdoor temperature."""
+    own = _windows("test_7r2c", 10.0)
+    shared = pd.concat([own, _windows("neighbour", 200.0)], ignore_index=True)
+    obj = {**basic_7r2c_object, O.WINDOWS: "windows"}
+
+    alone = R7C2().generate(obj, {O.WEATHER: minimal_weather, "windows": own}, Types.HVAC)
+    with_neighbour = R7C2().generate(obj, {O.WEATHER: minimal_weather, "windows": shared}, Types.HVAC)
+
+    pd.testing.assert_frame_equal(alone["timeseries"], with_neighbour["timeseries"])
+    assert alone["summary"] == with_neighbour["summary"]
+
+
+def test_r7c2_equivalent_temperature_stays_between_air_and_sol_air(basic_7r2c_object, minimal_weather):
+    """Windows that conduct more than the whole wall still give a weighted mean, not an amplified air temperature."""
+    obj = {**basic_7r2c_object, O.WINDOWS: "windows"}
+    data = {O.WEATHER: minimal_weather, O.WINDOWS: _windows("test_7r2c", 100.0)}  # 150 W/K > 1 / (R_1 + R_rest)
+
+    teq = R7C2()._calc_teq_series(obj, data, minimal_weather, minimal_weather.index)["T_eq"]
+
+    sol_air = minimal_weather[C.TEMP_AIR] + DEFAULT_T_EQ_ALPHA_SW * minimal_weather[C.SOLAR_GHI] / DEFAULT_T_EQ_H_O
+    assert (teq >= minimal_weather[C.TEMP_AIR] - 1e-9).all()
+    assert (teq <= sol_air + 1e-9).all()
+
+
+def test_r7c2_window_weight_uses_the_total_conductance_of_vdi_6007(basic_7r2c_object, minimal_weather):
+    """The windows' share of T_eq is U·A over the exterior envelope's U·A, 1 / (R_1_AW + R_rest_AW + R_in) (VDI 6007).
+
+    R_in is the inner surface resistance of the exterior walls: their convective resistance to the air in
+    parallel with their radiative resistance to the interior walls. The model's star resistances come from
+    that triangle.
+    """
+    r_aw_iw, r_iw_air, r_aw_air = 0.002, 0.001, 0.003  # radiative AW-IW, convective IW-air, convective AW-air
+    total = r_aw_iw + r_iw_air + r_aw_air
+    star = {
+        O.R_ALPHA_STAR_IL: r_iw_air * r_aw_air / total,
+        O.R_ALPHA_STAR_AW: r_aw_iw * r_aw_air / total,
+        O.R_ALPHA_STAR_IW: r_aw_iw * r_iw_air / total,
+    }
+    obj = {**basic_7r2c_object, **star, O.WINDOWS: "windows"}
+    data = {O.WEATHER: minimal_weather, O.WINDOWS: _windows("test_7r2c", 10.0)}  # 15 W/K
+
+    teq = R7C2()._calc_teq_series(obj, data, minimal_weather, minimal_weather.index)["T_eq"]
+
+    r_in = 1 / (1 / r_aw_air + 1 / r_aw_iw)
+    ua_total = 1 / (obj[O.R_1_AW] + obj[O.R_REST_AW] + r_in)
+    weight = 15.0 / ua_total
+    t_air = minimal_weather[C.TEMP_AIR]
+    sol_air = t_air + DEFAULT_T_EQ_ALPHA_SW * minimal_weather[C.SOLAR_GHI] / DEFAULT_T_EQ_H_O
+    expected = (1 - weight) * sol_air + weight * t_air
+    np.testing.assert_allclose(teq.to_numpy(), expected.to_numpy(), rtol=1e-12)

@@ -151,7 +151,38 @@ Once processing is complete, you can access and export your results. The per‑o
 Alternative Workflow: Direct Method Access
 ------------------------------------------
 
-If you prefer to call a single method directly (for tighter control or easy embedding), see the minimal example in :ref:`getting_started` under “Direct Method Access,” and explore the :ref:`examples` for full scripts and notebooks. This keeps the Workflow page focused on concepts while runnable code lives in the quickstart and examples.
+Call a single method directly for tighter control or easy embedding:
+
+.. code-block:: python
+
+    from entise.methods.pv import PVLib
+
+    pv = PVLib()
+    result = pv.generate(
+        latitude=48.1,  # latitude[degree]
+        longitude=11.6,  # longitude[degree]
+        power=5000,  # power[W], rated power of the system
+        weather=weather_df,  # DataFrame with solar radiation data
+    )
+
+    summary = result["summary"]
+    timeseries = result["timeseries"]
+
+Every method takes the same arguments: ``generate(obj=None, data=None, results=None, ts_type=..., **inputs)``.
+Use ``PVLib.input_names()`` to discover which names the method accepts. It maps each accepted name
+to its full input key. The mapping includes the full key, its Python name without the unit and height
+(such as ``power`` for ``power[W]``), and any aliases from earlier releases.
+
+You can pass a dictionary or a pandas Series row as ``obj`` and supply individual inputs as
+keywords in the same call. A keyword value overrides both the unprefixed key and the key
+prefixed with the active time series type, such as ``pv:power[W]``. A keyword value of ``None``
+leaves the object value in place. Pass a table input such as ``weather`` as a DataFrame or as
+the name of a table in ``data``. Unknown names and two non-None keyword values for the same
+input raise ``TypeError``.
+
+See :ref:`direct_input_names` for a mixed-call example.
+
+See :ref:`getting_started` for the batch counterpart and the :ref:`examples` for full scripts and notebooks.
 
 Decision Guide
 --------------
@@ -167,9 +198,7 @@ Decision Guide
 Data Contracts (Schemas)
 ------------------------
 
-- Time index and alignment:
-  - Timeseries DataFrames must include a ``datetime`` column; EnTiSe will set or expect it as the index in many methods.
-  - Use a regular frequency (e.g., 15min, 1h). Avoid gaps for best results. Timezone-aware indices (UTC recommended) reduce ambiguity.
+- Time index and alignment: see `Time Contract`_ below.
 - Weather data common columns (examples):
   - ``outdoor_temperature[C]``, ``global_horizontal_irradiance[W m-2]``, ``direct_normal_irradiance[W m-2]``, ``diffuse_horizontal_irradiance[W m-2]``, ``wind_speed[m s-1]``, ``relative_humidity[1]``.
   - Column names follow the pattern ``name[unit]`` (optionally with height ``@2m`` etc.).
@@ -178,17 +207,90 @@ Data Contracts (Schemas)
   - HVAC 1R1C: ``resistance[K W-1]``, ``capacitance[J K-1]``, optional ``power_heating[W]``, ``power_cooling[W]``, temperature setpoints.
   - PV pvlib: ``latitude[degree]``, ``longitude[degree]``, optional ``power[W]``, ``azimuth[degree]``, ``tilt[degree]``.
 
+.. _time-contract:
+
+Time Contract
+-------------
+
+.. note::
+
+   This is the time contract of EnTiSe 2.0.0, which every method and the
+   Open-Meteo weather service follow. For what changed against earlier
+   versions and how to adapt existing inputs, see :doc:`migration`.
+
+- **Timestamps identify instants.** A table carries its timestamps in a
+  ``datetime`` column or in its index. Accepted forms are typed datetime
+  values and ISO 8601 text, with a UTC offset or ``Z``
+  (``2022-07-01 12:00:00+02:00``) or without one. Other text formats and
+  numbers raise an error, so convert them with ``pandas.to_datetime`` first. If a table has both a ``datetime`` column and a datetime index, they
+  must identify the same instants.
+- **Naive timestamps are read as UTC.** EnTiSe logs one warning per table and
+  run. If a table holds local times, localize it before passing it:
+
+  .. code-block:: python
+
+      df["datetime"] = df["datetime"].dt.tz_localize("Europe/Berlin", ambiguous="infer")
+
+  ``ambiguous="infer"`` resolves the repeated hour when clocks go back.
+- **One axis per run.** Each table is read once per ``Generator.generate``
+  call, as a UTC ``DatetimeIndex`` in ``datetime64[us]``, sorted by instant.
+  A missing, unreadable or repeated timestamp raises an error that names the
+  table and the timestamp. Methods with a fixed time step also require a
+  regular step. EnTiSe never changes the frames you pass in.
+- **Each label marks the start of its interval.** Interval quantities, such
+  as irradiance or power, are means over ``[t, t + step)``. Instantaneous
+  quantities, such as air temperature, are values at ``t``. EnTiSe's
+  Open-Meteo service returns data labelled this way; data downloaded from
+  Open-Meteo directly labels hourly irradiance at the end of the hour. If at
+  least 14 days of hourly or
+  longer irradiance peak about one step after solar noon, EnTiSe warns and
+  suggests shifting those columns one row earlier. The warning appears once
+  per run and longitude cell in each worker process.
+- **Outputs.** Every time series of an object is indexed by the weather's
+  instants in the object's ``timezone``, or in UTC with
+  ``Generator.generate(..., utc=True)``. Solar geometry is evaluated at the
+  midpoint of each interval. In the RC models, row ``t`` covers
+  ``[t, t + step)``: heating and cooling loads are means over that interval,
+  ``temperature_in`` is the indoor temperature at ``t`` (row 0 is the
+  initial temperature), and the summary demand is the sum of load times step.
+- **Site time zone.** The object key ``timezone`` (an IANA name such as
+  ``Europe/Berlin``) sets the local calendar of the object: local hour,
+  weekday, holidays and daylight saving days. It does not change how tables
+  are read. Without it, the calendar is UTC.
+- **Auxiliary tables** (internal gains, ventilation, ``file``) align with the
+  weather by timestamp. A table without timestamps is used row by row only if
+  it has one row per time step, with a warning; any other mismatch raises an
+  error. A finer table, such as 15-minute values on hourly weather, is
+  averaged over each weather step, with a warning; it must still hold every
+  weather instant, so a table shifted against the weather's steps raises. Rows
+  outside the weather's span are ignored. These warnings appear once per table
+  and run in each worker process. A ``file`` table for an object without a
+  ``weather`` key keeps its own timestamps; without timestamps it is returned
+  unchanged, with a warning.
+
 Performance and Reproducibility
 -------------------------------
 
 - Parallelism: ``Generator.generate(data, workers=N)`` leverages joblib. Use ``workers=-1`` for all cores; use ``1`` for deterministic, easier-to-debug runs.
 - Caching: Some methods cache preprocessed inputs (e.g., normalized weather) within a process to reduce overhead across many objects.
-- Determinism: When methods include randomness, provide a ``seed`` in objects to lock results for reproducible runs.
+- Determinism: Methods that draw random numbers, such as Jordan-Vajen DHW, are reproducible with a seed.
+
+  - ``Generator.generate(data, seed=42)`` sets a run seed. Each object and time series type draws its own stream,
+    derived from the run seed, the object's ``id`` and the type. The same seed gives bit-identical time series,
+    whatever the order of the objects, the number of workers, the batch size or the process. Objects with
+    different ids draw different numbers. The id counts by its text, so ``1`` and ``"1"`` share a stream, while
+    ``1.0`` (an id column that pandas read as floats) does not.
+  - An object's ``seed`` key (or ``<type>:seed``) takes precedence over the run seed and gives the same result
+    with or without one. A direct call such as ``JordanVajen().generate(obj, data, seed=42)`` uses it as the
+    object's seed.
+  - Without either seed, such methods draw different numbers in every run.
+  - PyLPG is not seeded by EnTiSe: pylpg chooses the household members with Python's global random numbers, so
+    its profiles can differ between runs even with a seed.
 
 Validation and Troubleshooting
 ------------------------------
 
 - Missing columns: Errors like “column not found” usually indicate a mismatch between expected names/units and your DataFrame. Check the column naming pattern and method docs.
-- Datetime issues: Ensure ``datetime`` can be parsed, is monotonic, and preferably timezone-aware. Non-regular indices may reduce accuracy or cause failures in some strategies.
+- Datetime issues: Ensure ``datetime`` can be parsed and identifies each instant once; see `Time Contract`_. Methods with a fixed time step reject irregular steps.
 - Dependency errors: If a required dependency is not provided as input data nor producible by a configured strategy, add the missing input or configure the upstream type.
 - Quick checks: Start with a single object and ``workers=1``; print the first few rows of inputs; use a shorter time window to iterate faster.

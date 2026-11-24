@@ -11,6 +11,7 @@ from typing import Dict, Optional
 
 import pandas as pd
 
+from entise._optional import requires_extra
 from entise.constants import Columns as C
 
 logger = logging.getLogger(__name__)
@@ -63,12 +64,10 @@ def run_year_chunk(
     """
     Run PyLPG for one chunk (minute resolution). Returns a DataFrame indexed by datetime.
     """
-    try:
+    with requires_extra("electricity-pylpg", "pylpg", feature="PyLPG"):
         import pylpg
         from pylpg.lpg_execution import execute_lpg_tsib
         from pylpg.lpgpythonbindings import EnergyIntensityType
-    except Exception as e:
-        raise ImportError("[pylpg] Requires the 'pyloadprofilegenerator' (pylpg) package.") from e
 
     tmp_base = None
     prev_cwd = os.getcwd()

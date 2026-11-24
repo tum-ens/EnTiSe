@@ -87,6 +87,8 @@ def run_simulation(
     Returns:
         `(summary_df, results_dict)` from the generator.
     """
-    gen = Generator()
+    # Raise the object's own error, so a missing engine or package is reported directly
+    # instead of an error column that breaks the summary afterwards.
+    gen = Generator(raise_on_error=True)
     gen.add_objects(objects)
     return gen.generate(data, workers=workers)

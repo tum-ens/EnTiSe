@@ -88,7 +88,7 @@ def analyze_results(df: dict, objects: pd.DataFrame, save_figures: bool = False)
         for i, obj_id in enumerate(df):
             ts = df[obj_id][Types.PV]
             # Resample to monthly sums
-            monthly = ts.resample("M").sum()
+            monthly = ts.resample("ME").sum()
             monthly_data[obj_id] = monthly
 
             # Get azimuth and tilt values for the title
@@ -158,11 +158,8 @@ def analyze_results(df: dict, objects: pd.DataFrame, save_figures: bool = False)
             tilt = system_configs[obj_id]["tilt"] if obj_id in system_configs else 0
 
             # Create a pivot table with hours as columns and days as rows
-            daily_data = ts.copy()
-            daily_data.index = pd.MultiIndex.from_arrays(
-                [daily_data.index.date, daily_data.index.hour], names=["date", "hour"]
-            )
-            daily_pivot = daily_data.unstack(level="hour")
+            # Average by local date and hour; the hour repeats when clocks go back.
+            daily_pivot = ts.iloc[:, 0].groupby([ts.index.date, ts.index.hour]).mean().unstack()
 
             # Create heatmap
             im = axes[i].imshow(daily_pivot, aspect="auto", cmap="viridis")
@@ -208,7 +205,7 @@ def main(print_summary: bool = False, analysis: bool = False, save_figures=False
         print("Summary:")
         summary_kwh = summary
         summary_kwh[f"{Types.PV}{SEP}{C.GENERATION}"] /= 1000
-        summary_kwh.rename(columns=lambda x: x.replace("[Wh]", "[kWh]"), inplace=True)
+        summary_kwh = summary_kwh.rename(columns=lambda x: x.replace("[Wh]", "[kWh]"))
         summary_kwh = summary_kwh.round(0).astype(int)
         print(summary_kwh)
     if analysis:

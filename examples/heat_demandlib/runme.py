@@ -93,7 +93,7 @@ def main(print_summary: bool = False, analysis: bool = False, save_figures=False
     if print_summary:
         print("Summary:")
         summary_kwh = (summary / 1000).round(0).astype(int)
-        summary_kwh.rename(columns=lambda x: x.replace("[W]", "[kW]").replace("[Wh]", "[kWh]"), inplace=True)
+        summary_kwh = summary_kwh.rename(columns=lambda x: x.replace("[W]", "[kW]").replace("[Wh]", "[kWh]"))
         print(summary_kwh.to_string())
     if analysis:
         analyze_results(summary, df, data, save_figures)

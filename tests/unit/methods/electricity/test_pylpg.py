@@ -9,14 +9,6 @@ from entise.methods.electricity.pylpg import PyLPG, calculate_timeseries
 OUT_COL = f"{Types.ELECTRICITY}{SEP}{C.LOAD}[W]"
 
 
-@pytest.fixture(autouse=True)
-def _clear_dts_cache():
-    """Clear the module-level DTS cache before each test to avoid cross-test state leakage."""
-    import entise.methods.electricity.pylpg as m
-
-    m._DTS_CACHE.clear()
-
-
 def _make_datetimes(start: str, periods: int, freq: str = "h", tz: str = "UTC") -> pd.DataFrame:
     """Helper to build a minimal datetimes dataframe with a single C.DATETIME column.
 
@@ -38,8 +30,9 @@ def _energy_wh_from_power(power_w: pd.Series, dt_s: float) -> float:
     return float(power_w.sum()) * (dt_s / 3600.0)
 
 
+@pytest.mark.native_pylpg
 def test_calculate_timeseries_hourly_runs_and_no_nans():
-    """Hourly path: returns DataFrame with expected column, length match, tz-naive index, no NaNs, non-negative."""
+    """Hourly path: returns DataFrame with expected column, length match, UTC instants, no NaNs, non-negative."""
     dts = _make_datetimes("2022-01-01 00:00:00", periods=6, freq="h")
 
     obj = {
@@ -58,12 +51,13 @@ def test_calculate_timeseries_hourly_runs_and_no_nans():
     assert "pylpg" in ts.columns
 
     assert len(ts) == len(dts)
-    assert ts.index.tz is None
-    assert ts.index[0] == pd.Timestamp("2022-01-01 00:00:00")
+    assert str(ts.index.tz) == "UTC"
+    assert ts.index[0] == pd.Timestamp("2022-01-01 00:00:00", tz="UTC")
     assert ts["pylpg"].isna().sum() == 0
     assert (ts["pylpg"] >= 0).all()
 
 
+@pytest.mark.native_pylpg
 def test_generate_end_to_end_schema_and_summary_consistency():
     """Public API: returns summary and timeseries; summary’s Wh/max W match recomputed values from ts."""
     dts = _make_datetimes("2022-01-01 00:00:00", periods=8, freq="15min")
@@ -95,8 +89,9 @@ def test_generate_end_to_end_schema_and_summary_consistency():
     assert result["summary"][f"{Types.ELECTRICITY}{SEP}{O.LOAD_MAX}[W]"] == int(round(float(ts[OUT_COL].max())))
 
 
+@pytest.mark.native_pylpg
 def test_multiyear_concat_runs():
-    """Cross-year horizon: handles Dec→Jan boundary with correct length, tz-naive index, and no NaNs."""
+    """Cross-year horizon: handles Dec→Jan boundary with correct length, UTC instants, and no NaNs."""
     dts = _make_datetimes("2021-12-31 23:00:00", periods=5, freq="h")
 
     obj = {
@@ -113,11 +108,12 @@ def test_multiyear_concat_runs():
 
     assert len(ts) == 5
     assert "pylpg" in ts.columns
-    assert ts.index.tz is None
-    assert ts.index[0] == pd.Timestamp("2021-12-31 23:00:00")
+    assert str(ts.index.tz) == "UTC"
+    assert ts.index[0] == pd.Timestamp("2021-12-31 23:00:00", tz="UTC")
     assert ts["pylpg"].isna().sum() == 0
 
 
+@pytest.mark.native_pylpg
 def test_resampling_behaviour_preserves_energy_in_summary():
     """Verify that summary Wh matches recomputed Wh from the emitted timeseries for multiple dt_s."""
     for freq in ["60min", "15min", "5min"]:
@@ -144,6 +140,7 @@ def test_resampling_behaviour_preserves_energy_in_summary():
         assert res["summary"][f"{Types.ELECTRICITY}{SEP}{C.DEMAND}[Wh]"] == int(round(e_wh))
 
 
+@pytest.mark.native_pylpg
 def test_non_monotonic_datetimes_are_normalized_but_length_preserved():
     """Non-monotonic datetimes: implementation normalizes to a regular range; ensure output length matches input."""
     idx = pd.to_datetime(
@@ -181,3 +178,16 @@ def test_unsupported_timestep_is_rejected(freq):
 
     with pytest.raises(ValueError, match="Unsupported timestep"):
         PyLPG().generate(obj=obj, data=data, ts_type=Types.ELECTRICITY)
+
+
+def test_second_frame_under_the_same_key_uses_its_own_datetimes():
+    """A new frame passed under a key already used in this process must not be replaced by the earlier one."""
+    obj = {O.ID: "obj_1", O.HOUSEHOLDS: 1, O.OCCUPANTS_PER_HOUSEHOLD: 2, O.DATETIMES: O.DATETIMES}
+    march = _make_datetimes("2022-03-01", periods=24)
+    october = _make_datetimes("2022-10-01", periods=24)
+
+    PyLPG()._get_input_data(obj, {O.DATETIMES: march}, Types.ELECTRICITY)
+    _, data_in = PyLPG()._get_input_data(obj, {O.DATETIMES: october}, Types.ELECTRICITY)
+
+    assert (data_in[O.DATETIMES].index == pd.DatetimeIndex(october[C.DATETIME])).all()
+    assert data_in[O.DATETIMES] is not october

@@ -84,6 +84,12 @@ def generate_method_docs(app):
     import shutil
     import sys
 
+    from sphinx.util import logging
+
+    # Generation problems are Sphinx warnings, so a strict build (-W) fails instead of
+    # publishing the reference without a method.
+    logger = logging.getLogger(__name__)
+
     # Ensure we can import the generator script and the package
     sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
 
@@ -94,7 +100,7 @@ def generate_method_docs(app):
             generate_indexes,
         )
     except Exception as e:
-        print(f"[docs] Skipping method docs generation (import error): {e}")
+        logger.warning(f"[docs] Skipping method docs generation (import error): {e}")
         return
 
     try:
@@ -110,7 +116,7 @@ def generate_method_docs(app):
 
             bootstrap_methods_tree(base_output_dir)
         except Exception as bs_err:
-            print(f"[docs] Warning during methods tree bootstrap: {bs_err}")
+            logger.warning(f"[docs] Methods tree bootstrap failed: {bs_err}")
 
         # 2) Cleanup existing generated method docs to avoid stale files
         try:
@@ -125,10 +131,9 @@ def generate_method_docs(app):
                     try:
                         os.remove(path)
                     except OSError as rm_err:
-                        print(f"[docs] Warning: could not remove file {path}: {rm_err}")
+                        logger.warning(f"[docs] Could not remove file {path}: {rm_err}")
         except Exception as cleanup_err:
-            # Never fail the build due to cleanup issues; just log
-            print(f"[docs] Warning during method docs cleanup: {cleanup_err}")
+            logger.warning(f"[docs] Method docs cleanup failed: {cleanup_err}")
 
         # 2a) Re-bootstrap after cleanup to recreate base indexes and folders if they were removed
         try:
@@ -136,16 +141,15 @@ def generate_method_docs(app):
 
             bootstrap_methods_tree(base_output_dir)
         except Exception as bs2_err:
-            print(f"[docs] Warning during post-clean bootstrap: {bs2_err}")
+            logger.warning(f"[docs] Post-clean bootstrap failed: {bs2_err}")
 
         # 3) Discover and regenerate all method docs
-        method_classes = discover_method_classes("entise.methods")
+        method_classes = discover_method_classes("entise.methods", on_error=logger.warning)
         generate_docs_for_all_methods(method_classes, template_path, base_output_dir)
         generate_indexes(base_output_dir)
-        print(f"[docs] Generated method docs for {len(method_classes)} classes.")
+        logger.info(f"[docs] Generated method docs for {len(method_classes)} classes.")
     except Exception as e:
-        # Do not fail the docs build if generation has issues; just log.
-        print(f"[docs] Error during method docs generation: {e}")
+        logger.warning(f"[docs] Method docs generation failed: {e}")
 
 
 def setup(app):

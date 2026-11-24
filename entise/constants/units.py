@@ -45,7 +45,14 @@ class Units(Enum):
 
     # Volume flow
     CUBIC_METER_PER_SECOND = "m3 s-1"
+    CUBIC_METER_PER_HOUR = "m3 h-1"
     LITER_PER_SECOND = "l s-1"
+
+    # Rate
+    PER_HOUR = "h-1"
+
+    # Heat transfer coefficient
+    WATT_PER_KELVIN = "W K-1"
 
     # Energy
     JOULE = "J"

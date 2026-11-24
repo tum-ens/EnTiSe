@@ -1,47 +1,54 @@
-"""Test script to verify package installation and import."""
+"""Verify the built wheel in a clean environment outside the source tree."""
 
 import os
-import shutil
 import subprocess
 import sys
-import tempfile
+from pathlib import Path
+from textwrap import dedent
+
+ROOT = Path(__file__).resolve().parents[2]
 
 
-def test_install():
-    """Test that the package can be installed and imported."""
-    # Create a temporary directory
-    temp_dir = tempfile.mkdtemp()
-    try:
-        # Create a virtual environment
-        venv_dir = os.path.join(temp_dir, "venv")
-        subprocess.check_call([sys.executable, "-m", "venv", venv_dir])
+def test_install(tmp_path):
+    env_dir = tmp_path / "venv"
+    subprocess.run([sys.executable, "-m", "venv", env_dir], check=True)
+    scripts = env_dir / ("Scripts" if os.name == "nt" else "bin")
+    python = scripts / ("python.exe" if os.name == "nt" else "python")
+    subprocess.run([python, "-m", "pip", "install", "uv"], check=True)
 
-        # Get the path to the Python executable in the virtual environment
-        if os.name == "nt":  # Windows
-            python_exe = os.path.join(venv_dir, "Scripts", "python.exe")
-        else:  # Unix/Linux/Mac
-            python_exe = os.path.join(venv_dir, "bin", "python")
+    dist_dir = tmp_path / "dist"
+    subprocess.run([python, "-m", "uv", "build", "--wheel", "--out-dir", dist_dir], cwd=ROOT, check=True)
+    (wheel,) = dist_dir.glob("entise-*.whl")
+    subprocess.run([python, "-m", "uv", "pip", "install", "--python", python, wheel], check=True)
 
-        # Install uv
-        subprocess.check_call([python_exe, "-m", "pip", "install", "uv"])
+    check = dedent(
+        """
+        import sys
+        from importlib.metadata import distribution
+        from importlib.util import find_spec
+        from pathlib import Path
 
-        # Install the package in development mode
-        subprocess.check_call([python_exe, "-m", "uv", "pip", "install", "-e", "."])
+        import entise
+        from entise.core.registry import get_strategy_extra, list_strategies
+        from entise.methods import method_registry, methods_by_type
 
-        # Test importing the package and accessing the version
-        result = subprocess.check_output(
-            [python_exe, "-c", "import importlib.metadata as im; print(im.version('entise'))"],
-            universal_newlines=True,
-        )
-
-        print(f"Package version: {result.strip()}")
-        assert result.strip() != "unknown"
-
-    finally:
-        # Clean up the temporary directory
-        shutil.rmtree(temp_dir)
-
-
-if __name__ == "__main__":
-    test_install()
-    print("Installation test passed!")
+        dist = distribution("entise")
+        assert Path(entise.__file__).is_relative_to(Path(sys.prefix))
+        assert entise.__version__ == dist.version != "unknown"
+        base_requirements = {item.split(";", 1)[0] for item in dist.requires if ";" not in item}
+        assert base_requirements == {"numpy>=2.0.0", "pandas<4,>=2.2.2", "joblib>=1.0.0", "tqdm>=4.0.0"}
+        assert len(list_strategies()) == len(method_registry) == 16
+        assert len(methods_by_type) == 10
+        assert get_strategy_extra("districtheatingsim") is None
+        assert get_strategy_extra("internalgainsoccupancy") is None
+        assert method_registry["internalgainsoccupancy"].__name__ == "InternalOccupancy"
+        provided_extras = set(dist.metadata.get_all("Provides-Extra"))
+        assert "internalgainsoccupancy" not in provided_extras
+        method_extras = {get_strategy_extra(name) for name in list_strategies()} - {None}
+        assert len(method_extras) == 14
+        assert method_extras <= provided_extras
+        for package in ("pvlib", "scipy", "windpowerlib", "demandlib", "holidays", "pylpg", "pint", "matplotlib"):
+            assert find_spec(package) is None, package
+        """
+    )
+    subprocess.run([python, "-I", "-c", check], cwd=tmp_path, check=True)

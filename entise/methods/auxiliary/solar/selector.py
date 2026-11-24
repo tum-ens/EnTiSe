@@ -1,7 +1,7 @@
 from entise.constants import Objects as O
 from entise.core.base_auxiliary import BaseSelector
 from entise.methods.auxiliary.solar import strategies
-from entise.methods.auxiliary.solar.strategies import SolarGainsInactive
+from entise.methods.auxiliary.solar.strategies import SolarGainsInactive, SolarGainsTimeSeries
 
 STRATEGIES = [getattr(strategies, name)() for name in strategies.__all__]
 
@@ -16,5 +16,8 @@ class SolarGains(BaseSelector):
         # True (active), preserving prior behavior when the flag is absent.
         if not bool(obj.get(O.ACTIVE_GAINS_SOLAR, True)):
             return SolarGainsInactive().generate(obj, data)
+        # Gains the object supplies take the place of the calculated ones.
+        if obj.get(O.GAINS_SOLAR) is not None:
+            return SolarGainsTimeSeries().generate(obj, data)
         strategy = self.select(obj, data)
         return strategy.generate(obj, data)

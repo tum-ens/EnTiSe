@@ -58,7 +58,9 @@ def test_ruhnau_initialization():
         O.GRADIENT_SINK,
         O.TEMP_WATER,
         O.CORRECTION_FACTOR,
+        O.COP_COEFFICIENTS,
         O.HP_SYSTEM,
+        O.TIMEZONE,
     }
     assert ruhnau.required_data == [O.WEATHER]
     assert ruhnau.optional_data == [O.HP_SYSTEM]
@@ -386,3 +388,14 @@ def test_reference_values():
     assert 2.5 < air_cop < 3.5  # Air source COP should be around 3
     assert 4.5 < ground_cop < 7.0  # Ground source COP should be around 5-6
     assert 3.5 < water_cop < 5.5  # Water source COP should be around 4-5
+
+
+def test_prefixed_keys_take_precedence(dummy_inputs):
+    """An ``hp:`` key overrides the plain key, as for every other method (#119)."""
+    obj, data = dummy_inputs
+    plain = Ruhnau().generate(obj, data)["summary"]
+    prefixed = Ruhnau().generate({**obj, f"{Types.HP}:{O.CORRECTION_FACTOR}": 0.5}, data)["summary"]
+    same = Ruhnau().generate({**obj, O.CORRECTION_FACTOR: 0.5}, data)["summary"]
+
+    assert prefixed == same
+    assert prefixed != plain

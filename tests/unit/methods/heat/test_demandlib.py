@@ -103,7 +103,7 @@ def test_calculate_timeseries_hourly_returns_series_and_no_nans(_require_demandl
 
 
 def test_calculate_timeseries_subhourly_15min_length_and_no_nans(_require_demandlib):
-    """15‑min input follows resample→interpolate path, remains valid and int.
+    """15‑min input holds each hourly mean, remains valid and int.
 
     The demandlib heat algorithm is hourly-native. For subhourly inputs, we
     resample to hourly and back to the user timestep. This test ensures:
@@ -136,8 +136,8 @@ def test_calculate_timeseries_subhourly_15min_length_and_no_nans(_require_demand
     assert (s >= 0).all()
     assert pd.api.types.is_integer_dtype(s.dtype)
 
-    # Check naive start alignment
-    assert s.index[0] == pd.Timestamp("2022-01-01 00:00:00")
+    # The output is indexed by the run's instants
+    assert s.index[0] == pd.Timestamp("2022-01-01 00:00:00", tz="UTC")
 
 
 def test_demand_scaling_is_linear_for_fixed_horizon(_require_demandlib):
@@ -279,8 +279,8 @@ def test_too_short_weather_raises(_require_demandlib):
         O.BUILDING_CLASS: 1,
         O.WIND_CLASS: 0,
     }
-    o, d = m._get_input_data(obj, {O.WEATHER: weather}, Types.HEATING)
     with pytest.raises((IndexError, ValueError)):
+        o, d = m._get_input_data(obj, {O.WEATHER: weather}, Types.HEATING)
         calculate_timeseries(o, d)
 
 
@@ -297,3 +297,75 @@ def test_missing_weather_columns_raise_keyerror(_require_demandlib):
     o, d = m._get_input_data(obj, {O.WEATHER: weather}, Types.HEATING)
     with pytest.raises(KeyError):
         calculate_timeseries(o, d)
+
+
+@pytest.mark.parametrize("freq, steps", [("30min", 2), ("15min", 4)])
+def test_subhourly_power_holds_the_hourly_mean(_require_demandlib, freq, steps):
+    """Each step of an hour carries that hour's mean power, so energy matches the hourly run."""
+    hourly = _make_weather("2022-01-01 00:00:00", periods=48, freq="h")
+    subhourly = pd.DataFrame(
+        {
+            C.DATETIME: pd.date_range("2022-01-01 00:00:00", periods=48 * steps, freq=freq, tz="UTC"),
+            C.TEMP_AIR: np.repeat(hourly[C.TEMP_AIR].to_numpy(), steps),
+        }
+    )
+    obj = {
+        O.ID: "obj_1",
+        O.DEMAND_KWH: 1_000.0,
+        O.BUILDING_TYPE: "EFH",
+        O.BUILDING_CLASS: 1,
+        O.WIND_CLASS: 0,
+    }
+
+    hourly_result = Demandlib().generate(obj=obj, data={O.WEATHER: hourly}, ts_type=Types.HEATING)
+    subhourly_result = Demandlib().generate(obj=obj, data={O.WEATHER: subhourly}, ts_type=Types.HEATING)
+
+    hourly_w = hourly_result["timeseries"][OUT_COL].to_numpy()
+    subhourly_w = subhourly_result["timeseries"][OUT_COL].to_numpy()
+    np.testing.assert_array_equal(subhourly_w, np.repeat(hourly_w, steps))
+    demand = f"{Types.HEATING}{SEP}{C.DEMAND}[Wh]"
+    assert subhourly_result["summary"][demand] == hourly_result["summary"][demand]
+
+
+def test_steps_longer_than_an_hour_carry_mean_power(_require_demandlib):
+    """Two-hour steps hold the mean power of their two hours instead of half of it.
+
+    The last step covers only one engine hour, so the total may exceed the demand slightly.
+    """
+    weather = _make_weather("2022-01-01 00:00:00", periods=24, freq="2h")
+    obj = {
+        O.ID: "obj_1",
+        O.DEMAND_KWH: 1_000.0,
+        O.BUILDING_TYPE: "EFH",
+        O.BUILDING_CLASS: 1,
+        O.WIND_CLASS: 0,
+    }
+
+    result = Demandlib().generate(obj=obj, data={O.WEATHER: weather}, ts_type=Types.HEATING)
+
+    demand_wh = result["summary"][f"{Types.HEATING}{SEP}{C.DEMAND}[Wh]"]
+    assert 0.95 * 1_000_000 < demand_wh < 1.05 * 1_000_000
+
+
+def test_steps_longer_than_an_hour_start_at_their_own_label(_require_demandlib):
+    """A two-hour step labelled 01:00 covers hours 01 and 02, also when the run does not start at midnight."""
+    two_hourly = _make_weather("2022-01-01 01:00:00", periods=24, freq="2h")
+    hourly = _make_weather("2022-01-01 01:00:00", periods=48, freq="h")
+    two_hourly[C.TEMP_AIR] = 0.0
+    hourly[C.TEMP_AIR] = 0.0
+    obj = {
+        O.ID: "obj_1",
+        O.DEMAND_KWH: 1_000.0,
+        O.BUILDING_TYPE: "EFH",
+        O.BUILDING_CLASS: 1,
+        O.WIND_CLASS: 0,
+    }
+
+    steps = Demandlib().generate(obj=obj, data={O.WEATHER: two_hourly}, ts_type=Types.HEATING)["timeseries"]
+    hours = Demandlib().generate(obj=obj, data={O.WEATHER: hourly}, ts_type=Types.HEATING)["timeseries"]
+
+    steps_w = steps[OUT_COL].to_numpy(dtype=float)
+    hours_w = hours[OUT_COL].to_numpy(dtype=float)
+    # Ratios between steps do not depend on how the total is scaled.
+    expected = (hours_w[0] + hours_w[1]) / (hours_w[2] + hours_w[3])
+    assert steps_w[0] / steps_w[1] == pytest.approx(expected, rel=1e-3)

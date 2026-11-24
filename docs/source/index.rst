@@ -38,37 +38,8 @@ Key Features
 Quick Start
 -----------
 
-For those wanting to quickly get started with EnTiSe, here is a simple example of how to use the `Generator` to create synthetic time series data for a building's thermal behavior. We recommend having a look at the :ref:`examples` to get a better understanding of the available parameters and methods.
-
-.. code-block:: python
-
-   from entise import Generator
-   import pandas as pd
-
-   # Initialize the generator
-   gen = Generator()
-
-   # Add objects (e.g., buildings)
-   gen.add_objects({
-       "id": "building1",
-       "hvac": "1R1C",
-       "resistance": 2.0,
-       "capacitance": 1e5,
-       "temp_min": 20.0,
-       "temp_max": 24.0,
-   })
-
-   # Prepare input data (e.g., weather)
-   data = {
-       "weather": pd.DataFrame({
-           "temp_out": [0.0] * 24,
-       }, index=pd.date_range("2025-01-01", periods=24, freq="h"))
-   }
-
-   # Generate time series
-   summary, df = gen.generate(data)
-
-
+Follow :ref:`getting_started` to generate HVAC demand with ``Generator``
+or call a PV method directly.
 
 .. toctree::
    :maxdepth: 1
@@ -77,6 +48,7 @@ For those wanting to quickly get started with EnTiSe, here is a simple example o
    installation
    getting_started
    workflow
+   migration
    architecture
    methods/index
    services/index

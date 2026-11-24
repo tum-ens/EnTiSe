@@ -4,11 +4,11 @@
 # Collaborative Development
 
 ## Prerequisites
-- [GitLab](https://gitlab.com/) as a public repository. Please create an account.
+- An account on the [EnTiSe GitLab host](https://gitlab.lrz.de/).
 - [Git](https://git-scm.com/) for version control. [Git How To](https://githowto.com/) and [Git Cheat Sheet](https://training.github.com/downloads/github-git-cheat-sheet.pdf) provide an introduction into working with Git.
 - Development Environment Setup:
-  - Clone the repository and set up a virtual environment as described in the `README.md`.
-  - Install all necessary dependencies using `pip install -r requirements.txt`.
+  - Clone the repository and set up the development environment as described in the
+    [README](../../README.rst).
 
 ### Optional: Setting Up SSH for GitLab
 To simplify authentication, consider setting up SSH keys for GitLab. Follow [GitLab’s SSH key setup guide](https://docs.gitlab.com/ee/user/ssh.html) for instructions.
@@ -40,222 +40,74 @@ You coordinate and carry out the release.
 Add your name and details to [CITATION.cff](../../CITATION.cff).
 
 ## Workflow
-The workflow for contributing to this project has been inspired by the workflow described by [Vincent Driessen](https://nvie.com/posts/a-successful-git-branching-model/).
 
-##### Branches and their purpose
-* main - holds the current stable version
-* develop - holds all current developments
-* see other types below
+### 1. Agree on scope and where to stop
 
-### 1. Describe the issue on GitLab
-Create [an issue](https://docs.gitlab.com/ee/user/project/issues/#create-an-issue) in the GitLab repository.
-The `issue title` describes the problem you will address.  <br>
-This is an important step as it forces one to think about the "issue".
-Make a checklist for all needed steps if possible.
-The issue templates guide you to ensure a consistent description.
+For substantive work, record the task, affected areas, and verification that
+will show it is complete. Check for related issues and merge requests, and
+confirm the starting commit on `origin/develop`. Discuss the real design
+choices and record the approved approach before implementation. Existing
+issues can hold the decision. A local draft can hold it until publication.
 
-### 2. Solve the issue locally
-There are two ways to create the branch:
-1. Create a new branch from the `develop` branch
-2. Create a new branch directly in GitLab from the issue
+For a maintainer-started session, implementation approval covers local
+commits, review, and opening or updating the MR once the reviewed change
+is ready. Record any narrower endpoint with the design. Use the same
+approval for each authorized step. Return to the maintainer for a material
+scope change or a blocker that needs their decision. The maintainer decides
+when to merge.
 
-#### Naming convention for branches
-Naming convention for branches: `type`-`issue-nr`-`short-description`
+### 2. Implement on a topic branch
 
-##### `type`
-* feature - used for new features
-* hotfix - used for quick fixes, should be branched from the release branch
-* release - used for preparing a new release, should be branched from the develop branch
+Use a branch from `develop` and an isolated worktree when sessions share a
+checkout. Reuse a GitLab issue that already covers the change. If the issue
+will be created at publication, use a temporary local branch name. Once
+GitLab assigns a number, use the repository's branch convention, for example
+`feature/42-short-description` or `bug/42-short-description`. Keep the
+source branch of an existing open MR.
 
-Note: The majority of the development will be done in `feature` branches.
+For a behavior fix, first show a focused regression test fails on the base
+and then show it passes with the fix. Add an entry under `[Unreleased]` in
+[CHANGELOG.md](../../CHANGELOG.md) for changes to outputs or the public API.
+Include the issue reference once assigned. Use **Behavior change** where
+appropriate. Release preparation handles the version and release heading.
 
-##### `issue-nr`
-The `issueNumber` should be taken from Step 1. Do not use the "#".
+### 3. Verify and review
 
-##### `short-description`
-Describe shortly what the branch is about. Usually, the title of the issue.
+Run the checks that cover the changed behavior. Unit and integration tests
+use local fixtures or mocked services. From the active development environment:
 
-##### Other hints
-- Separate words with `-` (minus)
-- Avoid using capital letters
-- Do not put your name to the branch name, it's a collaborative project
-- Branch names should be precise and informative
-
-Examples of branch names: `feature-42-add-new-ontology-class`, `feature-911-branch-naming-convention`, `hotfix-404-update-api`, `release-v0.10.0`
-
-#### 2.1. Create a new branch
-
-##### Option 1: Get the latest version of the `develop` branch
-1. Load the `develop branch`:
 ```bash
-git checkout develop
+pytest tests --ignore=tests/installation
+pytest tests
 ```
 
-2. Update with the latest version:
-```bash
-git pull
-```
+The first command omits the installation test. The second can reach package
+indexes. Use Ruff for lint and formatting and mypy for type checks. When a
+check fails, compare with the target and report confirmed baseline failures,
+new failures, and any verification gaps. See the [CI guide](CI_CD_Guide.md)
+for the checks run by GitLab.
 
-3. Create a new feature branch:
-```bash
-git checkout -b feature-1314-my-feature
-```
+Before publication, review the diff against the current target. Check the
+normal caller, compatibility, tests, and any changelog or docs changes. For
+tool-assisted review, see the [shared review skill](../../.agents/skills/review-mr/SKILL.md).
+Record the reviewed commit and target SHA, material findings and their
+resolution, and the exact checks and results. Compare the reviewed SHA with
+the publication head. Review later changes and rerun the checks they affect.
 
-##### Option 2: Create a new branch directly in GitLab from the issue
-1. Click on the button `Create merge request` in the issue. Here you can either create a new branch or also create a merge request alongside with it (recommended).
-2. Choose the appropriate source branch (most of the time develop).
-3. Name the branch according to the naming convention.
+### 4. Publish and hand off the MR
 
-#### 2.2. Start editing the files
-- Divide your feature into small logical units
-- Start to write the documentation or a docstring
-- Don't rush, have the commit messages in mind
-- Add your changes to the [CHANGELOG.md](../../CHANGELOG.md)
+Within the approved scope, create or reuse the issue, push only the topic
+branch, and open or update the MR against `develop`. Before pushing to an
+existing MR branch, check that the MR is still open and that the target and
+source are the intended ones. Keep `main` and `develop` for merges and
+releases.
 
-On first commit to the repo:
-- Add your name and details to [CITATION.cff](../../CITATION.cff)
-
-Check branch status:
-```bash
-git status
-```
-
-#### 2.3. Commit your changes
-If the file does not exist on the remote server yet, use:
-```bash
-git add filename.md
-```
-
-Then commit regularly with:
-```bash
-git commit filename.md
-```
-
-Write a good `commit message`:
-- "If applied, this commit will ..."
-- Follow [existing conventions for commit messages](https://chris.beams.io/posts/git-commit)
-- Keep the subject line [shorter than 50 characters](https://chris.beams.io/posts/git-commit/#limit-50)
-- Do not commit more than a few changes at the time: [atomic commits](https://en.wikipedia.org/wiki/Atomic_commit)
-- Use [imperative mood](https://chris.beams.io/posts/git-commit/#imperative)
-- Do not end the commit message with a [period](https://chris.beams.io/posts/git-commit/#end) ~~.~~
-- Always end the commit message with the `issueNumber` including the "#"
-
-Examples of commit message: `Added function with some method #42` or `Update documentation for commit messages #1`
-
-#### 2.4 Fix your latest commit message
-Do you want to improve your latest commit message? <br>
-Is your latest commit not pushed yet? <br>
-Edit the commit message of your latest commit:
-```bash
-git commit --amend
-```
-
-### 3. Run the tests
-To maintain code quality and ensure reliability, please follow the guidelines below when contributing code to this project.
-
-1. **Run Tests Locally**:
-    - **Test Suite**: Before submitting code, run the full test suite to ensure your changes don’t introduce any issues.
-    - **Test Command**: Use the following command to run the tests (adjust this based on your testing framework, e.g., `pytest`, `unittest`):
-    ```bash
-    pytest tests/
-    ```
-    - **Writing Tests**: New features should include relevant unit tests, ideally placed in the tests/ folder. Ensure each test covers a specific aspect of functionality and edge cases where applicable.
-
-2. **Code Quality and Linting**:
-To ensure consistency in code style and to prevent potential issues, it’s recommended to use linters and formatters.
-    - **Linting**: Use `flake8` to check for PEP 8 compliance and catch other common issues:
-   ```bash
-    pip install flake8
-    flake8 path/to/your/code  # Run flake8 to check for style issues
-    ```
-    - **Code Formatting**: Use `black` oto automatically format your code according to PEP 8 standards.
-    ```bash
-    pip install black
-    black path/to/your/code  # Run black to automatically format code
-    ```
-   - **Type Checking**: If applicable, use `mypy` to perform static type checking on your code:
-    ```bash
-    pip install mypy
-    mypy path/to/your/code  # Run mypy to check for type errors
-    ```
-3. **Pre-Commit Hooks**:
-To automate code quality checks before each commit, we use pre-commit hooks. These hooks ensure code adheres to the project’s standards, catching issues early in the development process.
-    - **Pre-Commit**: To automate code quality checks, consider using pre-commit hooks. These hooks run checks before each commit to ensure code quality and style consistency.
-    - **Installation**: Install pre-commit using pip:
-    ```bash
-    pip install pre-commit
-    ```
-   - **Setup**: If the repository includes a .pre-commit-config.yaml file, run the following command to install the hooks defined in the config file:
-    ```bash
-    pre-commit install
-    ```
-    - **Usage**: After installation, pre-commit will run automatically before each commit. If any issues are found, you will need to address them before the commit is accepted.
-    - **Customization**: To customize the pre-commit hooks, modify the .pre-commit-config.yaml file in the repository. This file defines the hooks to run and their configurations.
-    - **Manual Run**: To run the pre-commit checks manually, use the following command:
-    ```bash
-    pre-commit run --all-files
-    ```
-    **Note**: Pre-commit hooks may run linters, formatters, and other quality checks automatically on changed files when you commit, ensuring compliance without requiring manual intervention.
-
-4. Ensuring Coverage:
-    - **Code Coverage**: Aim to maintain high code coverage for new code by adding unit tests for all significant paths and edge cases.
-    - **Coverage Tool**: Use `coverage.py` with `pytest` to generate a coverage report:
-    ```bash
-    pytest --cov=path/to/your/code tests/
-    ```
-   After running the tests, you can view the coverage report in the terminal or generate an HTML report for more detailed information.
-    ```bash
-        coverage report
-        coverage html
-    ```
-Following these steps will help ensure the project remains robust, maintainable, and consistent. Before pushing your changes, confirm that:
-- All tests pass locally.
-- Linting and formatting checks are successful.
-- Pre-commit hooks have been applied without errors.
-
-### 4. Push your commits
-Push your `local` branch on the remote server `origin`. <br>
-If your branch does not exist on the remote server yet, use:
-```bash
-git push --set-upstream origin feature-1314-my-feature
-```
-
-Then push regularly with:
-```bash
-git push
-```
-
-### 5. Submit a merge request (MR)
-Follow the GitLab guide [Creating merge requests](https://docs.gitlab.com/ee/user/project/merge_requests/creating_merge_requests.html). <br>
-The MR should be directed: `base: develop` <- `compare: feature-1-collaboration`. <br>
-Add the line `Close #<issue-number>` in the description of your MR.
-When it is merged, it [automatically closes](https://docs.gitlab.com/ee/user/project/issues/managing_issues.html#closing-issues-automatically) the issue. <br>
-Assign a reviewer and get in contact.
-
-#### 5.1. Let someone else review your MR
-Follow the GitLab guide [Merge request views](https://docs.gitlab.com/ee/user/project/merge_requests/reviews/). <br>
-Assign one reviewer or a user group and get into contact.
-
-If you are the reviewer:
-- Check the changes in all corresponding files.
-- Checkout the branch and run code.
-- Comment if you would like to change something (Use `Request changes`)
-- If all tests pass and all changes are good, `Approve` the MR.
-- Leave a comment and some nice words!
-
-#### 5.2. Merge the MR and delete the feature branch
-Follow the GitLab guide [Merge methods](https://docs.gitlab.com/ee/user/project/merge_requests/methods/index.html).
-
-### 6. Close the issue
-Document the result in a few sentences and close the issue. <br>
-Check that all steps have been documented:
-
-- Issue title describes the problem you solved?
-- All commit messages are linked in the issue?
-- The branch was deleted?
-- Entry in CHANGELOG.md?
-- MR is closed?
-- Issue is closed?
+Use the matching [MR template](../../.gitlab/merge_request_templates/).
+Include the review and verification record and any later changes. Verify
+the published MR's source, target, and head and report its link and check
+status. Use `Closes #123` when the change resolves the issue. Automatic
+closure depends on the GitLab target and project settings. The maintainer
+checks issue status when closing out the change.
 
 ## Coding Standards
 
@@ -263,19 +115,8 @@ To maintain consistency and readability, please follow the coding standards outl
 
 ### Code Style
 
-- **PEP 8**: All Python code should adhere to [PEP 8](https://www.python.org/dev/peps/pep-0008/) standards, which outline best practices for Python formatting, naming conventions, and structure. This includes:
-  - Indentation (4 spaces per level).
-  - Line length (maximum 79 characters, or 72 characters for docstrings).
-  - Naming conventions for variables, functions, and classes.
-
-- **Linting Tools**: To help ensure compliance with PEP 8, use a linter such as `flake8` or `black`:
-  ```bash
-  pip install flake8
-  flake8 path/to/your/code  # Run flake8 to check for style issues
-
-  # OR use black for auto-formatting
-  pip install black
-  black path/to/your/code  # Run black to automatically format code
+Follow [PEP 8](https://www.python.org/dev/peps/pep-0008/) and use Ruff for lint
+and formatting with the settings in [pyproject.toml](../../pyproject.toml).
 
 ### Documentation Style
 To ensure consistent and clear documentation, please follow the Google-style docstring format.
@@ -301,43 +142,43 @@ This style is straightforward and well-suited for research projects, as it provi
    ```python
    """Brief module description.
 
-    This module demonstrates the Google-style docstring format. It provides
-    several examples of documenting different types of objects and methods.
+   This module demonstrates the Google-style docstring format. It provides
+   several examples of documenting different types of objects and methods.
 
-    Attributes:
-        module_level_variable1 (int): Module level variables can be documented here.
-        module_level_variable2 (str): An example of an inline attribute docstring.
-    """
+   Attributes:
+       module_level_variable1 (int): Module level variables can be documented here.
+       module_level_variable2 (str): An example of an inline attribute docstring.
+   """
    ```
 
 2. **Function Docstring**
     ```python
-    def example_function(param1: int, param2: str = 'default') -> bool:
-         """Summary of the function.
+    def example_function(param1: int, param2: str = "default") -> bool:
+        """Summary of the function.
 
-         Args:
-              param1 (int): The first parameter.
-              param2 (str): The second parameter. Defaults to 'default'.
+        Args:
+             param1 (int): The first parameter.
+             param2 (str): The second parameter. Defaults to 'default'.
 
-         Returns:
-              bool: A boolean value indicating success.
+        Returns:
+             bool: A boolean value indicating success.
 
-         Raises:
-              ValueError: If the parameter is invalid.
-         """
+        Raises:
+             ValueError: If the parameter is invalid.
+        """
     ```
 
 3. **Generator Function Docstring**
     ```python
     def example_generator(param: int) -> Iterator[int]:
-         """Summary of the generator function.
+        """Summary of the generator function.
 
-         Args:
-              param (int): The parameter for the generator.
+        Args:
+             param (int): The parameter for the generator.
 
-         Yields:
-              int: The next value in the sequence.
-         """
+        Yields:
+             int: The next value in the sequence.
+        """
     ```
 
 4. **Class Docstring with Attributes**
@@ -374,6 +215,7 @@ This style is straightforward and well-suited for research projects, as it provi
             msg (str): Explanation of the error.
             code (int): Error code.
         """
+
         def __init__(self, msg: str, code: int = None):
             self.msg = msg
             self.code = code

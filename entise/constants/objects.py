@@ -1,4 +1,7 @@
-class Objects:
+from entise.constants._namespace import Namespace
+
+
+class Objects(metaclass=Namespace):
     """Keys used for identifying objects and their attributes.
     Sorted alphabetically for easy reference (except for ID).
     """
@@ -24,6 +27,7 @@ class Objects:
     CAPACITANCE = "capacitance[J K-1]"  # Capacitance (J/K)
     CAPACITANCE_AIR = "capacitance_air[J K-1]"  # Air capacitance (J/K)
     COLUMN = "column"
+    COP_COEFFICIENTS = "cop_coefficients"  # Custom COP coefficients (heat pump)
     CORRECTION_FACTOR = "correction_factor"  # Correction factor for calculations
     DATETIMES = "datetimes"
     DEADBAND = "deadband[K]"  # Thermostat dead band width (K)
@@ -73,6 +77,7 @@ class Objects:
     NIGHT_SCHEDULE = "night_schedule"
     NIGHT_SCHEDULE_START = f"{NIGHT_SCHEDULE}_start"  # Start hour for detecting nightly occupancy schedule
     NIGHT_SCHEDULE_END = f"{NIGHT_SCHEDULE}_end"  # End hour for detecting nightly occupancy schedule
+    NIGHT_SCHEDULE_DURATION = f"{NIGHT_SCHEDULE}_duration[h]"  # Occupied duration that triggers the night hold
     OCCUPANCY = "occupancy"  # Occupancy (for timeseries files)
     OCCUPANCY_AVG = f"average_{OCCUPANCY}"  # Average occupancy over a certain timeseries
     OCCUPANTS = "occupants"  # Number of occupants
@@ -118,6 +123,7 @@ class Objects:
     TEMPERATURE_SERIES = "temperature_series"
     THERMAL_INERTIA = "thermal_inertia"  # Thermal inertia [0, 1]
     TILT = "tilt[degree]"  # Tilt (degrees; 0 = horizontal)
+    TIMEZONE = "timezone"  # Site time zone as an IANA name (e.g. Europe/Berlin)
     TRANSMITTANCE = "transmittance[W m-2 K-1]"  # Transmittance (W/m2/K)
     TURBINE_TYPE = "turbine_type"  # Turbine type (wind)
     VENTILATION = "ventilation[W K-1]"  # Ventilation losses (W/K)

@@ -6,17 +6,30 @@ using a file key. It follows the Method pattern established in the project archi
 The module provides functionality to:
 - Process input parameters for file loading
 - Validate and prepare the input data
-- Return the loaded time series data
+- Return the loaded time series data on the object's time axis
+
+The table follows EnTiSe's time contract. A table with timestamps is read as
+instants. If the object names a weather table, the file is aligned to the
+weather's instants; a table without timestamps is then used row by row, one row
+per weather step, with a warning. The output is indexed in the object's
+``timezone``, or in UTC when the run asks for it. A table without timestamps for
+an object without weather is returned unchanged, with a warning.
 
 The main class, FileLoader, inherits from the Method base class and implements the
 required interface for integration with the EnTiSe framework.
 """
 
+import logging
+
 import pandas as pd
 
 from entise.constants import VALID_TYPES
+from entise.constants import Columns as C
 from entise.constants import Objects as O
+from entise.core._time import RUN_TIME_KEY, output_index, run_time
 from entise.core.base import Method
+
+logger = logging.getLogger(__name__)
 
 
 class FileLoader(Method):
@@ -49,19 +62,26 @@ class FileLoader(Method):
         >>> summary, timeseries = gen.generate(data)  # data contains external time series
     """
 
-    types = VALID_TYPES  # Adapt as needed
+    types = sorted(VALID_TYPES)
     name = "file"
 
     required_keys = [O.ID, O.FILE]
     required_data = [O.FILE]
-    optional_keys = []
-    optional_data = []
+    optional_keys = [O.WEATHER, O.TIMEZONE]
+    optional_data = [O.WEATHER]
     output_summary = {}
     output_timeseries = {}
 
+    input_aliases = {"file": O.FILE}
+
     def generate(
-        self, obj: dict = None, data: dict = None, results: dict = None, ts_type: str = None, *, file: str = None
-    ):
+        self,
+        obj: dict | None = None,
+        data: dict | None = None,
+        results: dict | None = None,
+        ts_type: str | None = None,
+        **inputs,
+    ) -> dict:
         """Load time series data from external sources.
 
         This method implements the abstract generate method from the Method base class.
@@ -72,15 +92,21 @@ class FileLoader(Method):
             data (dict, optional): Dictionary containing input data. Defaults to None.
             results (dict, optional): Dictionary with results from previously generated time series
             ts_type (str, optional): Time series type to generate. Defaults to None.
-            file (str, optional): Key to use for loading the time series. Defaults to None.
+            **inputs: Any input of the method, by its key or by its Python name (the key
+                without its unit, such as ``area`` for ``area[m2]``). Keywords override the
+                same keys in ``obj``. For example:
+
+                - ``filename`` or ``file`` (str): Key of the time series in ``data``.
 
         Returns:
             dict: Dictionary containing:
                 - "summary" (dict): Empty dictionary as no summary is provided.
-                - "timeseries" (pd.DataFrame): The loaded time series data.
+                - "timeseries" (pd.DataFrame): The loaded time series, indexed by its
+                  instants (or the weather's) in the object's time zone.
 
         Raises:
-            ValueError: If required data is missing.
+            ValueError: If required data is missing, if the table cannot be placed on
+                a time axis, or if it does not cover the weather.
             TypeError: If the loaded data is not a DataFrame.
 
         Example:
@@ -88,13 +114,14 @@ class FileLoader(Method):
             >>> # Using explicit parameters
             >>> result = fileloader.generate(file="external_input", data={"external_input": df})
             >>> # Or using dictionaries
-            >>> obj = {"file": "external_input"}
+            >>> obj = {"filename": "external_input"}
             >>> data = {"external_input": df}
             >>> result = fileloader.generate(obj=obj, data=data)
             >>> timeseries = result["timeseries"]
         """
         # Process keyword arguments
-        processed_obj, processed_data = self._process_kwargs(obj, data, file=file)
+        processed_obj, processed_data = self._process_kwargs(obj, data, ts_type, **inputs)
+        processed_data = {**processed_data, RUN_TIME_KEY: run_time(processed_data)}
 
         # Continue with existing implementation
         processed_obj, processed_data = get_input_data(processed_obj, processed_data, ts_type)
@@ -108,7 +135,7 @@ class FileLoader(Method):
         }
 
 
-def get_input_data(obj: dict, data: dict, method_type: str = None) -> tuple[dict, dict]:
+def get_input_data(obj: dict, data: dict, method_type: str | None = None) -> tuple[dict, dict]:
     """Process and validate input data for file loading.
 
     This function extracts required parameters from the input dictionaries,
@@ -128,43 +155,38 @@ def get_input_data(obj: dict, data: dict, method_type: str = None) -> tuple[dict
         ValueError: If required parameters are missing.
     """
     # Process object parameters
-    obj_out = {
-        O.ID: Method.get_with_backup(obj, O.ID),
-        O.FILE: Method.get_with_method_backup(obj, O.FILE, method_type),
-    }
+    obj_out = FileLoader.get_relevant_objects(obj, method_type)
 
     # Validate required parameters
-    if obj_out[O.FILE] is None:
+    if obj_out.get(O.FILE) is None:
         raise ValueError(f"Required parameter '{O.FILE}' not found in object parameters")
 
-    # Process data
-    data_out = {
-        obj_out[O.FILE]: Method.get_with_backup(data, obj_out[O.FILE]),
-    }
-
     # Validate required data
-    if data_out[obj_out[O.FILE]] is None:
+    if Method.get_with_backup(data, obj_out[O.FILE]) is None:
         raise ValueError(f"FileLoader expected timeseries key '{obj_out[O.FILE]}' to be present in input data.")
+
+    # Keep the whole mapping: the run's time tables include the weather the file is aligned to.
+    data_out = dict(data)
 
     return obj_out, data_out
 
 
 def load_timeseries(obj: dict, data: dict) -> pd.DataFrame:
-    """Load time series data from the input data.
-
-    This function loads a time series from the input data using the provided key.
+    """Load the time series and place it on the object's time axis.
 
     Args:
-        obj (dict): Dictionary containing processed file parameters such as:
-            - file: Key to use for loading the time series.
-        data (dict): Dictionary containing processed data such as:
-            - The time series data to load.
+        obj (dict): Processed file parameters: ``file``, and optionally ``weather``
+            and ``timezone``.
+        data (dict): Input data, including the run's time tables.
 
     Returns:
-        pd.DataFrame: The loaded time series data.
+        pd.DataFrame: The table, indexed by its instants, or by the weather's
+        instants when the object names a weather table, in the object's time zone.
 
     Raises:
         TypeError: If the loaded data is not a DataFrame.
+        ValueError: If the named weather table is missing, if the table cannot be
+            read, or if it does not fit the weather (see ``RunTime.align``).
     """
     key = obj[O.FILE]
     df = data[key]
@@ -172,4 +194,26 @@ def load_timeseries(obj: dict, data: dict) -> pd.DataFrame:
     if not isinstance(df, pd.DataFrame):
         raise TypeError(f"Expected a DataFrame for key '{key}', but got {type(df).__name__}.")
 
-    return df
+    run = run_time(data)
+    weather_key = obj.get(O.WEATHER)
+    if isinstance(weather_key, str) and weather_key.strip():
+        if weather_key not in run:
+            raise ValueError(
+                f"Object '{obj.get(O.ID)}' names the weather table '{weather_key}', which is not in the data."
+            )
+        table = run.align(key, run.table(weather_key).index)
+    elif run.has_timestamps(key):
+        table = run.table(key)
+    else:
+        logger.warning(
+            "Table '%s' has no timestamps and object '%s' names no weather table; EnTiSe returns the table "
+            "unchanged, so its index does not follow the object's time axis. Add a '%s' column or a '%s' key.",
+            key,
+            obj.get(O.ID),
+            C.DATETIME,
+            O.WEATHER,
+        )
+        return df.copy()
+
+    table.index = output_index(table.index, obj, data)
+    return table

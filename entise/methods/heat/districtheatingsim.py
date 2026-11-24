@@ -1,38 +1,17 @@
 import logging
-from typing import Optional
 
 import numpy as np
 import pandas as pd
 
-# Try to import the optional dependency
-try:
-    from districtheatingsim.heat_requirement.heat_requirement_BDEW import calculate as bdew_calculate
-
-    DISTRICTHEATINGSIM_AVAILABLE = True
-except ImportError:
-    DISTRICTHEATINGSIM_AVAILABLE = False
-    bdew_calculate = None
-
-
 from entise.constants import SEP, Types
 from entise.constants import Columns as C
 from entise.constants import Objects as O
+from entise.core._time import output_index, site_zone
 from entise.core.base import Method
 from entise.methods.heat.utils import cleanup_try_dir, create_try_file
-from entise.methods.utils.weather_cache import WeatherCache
+from entise.methods.utils._calendar import hourly_wall_series, read_profile, scale_to_energy, time_table, wall_years
 
 logger = logging.getLogger(__name__)
-
-# Identity-keyed cache — see WeatherCache docstring for rationale.
-_WEATHER_CACHE = WeatherCache()
-
-
-def _preprocess_weather(weather: pd.DataFrame) -> pd.DataFrame:
-    w = weather.copy()
-    w = Method._strip_weather_height(w)
-    w.index = pd.to_datetime(w[C.DATETIME], utc=True)
-    return w
-
 
 DEFAULT_DEMAND_KWH = 1.0
 DEFAULT_PROFILE_TYPE = "HEF03"
@@ -45,15 +24,17 @@ class DistrictHeatSim(Method):
     Purpose and scope:
     - Wraps the DistrictHeatingSim BDEW implementation to synthesize hourly
       heating energy profiles for a selected BDEW profile type (e.g., HEF03),
-      scaled to an annual demand target and aligned to the requested timestep.
+      scaled so that the energy over the run equals ``Objects.DEMAND_KWH``.
     - Optionally splits the total load into space heating and DHW shares via
       the dhw_share parameter.
 
     Notes:
-    - Provide weather with a datetime column and air temperature. The method
-      derives wall‑clock timestamps and applies a power‑preserving alignment
-      when your resolution differs from the hourly native resolution of the
-      underlying model.
+    - Provide weather with timestamps and air temperature. The model runs per
+      calendar year on the hourly local wall clock of the object's ``timezone``
+      (UTC if unset). On the 23-hour day of the change to summer time the
+      skipped hour is not read; on the 25-hour day the repeated hour is read
+      twice. Each row is the mean power over the interval that starts at its
+      label.
     - The first three characters of profile_type define the building group, the
       last two its subtype, e.g., "HEF03".
 
@@ -67,12 +48,22 @@ class DistrictHeatSim(Method):
     types = [Types.HEATING]
 
     required_keys = [O.WEATHER]
-    optional_keys = [O.DEMAND_KWH, O.PROFILE_TYPE, O.DHW_SHARE]
+    optional_keys = {
+        O.DEMAND_KWH: DEFAULT_DEMAND_KWH,
+        O.PROFILE_TYPE: DEFAULT_PROFILE_TYPE,
+        O.DHW_SHARE: DEFAULT_DHW_SHARE,
+        O.TIMEZONE: None,
+    }
 
     required_data = [O.WEATHER]
     optional_data = []
 
-    output_summary = {f"{Types.HEATING}{SEP}{C.DEMAND}[kWh]": "total heating demand"}
+    output_summary = {
+        f"{Types.HEATING}{SEP}{C.DEMAND}[Wh]": "total heating demand",
+        f"{Types.HEATING}{SEP}{O.LOAD_MAX}[W]": "maximum heating load",
+        f"{Types.DHW}{SEP}{C.DEMAND}[Wh]": "domestic hot water share of the heating demand",
+        f"{Types.DHW}{SEP}{O.LOAD_MAX}[W]": "maximum domestic hot water load",
+    }
 
     output_timeseries = {
         f"{Types.HEATING}{SEP}{C.LOAD}[W]": "total heating load per timestep",
@@ -80,18 +71,16 @@ class DistrictHeatSim(Method):
         f"{Types.HEATING}{SEP}load_dhw[W]": "DHW load per timestep (derived via dhw_share)",
     }
 
+    input_aliases = {"annual_demand_kwh": O.DEMAND_KWH}
+
     def generate(
         self,
-        obj: dict = None,
-        data: dict = None,
-        results: dict = None,
+        obj: dict | None = None,
+        data: dict | None = None,
+        results: dict | None = None,
         ts_type: str = Types.HEATING,
-        *,
-        annual_demand_kwh: float = None,
-        weather: pd.DataFrame = None,
-        profile_type: str = None,
-        dhw_share: Optional[float] = None,
-    ):
+        **inputs,
+    ) -> dict:
         """Generate a heating load timeseries using DistrictHeatingSim's BDEW heat model.
 
         This method prepares inputs (including optional overrides), computes the
@@ -100,17 +89,23 @@ class DistrictHeatSim(Method):
         summary and timeseries.
 
         Args:
-            obj: Object dictionary with inputs like annual demand, profile type,
+            obj: Object dictionary with inputs like demand over the run, profile type,
                  DHW share, and weather key.
             data: Data dictionary containing the weather dataframe under O.WEATHER.
             results: Unused placeholder for interface compatibility.
             ts_type: Timeseries type, defaults to Types.HEATING.
-            annual_demand_kwh: Optional annual heat demand in kWh.
-            weather: Optional weather dataframe override with C.DATETIME and C.TEMP_AIR.
-            profile_type: Optional BDEW profile type (e.g., "HEF03", "GBH01").
-                          First three characters define building type, last two subtype.
-            dhw_share: Optional domestic hot water share (0–1), passed to
-                       DistrictHeatingSim as real_ww_share.
+            **inputs: Any input of the method, by its key or by its Python name (the key
+                without its unit, such as ``area`` for ``area[m2]``). Keywords override the
+                same keys in ``obj``. A table input, such as ``weather``, can be a
+                DataFrame. For example:
+
+                - ``demand`` or ``annual_demand_kwh`` (``demand[kWh]``): Heat demand in kWh over the
+                  simulated run.
+                - ``weather`` (DataFrame or str): Weather with C.DATETIME and C.TEMP_AIR.
+                - ``profile_type`` (str): BDEW profile type (e.g., "HEF03", "GBH01"). The first three
+                  characters define the building type, the last two the subtype.
+                - ``dhw_share`` (float): Domestic hot water share (0–1), passed to DistrictHeatingSim as
+                  real_ww_share.
 
         Returns:
             dict: {"summary": {...}, "timeseries": DataFrame with columns:
@@ -119,61 +114,33 @@ class DistrictHeatSim(Method):
               - "heating:load_dhw[W]" (derived)
             indexed like the input weather datetimes.
         """
-        processed_obj, processed_data = self._process_kwargs(
-            obj,
-            data,
-            annual_demand_kwh=annual_demand_kwh,
-            weather=weather,
-            profile_type=profile_type,
-            dhw_share=dhw_share,
-        )
+        processed_obj, processed_data = self._process_kwargs(obj, data, ts_type, **inputs)
         processed_obj, processed_data = self._get_input_data(processed_obj, processed_data, ts_type)
 
         ts_total_w = calculate_timeseries(processed_obj, processed_data)
 
         logger.debug(f"[districtheatsim heat]: Generating {ts_type} data")
 
-        return self._format_output(ts_total_w, processed_obj)
+        return self._format_output(ts_total_w, processed_obj, processed_data)
 
     def _get_input_data(self, obj, data, method_type=Types.HEATING):
-        profile_type = Method.get_with_method_backup(obj, O.PROFILE_TYPE, method_type, DEFAULT_PROFILE_TYPE)
-        profile_type = str(profile_type).strip().upper()
+        obj_out = self.get_relevant_objects(obj, method_type)
+        profile_type = str(obj_out[O.PROFILE_TYPE]).strip().upper()
 
         if len(profile_type) < 4:
             raise ValueError("[districtheatsim] profile_type must be like 'GBH03', 'HEF04', 'GKO01'")
 
         # Normalize subtype to 2 digits (e.g., GKO1 -> GKO01)
-        profile_type = f"{profile_type[:3]}{profile_type[3:].zfill(2)}"
-
-        obj_out = {
-            O.ID: Method.get_with_backup(obj, O.ID),
-            O.DEMAND_KWH: Method.get_with_method_backup(obj, O.DEMAND_KWH, method_type, DEFAULT_DEMAND_KWH),
-            O.PROFILE_TYPE: profile_type,
-            O.DHW_SHARE: Method.get_with_method_backup(obj, O.DHW_SHARE, method_type, DEFAULT_DHW_SHARE),
-        }
+        obj_out[O.PROFILE_TYPE] = f"{profile_type[:3]}{profile_type[3:].zfill(2)}"
 
         weather_key = Method.get_with_method_backup(obj, O.WEATHER, method_type, O.WEATHER)
-        weather = Method.get_with_backup(data, weather_key)
-
-        data_out = {
-            O.WEATHER: weather,
-        }
-
-        # Clean up (exactly like demandlib_heat)
-        obj_out = {k: v for k, v in obj_out.items() if v is not None}
-        data_out = {k: v for k, v in data_out.items() if v is not None}
-
-        # Cache preprocessed weather by DataFrame identity — different
-        # DataFrames get separate entries even under the same weather-key.
-        # (The pre-existing cache read but never wrote — a silent miss on
-        # every call. Fixed alongside the switch to identity-keyed caching.)
-        if O.WEATHER in data_out:
-            data_out[O.WEATHER] = _WEATHER_CACHE.get_or_build(data_out[O.WEATHER], _preprocess_weather)
-
+        weather, step, hours = time_table(data, weather_key, site_zone(obj_out))
+        weather = Method._strip_weather_height(weather)
+        data_out = {O.WEATHER: weather, "step": step, "hours": hours, "run_data": data}
         return obj_out, data_out
 
     @staticmethod
-    def _format_output(ts_total_w: pd.Series, obj: dict) -> dict:
+    def _format_output(ts_total_w: pd.Series, obj: dict, data: dict) -> dict:
         """Format output as EnTiSe {summary, timeseries} and (optionally) split total into space+DHW."""
         out_space = f"{Types.HEATING}{SEP}{C.LOAD}[W]"
         out_dhw = f"{Types.DHW}{SEP}{C.LOAD}[W]"
@@ -192,15 +159,13 @@ class DistrictHeatSim(Method):
                 out_space: ts_space_w.round().astype(int),
                 out_dhw: ts_dhw_w.round().astype(int),
             },
-            index=pd.DatetimeIndex(ts_total_w.index),
+            index=output_index(ts_total_w.index, obj, data["run_data"]),
         )
-        df.index.name = C.DATETIME
 
-        idx = ts_total_w.index.to_series()
-        dt_s = (idx.iat[1] - idx.iat[0]).total_seconds()
-        demand_wh = int(round(float(ts_total_w.sum()) * dt_s / 3600.0))
+        hours = data["hours"]
+        demand_wh = int(round(float(np.dot(ts_total_w.to_numpy(), hours))))
         load_max_w = int(round(float(ts_total_w.max())))
-        demand_dhw_wh = int(round(float(ts_dhw_w.sum()) * dt_s / 3600.0))
+        demand_dhw_wh = int(round(float(np.dot(ts_dhw_w.to_numpy(), hours))))
         load_dhw_max_w = int(round(float(ts_dhw_w.max())))
 
         summary = {
@@ -216,27 +181,35 @@ def calculate_timeseries(obj, data):
     """Compute the heating load timeseries for the requested horizon.
 
     Uses DistrictHeatingSim’s BDEW implementation to generate an hourly-native
-    heating demand profile based on the specified BDEW profile type and
-    temperature input. The annual demand is distributed over the computed
-    hourly bins and converted to average hourly power. The resulting profile is
-    then aligned to the target timestep. Subhourly inputs are aggregated to
-    hourly temperature, and hourly average power is forward-filled back to the
-    original dt_s to preserve power semantics.
+    heating demand profile for every calendar year that the run's local wall
+    clock touches, from the hourly temperature of each local wall-clock hour.
+    Each row of the run, which covers ``[t, t + step)``, takes the mean of the
+    profile over the same span of the legal wall clock (see
+    :mod:`entise.methods.utils._calendar`), and the result is scaled so that
+    the energy over the run equals the demand.
 
     Args:
         obj: Processed object mapping with keys:
-            - O.DEMAND_KWH: Annual heat demand in kWh (float).
+            - O.DEMAND_KWH: Heat demand in kWh over the simulated run (float).
             - O.PROFILE_TYPE: BDEW profile type string (e.g., "HEF03", "GBH01").
             - O.DHW_SHARE: Optional DHW share (0–1) forwarded to
               DistrictHeatingSim as real_ww_share (float, optional).
-        data: Processed data mapping with O.WEATHER dataframe containing:
-            - C.DATETIME: Datetime column (tz-aware/naive accepted; converted to
-              tz-naive wall clock with a fixed step to avoid DST gaps/overlaps).
-            - C.TEMP_AIR: Ambient air temperature in °C (numeric).
+        data: Processed data mapping with the run's normalized O.WEATHER table
+            (with C.TEMP_AIR) and its step.
 
     Returns:
-        pandas.Series: Integer Watts indexed by tz-naive regular timestamps.
+        pandas.Series: Integer Watts indexed by the run's UTC instants.
     """
+    try:
+        from districtheatingsim.heat_requirement.heat_requirement_BDEW import calculate as bdew_calculate
+    except ModuleNotFoundError as exc:
+        if exc.name != "districtheatingsim":
+            raise
+        raise ImportError(
+            "The districtheatingsim method requires a manual installation of DistrictHeatingSim "
+            "with Python 3.11. See the EnTiSe installation guide."
+        ) from exc
+
     demand_kwh = float(obj[O.DEMAND_KWH])
 
     profile_type = str(obj.get(O.PROFILE_TYPE, DEFAULT_PROFILE_TYPE)).strip().upper()
@@ -248,31 +221,19 @@ def calculate_timeseries(obj, data):
     dhw_share = obj.get(O.DHW_SHARE, None)
     dhw_share = float(dhw_share) if dhw_share is not None else None
 
-    df_weather = data[O.WEATHER].copy()
+    zone = site_zone(obj)
+    weather = data[O.WEATHER]
+    step = data["step"]
+    axis = weather.index
 
-    # Wall-clock index
-    idx_wall = pd.to_datetime(df_weather[C.DATETIME].astype(str).str.slice(0, 19))
-    dt_s = (idx_wall.iloc[1] - idx_wall.iloc[0]).total_seconds()
-    idx_wall = pd.date_range(idx_wall.iloc[0], periods=len(idx_wall), freq=pd.Timedelta(int(dt_s), unit="s"))
+    # Hourly temperature of each local wall-clock hour of every year the run touches.
+    years = wall_years(axis, zone, step)
+    temp_hour = hourly_wall_series(weather[C.TEMP_AIR].astype(float), zone, step)
 
-    temp_hour = (
-        df_weather.assign(_idx_wall=idx_wall)
-        .set_index("_idx_wall")[C.TEMP_AIR]
-        .astype(float)
-        .resample("1h")
-        .mean()
-        .interpolate()
-    )
-
-    years = sorted(idx_wall.year.unique().astype(int).tolist())
     hourly_kwh_chunks: list[pd.Series] = []
-
     for y in years:
-        start = pd.Timestamp(y, 1, 1)
-        end = pd.Timestamp(y + 1, 1, 1)
-        idx_y = pd.date_range(start, end, freq="h", inclusive="left", name=C.DATETIME)
-
-        t_y = temp_hour.reindex(idx_y).interpolate(method="time")
+        idx_y = pd.date_range(pd.Timestamp(y, 1, 1), pd.Timestamp(y + 1, 1, 1), freq="h", inclusive="left")
+        t_y = temp_hour.reindex(idx_y).interpolate(limit_direction="both")
 
         tmp_dir, tmp_try_path = create_try_file(idx_hour_full=idx_y, temperature=t_y, prefix=f"entise_dhs_try_{y}_")
         try:
@@ -287,28 +248,16 @@ def calculate_timeseries(obj, data):
         finally:
             cleanup_try_dir(tmp_dir)
 
-        s_y = pd.Series(
-            np.asarray(total, dtype=float),
-            index=pd.DatetimeIndex(pd.to_datetime(hourly_intervals)).tz_localize(None),
-            name="kWh",
-        ).sort_index()
-        hourly_kwh_chunks.append(s_y)
+        index = pd.DatetimeIndex(pd.to_datetime(hourly_intervals))
+        if index.tz is not None:
+            index = index.tz_localize(None)
+        hourly_kwh_chunks.append(pd.Series(np.asarray(total, dtype=float), index=index, name="kWh").sort_index())
 
     if not hourly_kwh_chunks:
         raise ValueError("[districtheatsim] No yearly outputs produced")
 
-    s_all_kwh = pd.concat(hourly_kwh_chunks).sort_index()
-
-    # hourly kWh -> hourly average power [W]
-    p_hour = (s_all_kwh * 1000.0).astype(float)
-
-    if dt_s == 3600.0:
-        p_aligned = p_hour.reindex(idx_wall)
-    elif dt_s < 3600.0:
-        p_aligned = p_hour.reindex(idx_wall, method="ffill")
-    else:
-        p_aligned = p_hour.resample(f"{int(dt_s)}s").mean().interpolate(method="time").reindex(idx_wall)
-
-    p_aligned = p_aligned.clip(lower=0.0)
-    p_aligned.index.name = C.DATETIME
-    return p_aligned.round().astype(int)
+    # Hourly energy [kWh] is the mean power [kW] of the hour that starts at the label.
+    profile_kw = pd.concat(hourly_kwh_chunks).sort_index()
+    power = read_profile(profile_kw, axis, zone, step, name="districtheatingsim").clip(min=0.0)
+    power = scale_to_energy(power, data["hours"], demand_kwh * 1000.0)
+    return pd.Series(np.round(power).astype(int), index=axis, name=C.LOAD)

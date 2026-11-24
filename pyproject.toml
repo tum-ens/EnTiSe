@@ -16,36 +16,53 @@ classifiers = [
     "Intended Audience :: Science/Research",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Topic :: Scientific/Engineering",
 ]
 keywords = ["energy", "time series", "simulation"]
 dependencies = [
-    "cattrs",
-    "chardet>=5.0.0",
-    "demandlib",
-    "pyloadprofilegenerator",
-    "holidays>=0.50",
     "joblib>=1.0.0",
-    "matplotlib>=3.1.0",
-    "notebook>=7.5.4",
     "numpy>=2.0.0",
-    "openmeteo-requests",
-    "pandas<3.0.0",
-    "pint",
-    "pvlib>=0.12.0",
-    "requests-cache",
-    "retry-requests",
+    "pandas>=2.2.2,<4",
     "tqdm>=4.0.0",
-    "windpowerlib",
 ]
-requires-python = ">=3.10,<3.14"
+requires-python = ">=3.11"
 
 [project.optional-dependencies]
+dhw-jordanvajen = ["holidays>=0.50", "scipy"]
+electricity-demandlib = ["demandlib", "holidays>=0.50"]
+electricity-pylpg = ["pyloadprofilegenerator"]
+file = []
+heating-demandlib = ["demandlib", "holidays>=0.50"]
+hp-ruhnau = []
+hvac-1r0c = ["pvlib>=0.12.0"]
+hvac-1r1c = ["pvlib>=0.12.0"]
+hvac-5r1c = ["pvlib>=0.12.0"]
+hvac-7r2c = ["pvlib>=0.12.0"]
+occupancy-geoma = []
+occupancy-pht = []
+pv-pvlib = ["pvlib>=0.12.0"]
+wind-wplib = ["windpowerlib"]
+
+cooling = ["entise[hvac-1r0c,hvac-1r1c,hvac-5r1c,hvac-7r2c,file]"]
+dhw = ["entise[dhw-jordanvajen,file]"]
+electricity = ["entise[electricity-demandlib,electricity-pylpg,file]"]
+heating = ["entise[heating-demandlib,hvac-1r0c,hvac-1r1c,hvac-5r1c,hvac-7r2c,file]"]
+hp = ["entise[hp-ruhnau,file]"]
+hvac = ["entise[hvac-1r0c,hvac-1r1c,hvac-5r1c,hvac-7r2c,file]"]
+mobility = ["entise[file]"]
+occupancy = ["entise[occupancy-geoma,occupancy-pht,file]"]
+pv = ["entise[pv-pvlib,file]"]
+wind = ["entise[wind-wplib,file]"]
+all = ["entise[cooling,dhw,electricity,examples,heating,hp,hvac,mobility,occupancy,pv,weather,wind]"]
+
+examples = ["matplotlib>=3.9", "notebook>=7.5.4"]
+weather = ["openmeteo-requests", "pint", "pvlib>=0.12.0", "requests-cache", "retry-requests"]
 dev = [
+    "entise[dhw,electricity,heating,hp,hvac,occupancy,pv,weather,wind]",
     "pytest>=8.3.4",
     "pytest-cov>=6.0.0",
     "pytest-mock>=3.14.0",
@@ -62,7 +79,7 @@ docs = [
     "sphinx-rtd-theme",
 ]
 numba = [
-    "numba>=0.59",
+    "numba>=0.60",
 ]
 # Commented out for PyPI compatibility - install manually if needed
 # districtheatingsim = [
@@ -73,9 +90,6 @@ numba = [
 "Homepage" = "https://gitlab.lrz.de/tum-ens/need/entise"
 "Bug Tracker" = "https://gitlab.lrz.de/tum-ens/need/entise/-/issues"
 "Documentation" = "https://entise.readthedocs.io"
-
-[tool.setuptools]
-packages = ["entise"]
 
 [tool.hatch.version]
 source = "vcs"
@@ -100,7 +114,23 @@ packages = ["entise"]
 lint.select = ["E", "F", "B", "I"]
 lint.ignore = []
 line-length = 120
-target-version = "py312"
+target-version = "py311"
+
+[tool.pytest.ini_options]
+markers = [
+    "native_pylpg: runs the external PyLPG engine",
+]
+# Only warnings EnTiSe cannot fix are ignored, so new ones stay visible.
+filterwarnings = [
+    # pandas 2 uses NumPy timedeltas without a unit internally, which NumPy 2.5 deprecates.
+    "ignore:The 'generic' unit for NumPy timedelta is deprecated:DeprecationWarning",
+    # pandas 4 deprecations inside dependencies.
+    "ignore::DeprecationWarning:demandlib",
+    "ignore::DeprecationWarning:pvlib",
+    "ignore::DeprecationWarning:windpowerlib",
+    # Tests that switch the accelerator make pvlib reload its solar-position solver.
+    "ignore:Reloading spa to use:UserWarning:pvlib",
+]
 
 [tool.ruff.format]
 quote-style = "double"
@@ -109,3 +139,22 @@ line-ending = "auto"
 
 [tool.ruff.lint.isort]
 known-first-party = ["entise"]
+
+[tool.mypy]
+python_version = "3.11"
+
+[[tool.mypy.overrides]]
+# These packages ship no type information.
+module = [
+    "demandlib.*",
+    "districtheatingsim.*",
+    "joblib.*",
+    "numba.*",
+    "pandas.*",
+    "pvlib.*",
+    "retry_requests.*",
+    "scipy.*",
+    "tqdm.*",
+    "windpowerlib.*",
+]
+ignore_missing_imports = true

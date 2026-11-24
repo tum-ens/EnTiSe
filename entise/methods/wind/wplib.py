@@ -1,21 +1,48 @@
 import logging
+from collections.abc import Mapping
 
 import pandas as pd
-from windpowerlib import ModelChain, WindTurbine
 
+from entise._optional import requires_extra
 from entise.constants import SEP, Types
 from entise.constants import Columns as C
 from entise.constants import Objects as O
 from entise.constants import UnitConversion as UConv
+from entise.core._time import RUN_TIME_KEY, output_index, regular_step, run_time
 from entise.core.base import Method
 
 logger = logging.getLogger(__name__)
+
+_WIND_SPEED = C.WIND_SPEED.split("[")[0]
+
+
+def _warn_wind_speed_without_height(table: str):
+    """Return a check that warns, once per run and table, about wind speed columns without a height."""
+
+    def check(weather: pd.DataFrame) -> list:
+        _, info = Method._obtain_weather_info(weather)
+        columns = [col for col, parsed in info.items() if parsed["name"] == _WIND_SPEED and parsed["height"] is None]
+        for column in columns:
+            logger.warning(
+                "Table '%s': column '%s' has no height; WPLib reads it at %d m. Name the column "
+                "'%s@<height>m' to give its height.",
+                table,
+                column,
+                WIND_SPEED_HEIGHT,
+                C.WIND_SPEED,
+            )
+        return columns
+
+    return check
+
 
 # Default values for optional keys
 DEFAULT_TURBINE_TYPE = "SWT130/3600"  # turbine type as in register of windpowerlib
 DEFAULT_HUB_HEIGHT = 135  # in m
 DEFAULT_POWER = 1  # in W
 ROUGHNESS_LENGTH = 0.15
+# Height of a wind speed column that names none: the standard height of wind measurements.
+WIND_SPEED_HEIGHT = 10
 
 # ModelChain parameters
 MODELCHAIN_PARAMS = {
@@ -54,13 +81,20 @@ class WPLib(Method):
     types = [Types.WIND]
     name = "wplib"
     required_keys = [O.WEATHER]
-    optional_keys = [O.POWER, O.TURBINE_TYPE, O.HUB_HEIGHT, O.WIND_MODEL]
+    optional_keys = {
+        O.POWER: DEFAULT_POWER,
+        O.TURBINE_TYPE: DEFAULT_TURBINE_TYPE,
+        O.HUB_HEIGHT: DEFAULT_HUB_HEIGHT,
+        # ModelChain settings that replace those in MODELCHAIN_PARAMS: a mapping, or the name of one in data.
+        O.WIND_MODEL: None,
+        O.TIMEZONE: None,
+    }
     required_data = [O.WEATHER]
     optional_data = [O.WIND_MODEL]
     output_summary = {
-        f"{C.GENERATION}_{Types.WIND}": "total wind power generation",
-        f"{O.GEN_MAX}_{Types.WIND}": "maximum wind power generation",
-        f"{C.FLH}_{Types.WIND}": "full load hours",
+        f"{Types.WIND}{SEP}{C.GENERATION}": "total wind power generation",
+        f"{Types.WIND}{SEP}{O.GEN_MAX}": "maximum wind power generation",
+        f"{Types.WIND}{SEP}{C.FLH}": "full load hours",
     }
     output_timeseries = {
         f"{C.GENERATION}_{Types.WIND}": "wind power generation",
@@ -68,16 +102,12 @@ class WPLib(Method):
 
     def generate(
         self,
-        obj: dict = None,
-        data: dict = None,
+        obj: dict | None = None,
+        data: dict | None = None,
         results: dict | None = None,
         ts_type: str = Types.WIND,
-        *,
-        weather: pd.DataFrame = None,
-        power: float = None,
-        turbine_type: str = None,
-        hub_height: float = None,
-    ):
+        **inputs,
+    ) -> dict:
         """Generate wind power time series based on input parameters and weather data.
 
         This method implements the abstract generate method from the Method base class.
@@ -89,10 +119,15 @@ class WPLib(Method):
             data (dict, optional): Dictionary containing input data. Defaults to None.
             results (dict, optional): Dictionary with results from previously generated time series
             ts_type (str, optional): Time series type to generate. Defaults to Types.WIND.
-            weather (pd.DataFrame, optional): Weather data with wind speed and direction. Defaults to None.
-            power (float, optional): System power rating in watts. Defaults to None.
-            turbine_type (str, optional): Type of wind turbine. Defaults to None.
-            hub_height (float, optional): Hub height of the turbine in meters. Defaults to None.
+            **inputs: Any input of the method, by its key or by its Python name (the key
+                without its unit, such as ``area`` for ``area[m2]``). Keywords override the
+                same keys in ``obj``. A table input, such as ``weather``, can be a
+                DataFrame. For example:
+
+                - ``weather`` (DataFrame or str): Weather data with wind speed and direction.
+                - ``power`` (``power[W]``): System power rating in W.
+                - ``turbine_type`` (str): Type of wind turbine.
+                - ``hub_height`` (``hub_height[m]``): Hub height of the turbine in m.
 
         Returns:
             dict: Dictionary containing:
@@ -109,26 +144,23 @@ class WPLib(Method):
             >>> # Using explicit parameters
             >>> result = windlib.generate(power=5000, weather=weather_df)
             >>> # Or using dictionaries
-            >>> obj = {"power": 5000, "weather": "weather"}
+            >>> obj = {"power[W]": 5000, "weather": "weather"}
             >>> data = {"weather": weather_df}  # DataFrame with wind data
             >>> result = windlib.generate(obj=obj, data=data)
             >>> summary = result["summary"]
             >>> timeseries = result["timeseries"]
         """
         # Process keyword arguments
-        processed_obj, processed_data = self._process_kwargs(
-            obj,
-            data,
-            weather=weather,
-            power=power,
-            turbine_type=turbine_type,
-            hub_height=hub_height,
-        )
+        processed_obj, processed_data = self._process_kwargs(obj, data, ts_type, **inputs)
 
         # Continue with existing implementation
+        # Read the tables once for this call; every helper below reuses this run.
+        processed_data = {**processed_data, RUN_TIME_KEY: run_time(processed_data)}
+        site_obj, run_data = processed_obj, processed_data
         processed_obj, processed_data = self.get_input_data(processed_obj, processed_data, ts_type)
 
         ts = calculate_timeseries(processed_obj, processed_data)
+        ts.index = output_index(processed_data[O.WEATHER].index, site_obj, run_data)
 
         logger.debug(f"[WIND windlib]: Generating {ts_type} data")
 
@@ -154,7 +186,7 @@ class WPLib(Method):
 
         weather = self._create_multiindex(weather, info)
 
-        weather.rename(
+        weather = weather.rename(
             columns={
                 C.TEMP_AIR.split("[")[0]: "temperature",
                 C.SURFACE_AIR_PRESSURE.split("[")[0]: "pressure",
@@ -162,7 +194,6 @@ class WPLib(Method):
                 C.WIND_DIRECTION.split("[")[0]: "wind_direction",
                 C.ROUGHNESS_LENGTH.split("[")[0]: "roughness_length",
             },
-            inplace=True,
             level=0,
         )
 
@@ -184,10 +215,14 @@ class WPLib(Method):
         df.index.name = None
 
         # Create arrays for MultiIndex using vectorized operations
-        arrays = [
-            [info.get(col, {}).get("name", col) for col in df.columns],  # variable_name
-            [int(info.get(col, {}).get("height", 0) or 0) for col in df.columns],  # height
+        names = [info.get(col, {}).get("name", col) for col in df.columns]
+        heights = [info.get(col, {}).get("height") for col in df.columns]
+        # A wind speed without a height is taken at 10 m; other quantities at 0 m, as before.
+        heights = [
+            int(height) if height is not None else WIND_SPEED_HEIGHT if name == _WIND_SPEED else 0
+            for name, height in zip(names, heights, strict=True)
         ]
+        arrays = [names, heights]  # variable_name, height
 
         df.columns = pd.MultiIndex.from_arrays(arrays, names=["variable_name", "height"])
 
@@ -219,23 +254,20 @@ class WPLib(Method):
               which will take precedence over generic parameters (e.g., "altitude").
             - Weather data is processed to match the format required by windpowerlib.
         """
-        obj_out = {
-            O.ID: Method.get_with_backup(obj, O.ID),
-            O.POWER: Method.get_with_method_backup(obj, O.POWER, method_type, DEFAULT_POWER),
-            O.TURBINE_TYPE: Method.get_with_method_backup(obj, O.TURBINE_TYPE, method_type, DEFAULT_TURBINE_TYPE),
-            O.HUB_HEIGHT: Method.get_with_method_backup(obj, O.HUB_HEIGHT, method_type, DEFAULT_HUB_HEIGHT),
-        }
+        obj_out = self.get_relevant_objects(obj, method_type)
 
+        weather_key = Method.get_with_method_backup(obj, O.WEATHER, method_type, O.WEATHER)
+        run = run_time(data)
         data_out = {
-            O.WEATHER: Method.get_with_backup(data, O.WEATHER),
+            O.WEATHER: run.table(weather_key) if weather_key in run else None,
+            O.WIND_MODEL: modelchain_params(obj_out.get(O.WIND_MODEL), data),
         }
 
-        # Process weather data
+        # Process weather data. The run returns a copy indexed by UTC instants.
         if data_out[O.WEATHER] is not None:
-            weather = data_out[O.WEATHER].copy()
-            weather[C.DATETIME] = pd.to_datetime(weather[C.DATETIME], utc=False)
-            weather.index = pd.to_datetime(weather[C.DATETIME], utc=True)
-            data_out[O.WEATHER] = self.process_weather_data(weather)
+            regular_step(data_out[O.WEATHER].index, table=weather_key)
+            run.derived(weather_key, "wplib:wind speed without height", _warn_wind_speed_without_height(weather_key))
+            data_out[O.WEATHER] = self.process_weather_data(data_out[O.WEATHER])
         else:
             logger.error("[WIND windlib]: No weather data")
             raise Exception(f"{O.WEATHER} not available")
@@ -244,7 +276,7 @@ class WPLib(Method):
 
     @staticmethod
     def _format_output(processed_obj, processed_data, ts):
-        timestep = processed_data[O.WEATHER].index.diff().total_seconds().dropna()[0]
+        timestep = regular_step(processed_data[O.WEATHER].index, table=O.WEATHER).total_seconds()
         summary = {
             f"{Types.WIND}{SEP}{C.GENERATION}": (ts[O.POWER].sum() * timestep / 3600).round().astype(int),
             f"{Types.WIND}{SEP}{O.GEN_MAX}": ts[O.POWER].max().round().astype(int),
@@ -259,6 +291,34 @@ class WPLib(Method):
             "summary": summary,
             "timeseries": ts,
         }
+
+
+def modelchain_params(wind_model, data: dict) -> dict:
+    """Return the windpowerlib ModelChain settings for an object.
+
+    Args:
+        wind_model: The object's ``wind_model``: ``None`` for the defaults in
+            ``MODELCHAIN_PARAMS``, a mapping of settings that replace them, such as
+            ``{"wind_speed_model": "hellman"}``, or the name of such a mapping in ``data``.
+        data (dict): The input data.
+
+    Raises:
+        ValueError: If ``wind_model`` names no mapping, or sets an unknown setting.
+    """
+    if wind_model is None:
+        return dict(MODELCHAIN_PARAMS)
+    settings = data.get(wind_model) if isinstance(wind_model, str) else wind_model
+    if not isinstance(settings, Mapping):
+        raise ValueError(
+            f"'{O.WIND_MODEL}' must be a mapping of ModelChain settings or the name of one in the data; "
+            f"got {wind_model!r}."
+        )
+    unknown = sorted(set(settings) - set(MODELCHAIN_PARAMS))
+    if unknown:
+        raise ValueError(
+            f"Unknown ModelChain settings in '{O.WIND_MODEL}': {unknown}. Known: {sorted(MODELCHAIN_PARAMS)}."
+        )
+    return {**MODELCHAIN_PARAMS, **settings}
 
 
 def calculate_timeseries(obj, data):
@@ -284,9 +344,12 @@ def calculate_timeseries(obj, data):
     Notes:
         - The function creates a wind turbine with the specified type and hub height.
         - The system is modeled using the windpowerlib ModelChain with the parameters
-          defined in MODELCHAIN_PARAMS.
+          defined in MODELCHAIN_PARAMS, updated by the object's ``wind_model``.
         - The output power is scaled by the system power rating.
     """
+    with requires_extra("wind-wplib", "windpowerlib", feature="Wind method 'wplib'"):
+        from windpowerlib import ModelChain, WindTurbine
+
     # Get objects
     power = obj[O.POWER]
     turbine_type = obj[O.TURBINE_TYPE]
@@ -302,7 +365,15 @@ def calculate_timeseries(obj, data):
     )
 
     # Create model chain and run model
-    mc = ModelChain(turbine, **MODELCHAIN_PARAMS).run_model(weather)
+    params = data.get(O.WIND_MODEL, MODELCHAIN_PARAMS)
+    try:
+        mc = ModelChain(turbine, **params).run_model(weather)
+    except IndexError as err:
+        # windpowerlib interpolates between heights and fails without a second one.
+        raise ValueError(
+            f"windpowerlib cannot run the ModelChain settings {params} on this weather: an "
+            "'interpolation_extrapolation' model needs its variable at two or more heights."
+        ) from err
 
     # Get output power
     power_output = mc.power_output

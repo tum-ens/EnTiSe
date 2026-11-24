@@ -4,17 +4,22 @@ from typing import Optional
 import numpy as np
 import pandas as pd
 
+from entise._optional import require_module
 from entise.constants import SEP, Types
 from entise.constants import Columns as C
 from entise.constants import Constants as Const
 from entise.constants import Objects as O
 from entise.constants.constants import CP_AIR, RHO_AIR
+from entise.core._time import RUN_TIME_KEY, output_index, run_time
 from entise.core.base import Method
-from entise.core.utils import resolve_ts_or_scalar
+from entise.core.utils import align_auxiliary_series, resolve_ts_or_scalar, resolve_ts_or_scalar_by_id
 from entise.methods.auxiliary.internal.selector import InternalGains
 from entise.methods.auxiliary.solar.selector import SolarGains
 from entise.methods.auxiliary.ventilation.strategies import VentilationInactive, VentilationTimeSeries
 from entise.methods.hvac._latent_cooling import compute_latent_cooling
+from entise.methods.hvac._typed import TYPED, TypedViews
+from entise.methods.hvac._weather import check_window_irradiance, hvac_weather, step_seconds
+from entise.methods.hvac._windows import windows_table
 from entise.methods.hvac.defaults import (
     DEFAULT_ACTIVE_COOLING,
     DEFAULT_ACTIVE_HEATING,
@@ -38,23 +43,11 @@ from entise.methods.hvac.defaults import (
     DEFAULT_VENTILATION,
     DEFAULT_VENTILATION_SPLIT,
 )
-from entise.methods.utils.weather_cache import WeatherCache
 
 logger = logging.getLogger(__name__)
 
-# Identity-keyed cache — see WeatherCache docstring for rationale.
-_WEATHER_CACHE = WeatherCache()
 
-
-def _preprocess_weather(weather: pd.DataFrame) -> pd.DataFrame:
-    w = weather.copy()
-    w = Method._strip_weather_height(w)
-    w[C.DATETIME] = pd.to_datetime(w[C.DATETIME])
-    w.set_index(C.DATETIME, inplace=True, drop=False)
-    return w
-
-
-class R7C2(Method):
+class R7C2(TypedViews, Method):
     """7R2C HVAC model aligned with VDI 6007 multi‑node transient method.
 
     Purpose and scope:
@@ -85,11 +78,20 @@ class R7C2(Method):
     - For lighter‑weight simulations with fewer states consider 5R1C (ISO 13790); for
       quicker control‑oriented studies consider 1R1C.
 
+    Typed heating and cooling:
+        Select the model for ``heating``, ``cooling`` or both, instead of
+        ``hvac``, to get typed results from one solve. Each typed result has
+        the indoor temperature and the columns and summary keys of its type.
+        The control of a type the model is not selected for is off. A
+        type-scoped control input, such as ``heating:power_heating[W]``,
+        applies to its own control. ``hvac`` and a typed key cannot select
+        the same model on one object.
+
     Reference:
     - VDI 6007: Calculation of transient thermal response of rooms and buildings (7R2C concept).
     """
 
-    types = [Types.HVAC]
+    types = [Types.HVAC, Types.HEATING, Types.COOLING]
     name = "7R2C"
 
     # Required RC & weather
@@ -106,47 +108,54 @@ class R7C2(Method):
     ]
 
     # Optional controls, splits, and auxiliaries
-    optional_keys = [
+    optional_keys = {
+        O.TIMEZONE: None,
         # Controls
-        O.POWER_HEATING,
-        O.POWER_COOLING,
-        O.ACTIVE_HEATING,
-        O.ACTIVE_COOLING,
-        O.ACTIVE_GAINS_INTERNAL,
-        O.ACTIVE_GAINS_SOLAR,
-        O.ACTIVE_VENTILATION,
-        O.TEMP_INIT,
-        O.TEMP_MIN,
-        O.TEMP_MAX,
-        O.DEADBAND,
-        O.TARGET_HUMIDITY_REL,
-        O.GAINS_INTERNAL_LATENT,
-        O.TEMP_SUPPLY,
+        O.POWER_HEATING: DEFAULT_POWER_HEATING,
+        O.POWER_COOLING: DEFAULT_POWER_COOLING,
+        O.ACTIVE_HEATING: DEFAULT_ACTIVE_HEATING,
+        O.ACTIVE_COOLING: DEFAULT_ACTIVE_COOLING,
+        O.ACTIVE_GAINS_INTERNAL: DEFAULT_ACTIVE_INTERNAL_GAINS,
+        O.ACTIVE_GAINS_SOLAR: DEFAULT_ACTIVE_SOLAR_GAINS,
+        O.ACTIVE_VENTILATION: DEFAULT_ACTIVE_VENTILATION,
+        O.TEMP_INIT: DEFAULT_TEMP_INIT,
+        O.TEMP_MIN: DEFAULT_TEMP_MIN,
+        O.TEMP_MAX: DEFAULT_TEMP_MAX,
+        O.DEADBAND: DEFAULT_DEADBAND,
+        O.TARGET_HUMIDITY_REL: DEFAULT_TARGET_HUMIDITY_REL,
+        O.GAINS_INTERNAL_LATENT: DEFAULT_GAINS_INTERNAL_LATENT,
+        O.TEMP_SUPPLY: None,
         # Geometry
-        O.AREA,
-        O.HEIGHT,
+        O.AREA: Const.DEFAULT_AREA.value,
+        O.HEIGHT: Const.DEFAULT_HEIGHT.value,
+        O.LAT: None,
+        O.LON: None,
         # Gains splits
-        O.FRAC_CONV_INTERNAL,
-        O.FRAC_RAD_AW,  # IW is derived
+        O.FRAC_CONV_INTERNAL: DEFAULT_FRAC_CONV_INTERNAL,
+        O.FRAC_RAD_AW: DEFAULT_FRAC_RAD_AW,  # IW is derived
         # HVAC sigma as three scalars (AW, IW, conv is derived)
-        O.SIGMA_7R2C_AW,
-        O.SIGMA_7R2C_IW,
+        O.SIGMA_7R2C_AW: DEFAULT_SIGMA_7R2C_AW,
+        O.SIGMA_7R2C_IW: DEFAULT_SIGMA_7R2C_IW,
         # Ventilation
-        O.H_VE,
-        O.VENTILATION_SPLIT,
+        O.H_VE: None,
+        O.VENTILATION_SPLIT: DEFAULT_VENTILATION_SPLIT,
         # Equivalent outdoor (sol-air)
-        O.T_EQ,
-        O.T_EQ_COL,
-        O.T_EQ_ALPHA_SW,
-        O.T_EQ_H_O,
+        O.T_EQ: None,
+        O.T_EQ_COL: None,
+        O.T_EQ_ALPHA_SW: DEFAULT_T_EQ_ALPHA_SW,
+        O.T_EQ_H_O: DEFAULT_T_EQ_H_O,
         # Timeseries
-        O.GAINS_INTERNAL,
-        O.GAINS_SOLAR,
-        O.VENTILATION,
-    ]
+        O.GAINS_INTERNAL: None,
+        O.GAINS_INTERNAL_COL: None,
+        O.GAINS_SOLAR: None,
+        O.VENTILATION: DEFAULT_VENTILATION,
+        O.VENTILATION_COL: None,
+        O.WINDOWS: None,
+    }
 
     required_data = [O.WEATHER]
-    optional_data = [O.WINDOWS, O.GAINS_INTERNAL, O.GAINS_SOLAR, O.H_VE, O.T_EQ]  # Hint set of common auxiliaries
+    # Hint set of common auxiliaries
+    optional_data = [O.WINDOWS, O.GAINS_INTERNAL, O.GAINS_SOLAR, O.VENTILATION, O.H_VE, O.T_EQ]
 
     output_summary = {
         f"{Types.HEATING}{SEP}{C.DEMAND}[Wh]": "total heating demand",
@@ -164,11 +173,39 @@ class R7C2(Method):
     }
 
     def generate(
-        self, obj: dict = None, data: dict = None, results: dict = None, ts_type: str = Types.HVAC, **kwargs
+        self,
+        obj: dict | None = None,
+        data: dict | None = None,
+        results: dict | None = None,
+        ts_type: str = Types.HVAC,
+        **inputs,
     ) -> dict:
-        obj, data = self._process_kwargs(obj, data, **kwargs)
-        obj, data = self._get_input_data(obj, data, ts_type)
-        data = self._prepare_inputs(obj, data)
+        """Generate the indoor temperature and the heating and cooling loads of the 7R2C model.
+
+        Solar gains are calculated only when ``obj`` holds ``id`` (the windows are looked
+        up by it), ``latitude[degree]`` and ``longitude[degree]``; otherwise they are zero.
+
+        Args:
+            obj (dict, optional): Object keys. Defaults to None.
+            data (dict, optional): Input tables. Defaults to None.
+            results (dict, optional): Results of the time series already generated for the object.
+            ts_type (str, optional): Time series type to generate. Defaults to Types.HVAC.
+            **inputs: Any input of the method, by its key or by its Python name (the key
+                without its unit, such as ``R_1_AW`` for ``R_1_AW[K W-1]``). Keywords override the same keys
+                in ``obj``. A table input, such as ``weather``, can be a DataFrame.
+
+        Returns:
+            dict: ``"summary"`` with the demand and load statistics and ``"timeseries"``
+            with the indoor temperature and the loads.
+        """
+        obj, data = self._process_kwargs(obj, data, ts_type, **inputs)
+        if ts_type in TYPED:
+            return self.group_result(obj, data, results, ts_type)
+        require_module("hvac-7r2c", "pvlib")
+        # Read the tables once for this call; every helper below reuses this run.
+        data = {**data, RUN_TIME_KEY: run_time(data)}
+        obj, tables = self._get_input_data(obj, data, ts_type)
+        data = self._prepare_inputs(obj, tables)
 
         temp_in, p_heat, p_cool = calculate_timeseries_7r2c(**data)
 
@@ -179,7 +216,7 @@ class R7C2(Method):
             p_heat.round().astype(int),
             p_cool_sensible.round().astype(int),
             p_cool_latent.round().astype(int),
-            meta["index"],
+            output_index(meta["index"], obj, tables),
             meta["dt_s"],
         )
 
@@ -199,9 +236,7 @@ class R7C2(Method):
         p_cool_max = controls[O.POWER_COOLING].to_numpy(dtype=float, copy=False)
         h_ve_df = data["series"]["ventilation"]
         h_ve = np.asarray(h_ve_df.sum(axis=1), dtype=float)
-        gains_lat = resolve_ts_or_scalar(
-            obj, data, O.GAINS_INTERNAL_LATENT, index, default=DEFAULT_GAINS_INTERNAL_LATENT
-        ).to_numpy(dtype=float, copy=False)
+        gains_lat = resolve_ts_or_scalar(obj, data, O.GAINS_INTERNAL_LATENT, index).to_numpy(dtype=float, copy=False)
         t_max_arr = controls[O.TEMP_MAX].to_numpy(dtype=float, copy=False)
 
         p_sens_out, p_lat_out = compute_latent_cooling(
@@ -211,7 +246,7 @@ class R7C2(Method):
             h_ve=h_ve,
             gains_internal_latent=gains_lat,
             temp_max_c=t_max_arr,
-            target_humidity_rel=float(obj.get(O.TARGET_HUMIDITY_REL, DEFAULT_TARGET_HUMIDITY_REL)),
+            target_humidity_rel=float(obj[O.TARGET_HUMIDITY_REL]),
         )
         return (
             pd.Series(p_sens_out, index=index),
@@ -229,13 +264,11 @@ class R7C2(Method):
 
         No interpretation of columns, no unit conversion, no time-series generation.
         """
-        obj_out = self._get_relevant_objects(obj, method_type)
+        obj_out = self.get_relevant_objects(obj, method_type)
         data_out = self._prepare_data_tables(obj, data, method_type)
         return obj_out, data_out
 
     def _prepare_inputs(self, obj: dict, data: dict) -> dict:
-        data = self._prepare_weather_cache(obj, data)
-
         # Add data for computation
         data_out = {}
 
@@ -245,7 +278,7 @@ class R7C2(Method):
         meta = {
             O.WEATHER: weather,
             "index": index,
-            "dt_s": float((index[1] - index[0]) / np.timedelta64(1, "s")),
+            "dt_s": step_seconds(weather),
         }
         data_out["meta"] = meta
 
@@ -260,10 +293,15 @@ class R7C2(Method):
         # (rather than in the Ventilation selector) because R7C2 bypasses
         # the selector to hit the VDI-6007-specific TimeSeries strategy.
         if not bool(obj.get(O.ACTIVE_VENTILATION, True)):
-            ven_df = VentilationInactive().generate(obj, data).squeeze()
+            ven_df = VentilationInactive().generate(obj, data)
+        elif obj.get(O.H_VE) is not None:
+            # A ventilation coefficient on the object takes the place of the ventilation input.
+            ven_df = resolve_ts_or_scalar_by_id(obj, data, O.H_VE, index)
         else:
-            ven_df = VentilationTimeSeries().generate(obj, data).squeeze()
-        vent_split = resolve_ts_or_scalar(obj, data, O.VENTILATION_SPLIT, index, default=DEFAULT_VENTILATION_SPLIT)
+            ven_df = VentilationTimeSeries().generate(obj, data)
+        # Align onto the model index before the split — see R5C1 and issue #106.
+        ven_df = align_auxiliary_series(ven_df, index, O.VENTILATION, self.name)
+        vent_split = resolve_ts_or_scalar(obj, data, O.VENTILATION_SPLIT, index)
         Hve_vent_series = ven_df * vent_split
         Hve_inf_series = ven_df * (1.0 - vent_split)
         ventilation = pd.concat([Hve_vent_series, Hve_inf_series], axis=1, keys=["Hve_vent", "Hve_inf"])
@@ -278,22 +316,22 @@ class R7C2(Method):
             resolve_ts_or_scalar(obj, data, O.TEMP_SUPPLY, index) if temp_sup is not None else weather[C.TEMP_AIR]
         )
         controls = {
-            O.TEMP_MIN: resolve_ts_or_scalar(obj, data, O.TEMP_MIN, index, default=DEFAULT_TEMP_MIN),
-            O.TEMP_MAX: resolve_ts_or_scalar(obj, data, O.TEMP_MAX, index, default=DEFAULT_TEMP_MAX),
+            O.TEMP_MIN: resolve_ts_or_scalar(obj, data, O.TEMP_MIN, index),
+            O.TEMP_MAX: resolve_ts_or_scalar(obj, data, O.TEMP_MAX, index),
             O.TEMP_SUPPLY: temp_sup,
-            O.POWER_HEATING: resolve_ts_or_scalar(obj, data, O.POWER_HEATING, index, default=DEFAULT_POWER_HEATING),
-            O.POWER_COOLING: resolve_ts_or_scalar(obj, data, O.POWER_COOLING, index, default=DEFAULT_POWER_COOLING),
-            O.ACTIVE_HEATING: resolve_ts_or_scalar(obj, data, O.ACTIVE_HEATING, index, default=DEFAULT_ACTIVE_HEATING),
-            O.ACTIVE_COOLING: resolve_ts_or_scalar(obj, data, O.ACTIVE_COOLING, index, default=DEFAULT_ACTIVE_COOLING),
+            O.POWER_HEATING: resolve_ts_or_scalar(obj, data, O.POWER_HEATING, index),
+            O.POWER_COOLING: resolve_ts_or_scalar(obj, data, O.POWER_COOLING, index),
+            O.ACTIVE_HEATING: resolve_ts_or_scalar(obj, data, O.ACTIVE_HEATING, index),
+            O.ACTIVE_COOLING: resolve_ts_or_scalar(obj, data, O.ACTIVE_COOLING, index),
         }
         controls = pd.DataFrame(controls)
         data_out["controls"] = controls
 
         # Parameters
-        volume = float(obj.get(O.AREA, Const.DEFAULT_AREA.value)) * float(obj.get(O.HEIGHT, Const.DEFAULT_HEIGHT.value))
+        volume = float(obj[O.AREA]) * float(obj[O.HEIGHT])
         capacity_air = volume * RHO_AIR * CP_AIR
         params = {
-            O.TEMP_INIT: float(obj.get(O.TEMP_INIT, DEFAULT_TEMP_INIT)),
+            O.TEMP_INIT: float(obj[O.TEMP_INIT]),
             O.R_1_AW: float(obj[O.R_1_AW]),
             O.C_1_AW: float(obj[O.C_1_AW]),
             O.R_1_IW: float(obj[O.R_1_IW]),
@@ -306,20 +344,20 @@ class R7C2(Method):
             # Symmetric thermostat dead band. deadband = 0 collapses the
             # hysteresis state machine to aim-for-setpoint (bit-exact
             # regression against the pre-hysteresis solver).
-            O.DEADBAND: float(obj.get(O.DEADBAND, DEFAULT_DEADBAND)),
+            O.DEADBAND: float(obj[O.DEADBAND]),
         }
         data_out["params"] = params
 
         # Splits (normalize defensively)
-        sigma_aw = float(obj.get(O.SIGMA_7R2C_AW, DEFAULT_SIGMA_7R2C_AW))
-        sigma_iw = float(obj.get(O.SIGMA_7R2C_IW, DEFAULT_SIGMA_7R2C_IW))
-        f_aw = float(obj.get(O.FRAC_RAD_AW, DEFAULT_FRAC_RAD_AW))
+        sigma_aw = float(obj[O.SIGMA_7R2C_AW])
+        sigma_iw = float(obj[O.SIGMA_7R2C_IW])
+        f_aw = float(obj[O.FRAC_RAD_AW])
         f_aw = min(max(f_aw, 0.0), 1.0)
         splits = {
             O.SIGMA_7R2C_AW: sigma_aw,
             O.SIGMA_7R2C_IW: sigma_iw,
             "sigma_conv": max(0.0, 1.0 - (sigma_aw + sigma_iw)),
-            O.FRAC_CONV_INTERNAL: float(obj.get(O.FRAC_CONV_INTERNAL, DEFAULT_FRAC_CONV_INTERNAL)),
+            O.FRAC_CONV_INTERNAL: float(obj[O.FRAC_CONV_INTERNAL]),
             O.FRAC_RAD_AW: f_aw,
             "f_iw": 1.0 - f_aw,
         }
@@ -339,8 +377,9 @@ class R7C2(Method):
         # `cooling:load[W]` carries the TOTAL (sensible + latent) cooling load
         # per issue #103.
         p_cool_total = p_cool_sensible + p_cool_latent
-        E_h_Wh = float(np.trapezoid(p_heat.values, dx=dt_s) / 3600.0)
-        E_c_Wh = float(np.trapezoid(p_cool_total.values, dx=dt_s) / 3600.0)
+        # Each row is the mean power over its interval, so energy is the sum times the step.
+        E_h_Wh = float(p_heat.to_numpy(dtype=float).sum() * dt_s / 3600.0)
+        E_c_Wh = float(p_cool_total.to_numpy(dtype=float).sum() * dt_s / 3600.0)
         summary = {
             f"{Types.HEATING}{SEP}{C.DEMAND}[Wh]": E_h_Wh,
             f"{Types.HEATING}{SEP}{O.LOAD_MAX}[W]": float(max(p_heat.max(), 0.0)),
@@ -358,116 +397,28 @@ class R7C2(Method):
             },
             index=index,
         )
-        df.index.name = C.DATETIME
 
         return {"summary": summary, "timeseries": df}
 
-    def _get_relevant_objects(self, obj: dict, method_type: str = Types.HVAC) -> dict:
-        # TODO: Change this so that it takes the data from self.objects and make this for loops.
-        #   This probably also means changing the lists to dicts and having default values as the value
-        obj_out = {
-            O.ID: self.get_with_backup(obj, O.ID),
-            O.LAT: self.get_with_method_backup(obj, O.LAT, method_type),
-            O.LON: self.get_with_method_backup(obj, O.LON, method_type),
-            # Geometry (for air capacity)
-            O.AREA: self.get_with_method_backup(obj, O.AREA, method_type, Const.DEFAULT_AREA.value),
-            O.HEIGHT: self.get_with_method_backup(obj, O.HEIGHT, method_type, Const.DEFAULT_HEIGHT.value),
-            # Controls
-            O.ACTIVE_HEATING: self.get_with_method_backup(obj, O.ACTIVE_HEATING, method_type, DEFAULT_ACTIVE_HEATING),
-            O.ACTIVE_COOLING: self.get_with_method_backup(obj, O.ACTIVE_COOLING, method_type, DEFAULT_ACTIVE_COOLING),
-            O.ACTIVE_GAINS_INTERNAL: self.get_with_method_backup(
-                obj, O.ACTIVE_GAINS_INTERNAL, method_type, DEFAULT_ACTIVE_INTERNAL_GAINS
-            ),
-            O.ACTIVE_GAINS_SOLAR: self.get_with_method_backup(
-                obj, O.ACTIVE_GAINS_SOLAR, method_type, DEFAULT_ACTIVE_SOLAR_GAINS
-            ),
-            O.ACTIVE_VENTILATION: self.get_with_method_backup(
-                obj, O.ACTIVE_VENTILATION, method_type, DEFAULT_ACTIVE_VENTILATION
-            ),
-            O.POWER_HEATING: self.get_with_method_backup(obj, O.POWER_HEATING, method_type, DEFAULT_POWER_HEATING),
-            O.POWER_COOLING: self.get_with_method_backup(obj, O.POWER_COOLING, method_type, DEFAULT_POWER_COOLING),
-            O.TEMP_INIT: self.get_with_method_backup(obj, O.TEMP_INIT, method_type, DEFAULT_TEMP_INIT),
-            O.TEMP_MIN: self.get_with_method_backup(obj, O.TEMP_MIN, method_type, DEFAULT_TEMP_MIN),
-            O.TEMP_MAX: self.get_with_method_backup(obj, O.TEMP_MAX, method_type, DEFAULT_TEMP_MAX),
-            O.DEADBAND: self.get_with_method_backup(obj, O.DEADBAND, method_type, DEFAULT_DEADBAND),
-            # Latent cooling (issue #103)
-            O.TARGET_HUMIDITY_REL: self.get_with_method_backup(
-                obj, O.TARGET_HUMIDITY_REL, method_type, DEFAULT_TARGET_HUMIDITY_REL
-            ),
-            O.GAINS_INTERNAL_LATENT: self.get_with_method_backup(
-                obj, O.GAINS_INTERNAL_LATENT, method_type, DEFAULT_GAINS_INTERNAL_LATENT
-            ),
-            O.TEMP_SUPPLY: self.get_with_method_backup(obj, O.TEMP_SUPPLY, method_type),
-            # RC parameters (7R2C)
-            O.R_1_AW: self.get_with_method_backup(obj, O.R_1_AW, method_type),
-            O.C_1_AW: self.get_with_method_backup(obj, O.C_1_AW, method_type),
-            O.R_1_IW: self.get_with_method_backup(obj, O.R_1_IW, method_type),
-            O.C_1_IW: self.get_with_method_backup(obj, O.C_1_IW, method_type),
-            O.R_ALPHA_STAR_IL: self.get_with_method_backup(obj, O.R_ALPHA_STAR_IL, method_type),
-            O.R_ALPHA_STAR_AW: self.get_with_method_backup(obj, O.R_ALPHA_STAR_AW, method_type),
-            O.R_ALPHA_STAR_IW: self.get_with_method_backup(obj, O.R_ALPHA_STAR_IW, method_type),
-            O.R_REST_AW: self.get_with_method_backup(obj, O.R_REST_AW, method_type),
-            # Gains & splits
-            O.FRAC_CONV_INTERNAL: self.get_with_method_backup(
-                obj, O.FRAC_CONV_INTERNAL, method_type, DEFAULT_FRAC_CONV_INTERNAL
-            ),
-            O.FRAC_RAD_AW: self.get_with_method_backup(obj, O.FRAC_RAD_AW, method_type, DEFAULT_FRAC_RAD_AW),
-            O.SIGMA_7R2C_AW: self.get_with_method_backup(obj, O.SIGMA_7R2C_AW, method_type, DEFAULT_SIGMA_7R2C_AW),
-            O.SIGMA_7R2C_IW: self.get_with_method_backup(obj, O.SIGMA_7R2C_IW, method_type, DEFAULT_SIGMA_7R2C_IW),
-            # Ventilation
-            O.VENTILATION: self.get_with_method_backup(obj, O.VENTILATION, method_type, DEFAULT_VENTILATION),
-            O.VENTILATION_COL: self.get_with_method_backup(obj, O.VENTILATION_COL, method_type),
-            O.VENTILATION_SPLIT: self.get_with_method_backup(
-                obj, O.VENTILATION_SPLIT, method_type, DEFAULT_VENTILATION_SPLIT
-            ),
-            # Equivalent outdoor temperature (sol-air)
-            O.T_EQ: self.get_with_method_backup(obj, O.T_EQ, method_type),
-            O.T_EQ_COL: self.get_with_method_backup(obj, O.T_EQ_COL, method_type),
-            O.T_EQ_ALPHA_SW: self.get_with_method_backup(obj, O.T_EQ_ALPHA_SW, method_type, DEFAULT_T_EQ_ALPHA_SW),
-            O.T_EQ_H_O: self.get_with_method_backup(obj, O.T_EQ_H_O, method_type, DEFAULT_T_EQ_H_O),
-            # Timeseries references
-            O.WEATHER: self.get_with_method_backup(obj, O.WEATHER, method_type, O.WEATHER),
-            O.GAINS_INTERNAL: self.get_with_method_backup(obj, O.GAINS_INTERNAL, method_type),
-            O.GAINS_INTERNAL_COL: self.get_with_method_backup(obj, O.GAINS_INTERNAL_COL, method_type),
-            O.GAINS_SOLAR: self.get_with_method_backup(obj, O.GAINS_SOLAR, method_type),
-        }
-
-        # Future possible code
-        # obj_out = {}
-        # for key in self.required_keys:
-        # value = obj_out.get(key)
-        # if value is None:
-        # raise ValueError(f"Required key '{key}' not found for method '{method_type}'.")
-        # obj_out[key] = value
-        # for key in self.optional_keys:
-        # obj_out[key] = obj_out.get(key)
-
-        return {k: v for k, v in obj_out.items() if v is not None}
-
     def _prepare_data_tables(self, obj: dict, data: dict, method_type: str = Types.HVAC) -> dict:
-        data_out = {}
-
-        for key in self.required_data:
-            ts_key = self.get_with_method_backup(obj, key, method_type, key)
-            ts_data = self.get_with_backup(data, ts_key)
-            if ts_data is None:
-                raise ValueError(f"Required timeseries key '{ts_key}' for '{key}' not found in data.")
-            data_out[key] = ts_data
+        run, weather_key, weather = hvac_weather(obj, data, method_type)
+        data_out = {RUN_TIME_KEY: run, O.WEATHER: weather}
+        check_window_irradiance(run, weather_key, weather, obj, windows_table(obj, data, method_type), method_type)
 
         for key in self.optional_data:
             ts_key = self.get_with_method_backup(obj, key, method_type)
-            ts_data = self.get_with_backup(data, ts_key)
+            if key == O.WINDOWS:
+                ts_data = windows_table(obj, data, method_type)
+            else:
+                ts_data = self.get_with_backup(data, ts_key)
             if ts_data is not None:
                 data_out[key] = ts_data
+                # Keep the table reachable under the user's own key too — the
+                # auxiliary strategies look it up that way. See R5C1 and issue #106.
+                if isinstance(ts_key, str) and ts_key != key:
+                    data_out.setdefault(ts_key, ts_data)
 
         return {k: v for k, v in data_out.items() if v is not None}
-
-    def _prepare_weather_cache(self, obj: dict, data: dict, method_type: str = Types.HVAC) -> dict:
-        # Cache preprocessed weather by DataFrame identity — different
-        # DataFrames get separate entries even under the same weather-key.
-        if O.WEATHER in data:
-            data[O.WEATHER] = _WEATHER_CACHE.get_or_build(data[O.WEATHER], _preprocess_weather)
-        return data
 
     @staticmethod
     def _compute_gains(obj: dict, data: dict) -> pd.DataFrame:
@@ -490,27 +441,24 @@ class R7C2(Method):
             ghi = weather.get(C.SOLAR_GHI, None).astype(float)
             teq_opaque = weather[C.TEMP_AIR].astype(float) + alpha_sw * ghi / max(h_o, 1e-6)
 
-            # 2. Reverse Engineer Conductances to weight the temperature
-            # Get Total Resistance from RC parameters
-            r1_aw = float(obj.get(O.R_1_AW))
-            r_rest_aw = float(obj.get(O.R_REST_AW))
+            # 2. Weight it by conductance, as in VDI 6007 (eq. 27/28): each element's share is its
+            # U·A over the exterior envelope's U·A, 1 / R_ges_AW = 1 / (R_1_AW + R_rest_AW + R_in).
+            r1_aw = float(obj[O.R_1_AW])
+            r_rest_aw = float(obj[O.R_REST_AW])
+            h_tot = 1.0 / max(r1_aw + r_rest_aw + _inner_surface_resistance_aw(obj), 1e-6)
 
-            # Total Conductance (H_tot) ~ 1 / R_total
-            # (Using a small epsilon to avoid division by zero if R is 0)
-            h_tot = 1.0 / max((r1_aw + r_rest_aw), 1e-6)
-
-            # Calculate Window Conductance (H_win) from available window data
+            # Window conductance (H_win) of the object's own windows. The windows table can
+            # hold the windows of many objects; they are matched by id, as for the solar gains.
             h_win = 0.0
-            if O.WINDOWS in data:
-                windows_df = data[O.WINDOWS]
-                if not windows_df.empty:
-                    for _, row in windows_df.iterrows():
-                        u_val = float(row.get(C.U_VALUE, 0.0))
-                        area = float(row.get(C.AREA, 0.0))
-                        h_win += u_val * area
+            windows_df = data.get(O.WINDOWS)
+            if windows_df is not None and {O.ID, C.U_VALUE, C.AREA} <= set(windows_df.columns):
+                own = windows_df.loc[windows_df[O.ID] == obj.get(O.ID)]
+                h_win = float((own[C.U_VALUE].astype(float) * own[C.AREA].astype(float)).sum())
+            # The windows are part of the envelope, so they cannot conduct more than all of it.
+            h_win = min(h_win, h_tot)
 
             # Derive Opaque Conductance (H_op)
-            h_op = max(0.0, h_tot - h_win)
+            h_op = h_tot - h_win
 
             # 3. Calculate Weighted T_eq
             # Formula: (T_sol_air * H_op + T_air * H_win) / H_tot
@@ -520,6 +468,24 @@ class R7C2(Method):
             else:
                 teq_series = teq_opaque
         return pd.DataFrame({"T_eq": teq_series}, index=index)
+
+
+def _inner_surface_resistance_aw(obj: dict) -> float:
+    """Return the inner surface resistance of the exterior walls, R_in in VDI 6007 eq. 28.
+
+    VDI 6007 couples the exterior walls (AW), the interior walls (IW) and the air (IL) by a
+    triangle of surface resistances. R_in is the AW corner's convective resistance to the air in
+    parallel with its radiative resistance to IW. The model takes the triangle as a star
+    (``R_alpha_star_*``), so the two sides are recovered from it: a side is
+    ``(R_IL·R_AW + R_AW·R_IW + R_IW·R_IL)`` over the star resistance of the opposite node.
+    """
+    r_il = float(obj[O.R_ALPHA_STAR_IL])
+    r_aw = float(obj[O.R_ALPHA_STAR_AW])
+    r_iw = float(obj[O.R_ALPHA_STAR_IW])
+    if r_il + r_iw <= 0:
+        return 0.0
+    # 1 / (r_iw / s + r_il / s): the AW-air and AW-IW sides in parallel.
+    return (r_il * r_aw + r_aw * r_iw + r_iw * r_il) / (r_il + r_iw)
 
 
 def calculate_timeseries_7r2c(
@@ -595,8 +561,6 @@ def calculate_timeseries_7r2c(
     Qc_arr = np.empty(n_len, dtype=float)
 
     T_in_arr[0] = Ta
-    Qh_arr[0] = 0.0
-    Qc_arr[0] = 0.0
 
     # Hysteresis state — see issue #102.
     heating_on = False
@@ -638,7 +602,9 @@ def calculate_timeseries_7r2c(
     else:
         Y_phiset_const = None
 
-    for t in range(1, n_len):
+    # Row t is the interval [t, t + step): it starts at T_in_arr[t], is driven by the
+    # forcing of row t and ends at T_in_arr[t + 1].
+    for t in range(n_len):
         T_out = T_out_arr[t]
         T_sup = T_sup_arr[t]
         T_eq = float(T_eq_arr[t])
@@ -850,7 +816,8 @@ def calculate_timeseries_7r2c(
             heating_on = False
             cooling_on = False
 
-        T_in_arr[t] = Ta
+        if t + 1 < n_len:
+            T_in_arr[t + 1] = Ta
         Qh_arr[t] = max(Q, 0.0)
         Qc_arr[t] = max(-Q, 0.0)
 

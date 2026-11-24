@@ -67,14 +67,14 @@ def test_pvlib_initialization():
     assert pvlib.types == [Types.PV]
     assert pvlib.name == "pvlib"
     assert set(pvlib.required_keys) == {O.LAT, O.LON, O.WEATHER}
-    assert set(pvlib.optional_keys) == {O.POWER, O.AZIMUTH, O.TILT, O.ALTITUDE, O.PV_ARRAYS, O.PV_INVERTER}
+    assert set(pvlib.optional_keys) == {O.POWER, O.AZIMUTH, O.TILT, O.ALTITUDE, O.PV_ARRAYS, O.PV_INVERTER, O.TIMEZONE}
     assert pvlib.required_data == [O.WEATHER]
     assert pvlib.optional_data == [O.PV_ARRAYS]
 
     # Check output definitions
-    assert f"{C.GENERATION}_{Types.PV}" in pvlib.output_summary
-    assert f"{O.GEN_MAX}_{Types.PV}" in pvlib.output_summary
-    assert f"{C.FLH}_{Types.PV}" in pvlib.output_summary
+    assert f"{Types.PV}{SEP}{C.GENERATION}" in pvlib.output_summary
+    assert f"{Types.PV}{SEP}{O.GEN_MAX}" in pvlib.output_summary
+    assert f"{Types.PV}{SEP}{C.FLH}" in pvlib.output_summary
     assert f"{C.GENERATION}_{Types.PV}" in pvlib.output_timeseries
 
 
@@ -184,10 +184,11 @@ def test_generate_method(dummy_inputs):
     assert f"{Types.PV}{SEP}{O.GEN_MAX}" in summary
     assert f"{Types.PV}{SEP}{C.FLH}" in summary
 
-    # Check that generation values are non-negative
-    assert summary[f"{Types.PV}{SEP}{C.GENERATION}"].item() >= 0
-    assert summary[f"{Types.PV}{SEP}{O.GEN_MAX}"].item() >= 0
-    assert summary[f"{Types.PV}{SEP}{C.FLH}"].item() >= 0
+    # Check that generation values are non-negative integers
+    assert all(isinstance(value, int) for value in summary.values())
+    assert summary[f"{Types.PV}{SEP}{C.GENERATION}"] >= 0
+    assert summary[f"{Types.PV}{SEP}{O.GEN_MAX}"] >= 0
+    assert summary[f"{Types.PV}{SEP}{C.FLH}"] >= 0
 
     # Check timeseries values
     ts = result["timeseries"]
@@ -232,7 +233,7 @@ def test_edge_cases():
 
     # Check that generation occurs even with extreme tilt
     summary = result["summary"]
-    assert summary[f"{Types.PV}{SEP}{C.GENERATION}"].item() > 0
+    assert summary[f"{Types.PV}{SEP}{C.GENERATION}"] > 0
 
 
 def test_warning_for_invalid_azimuth(caplog):

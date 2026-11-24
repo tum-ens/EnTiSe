@@ -6,6 +6,7 @@ import entise.methods.hp.defaults as defs
 from entise.constants import SEP, Types
 from entise.constants import Columns as C
 from entise.constants import Objects as O
+from entise.core._time import RUN_TIME_KEY, output_index, run_time
 from entise.core.base import Method
 
 logger = logging.getLogger(__name__)
@@ -73,15 +74,18 @@ class Ruhnau(Method):
     types = [Types.HP]
     name = "ruhnau"
     required_keys = [O.WEATHER]
-    optional_keys = [
-        O.HP_SOURCE,
-        O.HP_SINK,
-        O.TEMP_SINK,
-        O.GRADIENT_SINK,
-        O.TEMP_WATER,
-        O.CORRECTION_FACTOR,
-        O.HP_SYSTEM,
-    ]
+    optional_keys = {
+        O.HP_SOURCE: defs.DEFAULT_HP,
+        O.HP_SINK: defs.DEFAULT_HEAT,
+        # The sink defaults depend on the sink type; see DEFAULT_SINKS.
+        O.TEMP_SINK: None,
+        O.GRADIENT_SINK: None,
+        O.TEMP_WATER: None,
+        O.CORRECTION_FACTOR: DEFAULT_CORRECTION_FACTOR,
+        O.COP_COEFFICIENTS: None,
+        O.HP_SYSTEM: None,
+        O.TIMEZONE: None,
+    }
     required_data = [O.WEATHER]
     optional_data = [O.HP_SYSTEM]
     output_summary = {
@@ -97,23 +101,16 @@ class Ruhnau(Method):
         f"{Types.HP}{SEP}{Types.DHW}[1]": "DHW COP time series",
     }
 
+    input_aliases = {"temp_sink": O.TEMP_SINK, "temp_water": O.TEMP_WATER}
+
     def generate(
         self,
-        obj: dict = None,
-        data: dict = None,
+        obj: dict | None = None,
+        data: dict | None = None,
         results: dict | None = None,
         ts_type: str = Types.HP,
-        *,
-        weather: pd.DataFrame = None,
-        hp_source: str = None,
-        hp_sink: str = None,
-        temp_sink: float = None,
-        gradient_sink: float = None,
-        temp_water: float = None,
-        correction_factor: float = None,
-        hp_system: dict = None,
-        cop_coefficients: dict = None,
-    ):
+        **inputs,
+    ) -> dict:
         """Generate heat pump COP time series for both heating and DHW.
 
         Args:
@@ -121,15 +118,20 @@ class Ruhnau(Method):
             data (dict, optional): Dictionary with input data
             results (dict, optional): Dictionary with results from previously generated time series
             ts_type (str, optional): Time series type to generate
-            weather (pd.DataFrame, optional): Weather data with temperatures
-            hp_source (str, optional): Heat pump source type ('ASHP', 'GSHP', 'WSHP')
-            hp_sink (str, optional): Heat sink type ('floor', 'radiator')
-            temp_sink (float, optional): Temperature setting for heating
-            gradient_sink (float, optional): Gradient setting for heating
-            temp_water (float, optional): Temperature setting for DHW
-            correction_factor (float, optional): Efficiency correction factor
-            hp_system (dict, optional): System configuration for heat pump
-            cop_coefficients (dict, optional): Custom coefficients for COP calculation (a, b, c)
+            **inputs: Any input of the method, by its key or by its Python name (the key
+                without its unit, such as ``area`` for ``area[m2]``). Keywords override the
+                same keys in ``obj``. A table input, such as ``weather``, can be a
+                DataFrame. For example:
+
+                - ``weather`` (DataFrame or str): Weather data with temperatures.
+                - ``hp_source`` (str): Heat pump source type ('ASHP', 'GSHP', 'WSHP').
+                - ``hp_sink`` (str): Heat sink type ('floor', 'radiator').
+                - ``temp_sink`` (``sink_temperature[C]``): Temperature setting for heating.
+                - ``gradient_sink`` (float): Gradient setting for heating.
+                - ``temp_water`` (``water_temperature[C]``): Temperature setting for DHW.
+                - ``correction_factor`` (float): Efficiency correction factor.
+                - ``hp_system`` (dict or str): System configuration for the heat pump.
+                - ``cop_coefficients`` (dict): Custom coefficients for the COP calculation (a, b, c).
 
         Returns:
             dict: Dictionary with summary statistics and COP time series for both heating and DHW
@@ -138,21 +140,13 @@ class Ruhnau(Method):
             ValueError: If required parameters are missing or invalid
         """
         # Process inputs
-        processed_obj, processed_data = self._process_kwargs(
-            obj,
-            data,
-            weather=weather,
-            hp_source=hp_source,
-            hp_sink=hp_sink,
-            hp_temp=temp_sink,
-            gradient_sink=gradient_sink,
-            temp_water=temp_water,
-            correction_factor=correction_factor,
-            cop_coefficients=cop_coefficients,
-        )
+        processed_obj, processed_data = self._process_kwargs(obj, data, ts_type, **inputs)
 
         # Get input data with validation
-        processed_obj, processed_data = self._get_input_data(processed_obj, processed_data)
+        # Read the tables once for this call; every helper below reuses this run.
+        processed_data = {**processed_data, RUN_TIME_KEY: run_time(processed_data)}
+        site_obj, run_data = processed_obj, processed_data
+        processed_obj, processed_data = self._get_input_data(processed_obj, processed_data, ts_type)
 
         # Calculate heating COP time series
         heating_cop_series = _calculate_heating_cop_series(processed_obj, processed_data)
@@ -160,9 +154,10 @@ class Ruhnau(Method):
         # Calculate DHW COP time series
         dhw_cop_series = _calculate_dhw_cop_series(processed_obj, processed_data)
 
-        return self._format_output(heating_cop_series, dhw_cop_series, processed_data)
+        index = output_index(processed_data[O.WEATHER].index, site_obj, run_data)
+        return self._format_output(heating_cop_series, dhw_cop_series, processed_data, index)
 
-    def _get_input_data(self, obj, data):
+    def _get_input_data(self, obj, data, method_type=Types.HP):
         """Process and validate input parameters.
 
         Args:
@@ -180,68 +175,46 @@ class Ruhnau(Method):
         obj_out[HEAT_PARAMS] = {}
         obj_out[DHW_PARAMS] = {}
         data_out = {}
+        keys = self.get_relevant_objects(obj, method_type)
 
         # Get system parameters either from obj df or specifications
-        hp_system = self.get_with_backup(obj, O.HP_SYSTEM, None)
+        hp_system = keys.get(O.HP_SYSTEM)
         if isinstance(hp_system, str):
             params = self.get_with_backup(data, hp_system)
             obj_out[HP_PARAMS] = params[HP_PARAMS]
             obj_out[HEAT_PARAMS] = params[HEAT_PARAMS]
             obj_out[DHW_PARAMS] = params[DHW_PARAMS]
         else:
-            hp_source = self.get_with_backup(obj, O.HP_SOURCE, defs.DEFAULT_HP)
+            hp_source = keys[O.HP_SOURCE]
             obj_out[HP_PARAMS][O.HP_SOURCE] = hp_source
 
             # Check for custom coefficients first
-            cop_coefficients = self.get_with_backup(obj, "cop_coefficients", None)
+            cop_coefficients = keys.get(O.COP_COEFFICIENTS)
             obj_out[HP_PARAMS]["coeffs"] = cop_coefficients if cop_coefficients is not None else HP_SYSTEM[hp_source]
-            hp_sink = self.get_with_backup(obj, O.HP_SINK, defs.DEFAULT_HEAT)
+            hp_sink = keys[O.HP_SINK]
             obj_out[HEAT_PARAMS][O.HP_SINK] = hp_sink
-            obj_out[HEAT_PARAMS][O.TEMP_SINK] = self.get_with_backup(
-                obj, O.TEMP_SINK, DEFAULT_SINKS[hp_sink][O.TEMP_SINK]
-            )
-            obj_out[HEAT_PARAMS][O.GRADIENT_SINK] = self.get_with_backup(
-                obj, O.GRADIENT_SINK, DEFAULT_SINKS[hp_sink][O.GRADIENT_SINK]
-            )
+            obj_out[HEAT_PARAMS][O.TEMP_SINK] = keys.get(O.TEMP_SINK, DEFAULT_SINKS[hp_sink][O.TEMP_SINK])
+            obj_out[HEAT_PARAMS][O.GRADIENT_SINK] = keys.get(O.GRADIENT_SINK, DEFAULT_SINKS[hp_sink][O.GRADIENT_SINK])
             dhw_sink = defs.WATER
             obj_out[DHW_PARAMS][O.HP_SINK] = dhw_sink
-            obj_out[DHW_PARAMS][O.TEMP_SINK] = self.get_with_backup(
-                obj, O.TEMP_WATER, DEFAULT_SINKS[dhw_sink][O.TEMP_SINK]
-            )
+            obj_out[DHW_PARAMS][O.TEMP_SINK] = keys.get(O.TEMP_WATER, DEFAULT_SINKS[dhw_sink][O.TEMP_SINK])
             obj_out[DHW_PARAMS][O.GRADIENT_SINK] = DEFAULT_SINKS[dhw_sink][O.GRADIENT_SINK]
 
-        obj_out[O.CORRECTION_FACTOR] = self.get_with_backup(obj, O.CORRECTION_FACTOR, DEFAULT_CORRECTION_FACTOR)
+        obj_out[O.CORRECTION_FACTOR] = keys[O.CORRECTION_FACTOR]
 
         # Process weather data
-        weather = self.get_with_backup(obj, O.WEATHER, None)
+        weather = keys.get(O.WEATHER)
         if weather is None:
             logger.warning("No weather provided")
             raise ValueError("Weather data is required but not provided")
-        weather = self.get_with_backup(data, weather)
-        weather = self._strip_weather_height(weather)
-        data_out[O.WEATHER] = self._process_weather_data(weather)
+        run = run_time(data)
+        if weather not in run:
+            raise ValueError(f"Weather table '{weather}' is not in the data.")
+        # The run returns a copy indexed by UTC instants, so this cannot change the caller's frame.
+        weather = self._strip_weather_height(run.table(weather))
+        data_out[O.WEATHER] = self._add_missing_temperature_columns(weather)
 
         return obj_out, data_out
-
-    def _process_weather_data(self, df):
-        """Prepare weather data for COP calculation.
-
-        Args:
-            df (pd.DataFrame): Weather data
-
-        Returns:
-            pd.DataFrame: Processed weather data with required temperature columns
-        """
-        # Ensure datetime index
-        if C.DATETIME in df.columns:
-            df.index = pd.to_datetime(df[C.DATETIME])
-        else:
-            df.index = pd.to_datetime(df.index)
-
-        # Add missing temperature columns
-        df = self._add_missing_temperature_columns(df)
-
-        return df
 
     @staticmethod
     def _add_missing_temperature_columns(df):
@@ -261,9 +234,10 @@ class Ruhnau(Method):
         # Add soil temperature column if missing
         if C.TEMP_SOIL not in df.columns:
             logger.info("Calculating soil temperature from air temperature")
-            df["rolling_temp"] = df[C.TEMP_AIR].rolling(window=24, min_periods=1).mean()
+            # Mean air temperature of the last 24 hours, whatever the time step.
+            df["rolling_temp"] = df[C.TEMP_AIR].rolling("24h", min_periods=1).mean()
             df[C.TEMP_SOIL] = df["rolling_temp"].apply(_calc_soil_temp)
-            df.drop(columns=["rolling_temp"], inplace=True)
+            df = df.drop(columns=["rolling_temp"])
 
         # Add groundwater temperature column if missing
         if C.TEMP_WATER_GROUND not in df.columns:
@@ -273,7 +247,7 @@ class Ruhnau(Method):
         return df
 
     @staticmethod
-    def _format_output(heating_cop_series, dhw_cop_series, processed_data):
+    def _format_output(heating_cop_series, dhw_cop_series, processed_data, index):
         """Format the output dictionary for the method.
 
         Args:
@@ -299,8 +273,8 @@ class Ruhnau(Method):
                 f"{Types.HP}{SEP}{Types.HEATING}[1]": heating_cop_series,
                 f"{Types.HP}{SEP}{Types.DHW}[1]": dhw_cop_series,
             },
-            index=processed_data[O.WEATHER].index,
         )
+        timeseries.index = index
 
         return {
             "summary": summary,
@@ -368,7 +342,7 @@ def _calculate_cop(
     temp_sink,
     gradient_sink,
     correction_factor,
-    temp_offset_types: list = (defs.HP_SOIL, defs.HP_WATER),
+    temp_offset_types: tuple = (defs.HP_SOIL, defs.HP_WATER),
     temp_offset: float = 5,
 ):
     """Calculate COP time series based on temperature differences.
@@ -380,7 +354,7 @@ def _calculate_cop(
         temp_sink (float): Temperature setting for the heat sink
         gradient_sink (float): Gradient for sink temperature calculation
         correction_factor (float): Efficiency correction factor
-        temp_offset_types (list, optional): Heat pump source types that need temperature offset
+        temp_offset_types (tuple, optional): Heat pump source types that need temperature offset
         temp_offset (float, optional): Temperature offset value
 
     Returns:

@@ -3,33 +3,37 @@ import inspect
 import os
 import pkgutil
 
-from jinja2 import Template
-
 from entise.constants import VALID_TYPES
 from entise.core.base import Method
 from entise.core.base_auxiliary import AuxiliaryMethod
+from entise.core.registry import get_strategy_extra
 
 TEMPLATE_PATH = "./_templates/method.rst"
 BASE_OUTPUT_DIR = "./methods"  # Base folder for output
 
 
-def discover_method_classes(package_name):
+def discover_method_classes(package_name, on_error=None):
     """
     Discover and return a list of classes within the given package that are
     subclasses of Method.
 
     Parameters:
       package_name (str): The package to search (e.g., "entise.methods").
+      on_error (callable): Called with a message for each module that cannot be
+        imported. The default prints it. The Sphinx build passes a warning, so
+        a strict build fails instead of leaving the method out of the docs.
 
     Returns:
       list: A list of discovered method classes.
     """
-    discovered_classes = []
+    discovered_classes = set()
     package = importlib.import_module(package_name)
     package_path = package.__path__
 
     # Walk through all modules in the package
-    for _, module_name, is_pkg in pkgutil.walk_packages(package_path, prefix=package.__name__ + "."):
+    for _, module_name, is_pkg in pkgutil.iter_modules(package_path, prefix=package.__name__ + "."):
+        if module_name.rsplit(".", 1)[-1].startswith("_"):
+            continue
         try:
             # Import the module or package
             module = importlib.import_module(module_name)
@@ -37,23 +41,23 @@ def discover_method_classes(package_name):
             # If it's a package, recursively discover classes in its submodules
             if is_pkg:
                 # Recursively discover classes in the subpackage
-                subpackage_classes = discover_method_classes(module_name)
-                discovered_classes.extend(subpackage_classes)
+                subpackage_classes = discover_method_classes(module_name, on_error)
+                discovered_classes.update(subpackage_classes)
 
             # Iterate over classes defined in the module
             for _, obj in inspect.getmembers(module, inspect.isclass):
                 # Ensure the class is defined in this package and is a subclass of Method or AuxiliaryMethod.
                 if (
                     (issubclass(obj, Method) or issubclass(obj, AuxiliaryMethod))
-                    and obj.__module__.startswith(package_name)
+                    and obj.__module__ == module_name
                     and obj is not AuxiliaryMethod  # Exclude the base AuxiliaryMethod class
                     and obj is not Method
                 ):  # Exclude the base Method class
-                    discovered_classes.append(obj)
+                    discovered_classes.add(obj)
         except Exception as e:
-            print(f"Could not import module/package {module_name}: {e}")
+            (on_error or print)(f"Could not import module/package {module_name}: {e}")
             continue
-    return discovered_classes
+    return sorted(discovered_classes, key=lambda cls: (cls.__module__, cls.__name__))
 
 
 def get_enriched_description(cls) -> str:
@@ -72,7 +76,9 @@ def get_enriched_description(cls) -> str:
         "pvlib": "pvlib-python: https://pvlib-python.readthedocs.io/",
         "windpowerlib": "windpowerlib: https://windpowerlib.readthedocs.io/",
         "demandlib": "demandlib (BDEW SLPs): https://demandlib.readthedocs.io/",
-        "iso_13790": "ISO 13790: Energy performance of buildings — Calculation of energy use for space heating and cooling",
+        "iso_13790": (
+            "ISO 13790: Energy performance of buildings — Calculation of energy use for space heating and cooling"
+        ),
         "vdi_6007": "VDI 6007: Calculation of transient thermal response of rooms and buildings",
         "dhwcalc": "DHWcalc (Jordan & Vajen): http://www.solar-heating.at/downloads/DHWcalc_english.pdf",
         "ruhnau": "Ruhnau et al. (heat pump COP vs. ambient temperature): https://doi.org/10.1016/j.enpol.2019.111179",
@@ -101,9 +107,9 @@ def get_enriched_description(cls) -> str:
     if "entise.methods.electricity" in mod or "demandlib" in key:
         return (
             "Electricity demand profiles using demandlib's BDEW standard load profiles (SLPs). Given a time "
-            "horizon and an annual demand, the method builds BDEW SLPs (e.g., H0 household) for the covered years, "
-            "optionally adjusts for holidays, and scales to the requested annual energy. The 15-minute SLP is then "
-            "aligned to the target resolution using energy-conserving resampling.\n\n"
+            "horizon and the energy demand over it, the method builds BDEW SLPs (e.g., H0 household) for the "
+            "covered years, optionally adjusts for holidays, reads them at the site's local wall clock and scales "
+            "them so that the energy over the run equals the demand.\n\n"
             f"References: {refs['demandlib']}."
         )
 
@@ -133,9 +139,10 @@ def get_enriched_description(cls) -> str:
 
     if "entise.methods.dhw" in mod:
         return (
-            "Domestic hot water (DHW) demand based on Jordan & Vajen profiles as popularized by DHWcalc. The method "
-            "synthesizes stochastic tapping events (draw volumes and times) consistent with dwelling size and occupants, "
-            "and converts them to thermal energy using cold/hot water temperatures and heater assumptions.\n\n"
+            "Domestic hot water (DHW) demand based on Jordan & Vajen profiles as popularized by DHWcalc. "
+            "The method synthesizes stochastic tapping events (draw volumes and times) consistent with dwelling "
+            "size and occupants, and converts them to thermal energy using cold/hot water temperatures and heater "
+            "assumptions.\n\n"
             f"Reference: {refs['dhwcalc']}."
         )
 
@@ -150,16 +157,17 @@ def get_enriched_description(cls) -> str:
 
     if "entise.methods.occupancy" in mod:
         return (
-            "Occupancy profile generation/detection. Methods in this family either generate plausible presence schedules "
-            "from lightweight priors (e.g., GeoMA) or infer occupancy from measured signals via thresholding and schedule "
-            "heuristics (e.g., PHT). Outputs are occupancy indicators or internal gains proxies for downstream HVAC models."
+            "Occupancy profile generation/detection. Methods in this family either generate plausible presence "
+            "schedules from lightweight priors (e.g., GeoMA) or infer occupancy from measured signals via "
+            "thresholding and schedule heuristics (e.g., PHT). Outputs are occupancy indicators or internal gains "
+            "proxies for downstream HVAC models."
         )
 
     if "entise.methods.auxiliary" in mod:
         return (
-            "Auxiliary strategy used by main methods to derive intermediate inputs (e.g., solar or internal gains, ventilation). "
-            "Selectors pick the most specific strategy given available object keys and input data, enabling automatic yet "
-            "overrideable preprocessing within the workflow."
+            "Auxiliary strategy used by main methods to derive intermediate inputs (e.g., solar or internal gains, "
+            "ventilation). Selectors pick the most specific strategy given available object keys and input data, "
+            "enabling automatic yet overrideable preprocessing within the workflow."
         )
 
     # Default fallback: empty string to keep original behavior
@@ -309,6 +317,9 @@ def generate_docs_for_method(cls, timeseries_type, template_path, output_dir):
     """
     metadata = extract_method_metadata(cls)
 
+    # Jinja2 comes with the docs requirements; discovering the methods does not need it.
+    from jinja2 import Template
+
     # Load the Jinja2 template
     with open(template_path, "r", encoding="utf-8") as f:
         template = Template(f.read())
@@ -318,11 +329,14 @@ def generate_docs_for_method(cls, timeseries_type, template_path, output_dir):
 
     # Render the template with the metadata and provided timeseries type.
     file_name = getattr(cls, "name", cls.__name__.lower())
+    install_extra = get_strategy_extra(file_name)
     rendered = template.render(
         method_name=file_name,
         cls=cls,  # Pass the class object to access its attributes
         description=metadata["description"],
         method_key=metadata["method_key"],
+        install_extra=install_extra,
+        manual_install=file_name == "districtheatingsim",
         supported_types=metadata["types"],
         required_keys=metadata["required_keys"],
         optional_keys=metadata["optional_keys"],
@@ -556,7 +570,8 @@ def ensure_top_level_index(base_dir):
         title,
         underline,
         "",
-        "This section documents all available time series generation methods in EnTiSe. Pages are auto-generated from the code at build time, so they stay consistent with the current API.",
+        "This section documents all available time series generation methods in EnTiSe. Pages are "
+        "auto-generated from the code at build time, so they stay consistent with the current API.",
         "",
         ".. toctree::",
         "   :maxdepth: 2",

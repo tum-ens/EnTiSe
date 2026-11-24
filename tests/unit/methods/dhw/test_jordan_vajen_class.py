@@ -19,7 +19,7 @@ from entise.methods.dhw.jordan_vajen import JordanVajen
 def create_sample_weather(start_date="2023-01-01", days=7, freq="h"):
     """Create sample weather data for testing."""
     start = pd.Timestamp(start_date, tz="UTC")
-    end = start + pd.Timedelta(days, unit="D")
+    end = start + pd.Timedelta(days=days)
     index = pd.date_range(start=start, end=end, freq=freq)
 
     # Create a DataFrame with temperature data
@@ -222,6 +222,24 @@ def test_jordan_vajen_water_temperatures():
     assert result1["summary"][f"{Types.DHW}:energy_total[Wh]"] > result2["summary"][f"{Types.DHW}:energy_total[Wh]"]
 
 
+def test_jordan_vajen_reports_the_hot_water_temperature():
+    """The hot water column holds the hot temperature, not the cold one."""
+    weather = create_sample_weather()
+    obj = {
+        O.ID: "test_obj",
+        O.DWELLING_SIZE: 100,
+        O.TEMP_WATER_COLD: 10,
+        O.TEMP_WATER_HOT: 55,
+        O.DATETIMES: "weather",
+        O.SEED: 42,
+    }
+
+    timeseries = JordanVajen().generate(obj, {"weather": weather})["timeseries"]
+
+    assert (timeseries[f"{Types.DHW}{SEP}{O.TEMP_WATER_HOT}"] == 55).all()
+    assert (timeseries[f"{Types.DHW}{SEP}{O.TEMP_WATER_COLD}"] == 10).all()
+
+
 # Test with seasonal variation
 def test_jordan_vajen_seasonal_variation():
     """Test that the JordanVajen class handles seasonal variation correctly."""
@@ -364,7 +382,7 @@ def test_jordan_vajen_time_resolution():
     # Create sample data with different time resolutions
     weather_hourly = create_sample_weather(freq="h")
     weather_15min = create_sample_weather(freq="15min")
-    weather_daily = create_sample_weather(freq="d")
+    weather_daily = create_sample_weather(freq="D")
 
     data = {"weather_hourly": weather_hourly, "weather_15min": weather_15min, "weather_daily": weather_daily}
 
@@ -412,3 +430,44 @@ def test_jordan_vajen_time_resolution():
     hourly_total = result_hourly["summary"][f"{Types.DHW}{SEP}volume_total[l]"]
     daily_total = result_daily["summary"][f"{Types.DHW}{SEP}volume_total[l]"]
     assert 0.5 * hourly_total <= daily_total <= 1.5 * hourly_total
+
+
+# The tables an object names
+def _named_table_inputs():
+    from entise.methods.dhw.jordanvajen.activity import _get_activity_data, _get_demand_data
+
+    obj = {O.ID: "named", O.DWELLING_SIZE: 100, O.DATETIMES: "weather", O.SEED: 42}
+    data = {"weather": create_sample_weather(days=14)}
+    return obj, data, _get_activity_data("jordan_vajen"), _get_demand_data("jordan_vajen")
+
+
+def test_jordan_vajen_reads_the_activity_table_the_object_names():
+    obj, data, activity, _ = _named_table_inputs()
+    faster = activity.assign(**{"flow_rate[l s-1]": activity["flow_rate[l s-1]"] * 3})
+    power = f"{Types.DHW}:power_max[W]"
+
+    default = JordanVajen().generate(obj, data)["summary"][power]
+    named = JordanVajen().generate({**obj, O.DHW_ACTIVITY: "my_activity"}, {**data, "my_activity": faster})
+    by_key = JordanVajen().generate(obj, {**data, O.DHW_ACTIVITY: faster})
+
+    assert named["summary"][power] > 2 * default
+    assert named["summary"] == by_key["summary"]
+
+
+def test_jordan_vajen_reads_the_demand_table_the_object_names():
+    obj, data, _, demand = _named_table_inputs()
+    double = demand.assign(**{O.YEARLY_DHW_DEMAND: demand[O.YEARLY_DHW_DEMAND] * 2})
+    volume = f"{Types.DHW}:volume_total[l]"
+
+    default = JordanVajen().generate(obj, data)["summary"][volume]
+    named = JordanVajen().generate({**obj, O.DHW_DEMAND_PER_SIZE: "my_demand"}, {**data, "my_demand": double})
+
+    assert named["summary"][volume] > 1.5 * default
+
+
+@pytest.mark.parametrize("key", [O.DHW_ACTIVITY, O.DHW_DEMAND_PER_SIZE])
+def test_jordan_vajen_raises_for_a_named_table_that_is_missing(key):
+    obj, data, _, _ = _named_table_inputs()
+
+    with pytest.raises(ValueError, match="no_such_table"):
+        JordanVajen().generate({**obj, key: "no_such_table"}, data)

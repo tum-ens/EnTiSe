@@ -543,9 +543,9 @@ def test_r5c1_deadband_default_zero_matches_omitted(basic_5r1c_object):
     ts_zero = R5C1().generate(obj_zero, {O.WEATHER: weather.copy()}, Types.HVAC)["timeseries"]
 
     for col in ts_no.columns:
-        assert np.array_equal(
-            ts_no[col].to_numpy(), ts_zero[col].to_numpy()
-        ), f"deadband=0 diverged from omitted on column {col}"
+        assert np.array_equal(ts_no[col].to_numpy(), ts_zero[col].to_numpy()), (
+            f"deadband=0 diverged from omitted on column {col}"
+        )
 
 
 def test_r5c1_heating_with_deadband_targets_upper_band(basic_5r1c_object):
@@ -651,15 +651,15 @@ def test_r5c1_deadband_latches_across_in_band_transient(basic_5r1c_object):
     # After the cold spike, in the mild tail the deadband case must fire
     # strictly more than the no-deadband case (the latch keeps working).
     tail = slice(-24, None)
-    assert (
-        p_db[tail].sum() > p_no[tail].sum() * 1.5
-    ), f"Deadband heater tail sum {p_db[tail].sum()} not meaningfully greater than baseline {p_no[tail].sum()}."
+    assert p_db[tail].sum() > p_no[tail].sum() * 1.5, (
+        f"Deadband heater tail sum {p_db[tail].sum()} not meaningfully greater than baseline {p_no[tail].sum()}."
+    )
     # And a broken state machine that ignored the latch would match the
     # baseline exactly in the tail: assert at least one tail step where
     # the two paths diverge.
-    assert not np.array_equal(
-        p_no[tail], p_db[tail]
-    ), "Deadband produced identical output to baseline in the mild tail — state machine not exercised."
+    assert not np.array_equal(p_no[tail], p_db[tail]), (
+        "Deadband produced identical output to baseline in the mild tail — state machine not exercised."
+    )
 
 
 def test_r5c1_wide_deadband_does_not_double_fire(basic_5r1c_object):
@@ -696,9 +696,9 @@ def test_r5c1_wide_deadband_does_not_double_fire(basic_5r1c_object):
     p_cool = ts[f"{Types.COOLING}{SEP}{C.LOAD}[W]"].to_numpy()
 
     both = (p_heat > 0) & (p_cool > 0)
-    assert (
-        not both.any()
-    ), f"Heating and cooling fired simultaneously on {int(both.sum())} steps — wide-band mutex broken."
+    assert not both.any(), (
+        f"Heating and cooling fired simultaneously on {int(both.sum())} steps — wide-band mutex broken."
+    )
     assert (p_heat > 0).any() or (p_cool > 0).any()
 
 

@@ -41,7 +41,7 @@ def analyze_results(df: dict, objects: pd.DataFrame, data: dict, save_figures: b
         # Create a boxplot for heating COP distribution
         plt.figure(figsize=(12, 6))
         plt.subplot(1, 2, 1)
-        plt.boxplot(heating_cop_data, labels=[f"ID {id}" for id in system_ids])
+        plt.boxplot(heating_cop_data, tick_labels=[f"ID {id}" for id in system_ids])
         plt.title("Heating COP Distribution by System")
         plt.ylabel("COP")
         plt.xticks(rotation=45)
@@ -49,7 +49,7 @@ def analyze_results(df: dict, objects: pd.DataFrame, data: dict, save_figures: b
 
         # Create a boxplot for DHW COP distribution
         plt.subplot(1, 2, 2)
-        plt.boxplot(dhw_cop_data, labels=[f"ID {id}" for id in system_ids])
+        plt.boxplot(dhw_cop_data, tick_labels=[f"ID {id}" for id in system_ids])
         plt.title("DHW COP Distribution by System")
         plt.ylabel("COP")
         plt.xticks(rotation=45)
@@ -138,7 +138,9 @@ def analyze_results(df: dict, objects: pd.DataFrame, data: dict, save_figures: b
                 ts = df[obj_id][Types.HP][heating_col]
 
                 # Create a pivot table with hours as columns and days as rows
-                pivot_data = pd.DataFrame({"hour": ts.index.hour, "day_of_year": ts.index.dayofyear, "cop": ts.values})
+                pivot_data = pd.DataFrame(
+                    {"hour": ts.index.hour, "day_of_year": ts.index.day_of_year, "cop": ts.values}
+                )
                 pivot_table = pivot_data.pivot_table(values="cop", index="day_of_year", columns="hour", aggfunc="mean")
 
                 # Create heatmap
@@ -274,7 +276,7 @@ def analyze_results(df: dict, objects: pd.DataFrame, data: dict, save_figures: b
                 # Check if 'datetime' column exists
                 if "datetime" in weather_data.columns:
                     weather_data["datetime"] = pd.to_datetime(weather_data["datetime"], utc=True)
-                    weather_data.set_index("datetime", inplace=True)
+                    weather_data = weather_data.set_index("datetime")
                 # If not, check if the index can be converted to datetime
                 else:
                     try:
@@ -286,13 +288,14 @@ def analyze_results(df: dict, objects: pd.DataFrame, data: dict, save_figures: b
                         ]
                         if datetime_cols:
                             weather_data[datetime_cols[0]] = pd.to_datetime(weather_data[datetime_cols[0]], utc=True)
-                            weather_data.set_index(datetime_cols[0], inplace=True)
+                            weather_data = weather_data.set_index(datetime_cols[0])
                         else:
                             # If no datetime column is found, skip this iteration
                             continue
 
             # Get temperature column
-            temp_col = "air_temperature[C]"
+            # The weather keeps its column heights, for example "air_temperature[C]@2m".
+            temp_col = next(col for col in weather_data.columns if col.startswith("air_temperature[C]"))
 
             # Process heating COP
             heating_col = f"{Types.HP}{SEP}{Types.HEATING}[1]"

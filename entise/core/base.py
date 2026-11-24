@@ -1,24 +1,117 @@
 import logging
-import math
 import re
 from abc import ABC, ABCMeta, abstractmethod
+from collections.abc import Callable, Mapping, Sequence
 from typing import Any, Dict, List, Tuple, Type
 
 import pandas as pd
 
 from entise.constants import SEP, VALID_TYPES, Keys
 from entise.constants import Columns as C
+from entise.constants import Objects as O
 
 logger = logging.getLogger(__name__)
 
 # Global registry
 method_registry: Dict[str, Type["Method"]] = {}
 
+_UNIT = re.compile(r"\[[^\]]*\]")
+_HEIGHT = re.compile(r"@\d+(?:\.\d+)?m$")
+
+# Site metadata of an object: read without a type prefix by every method.
+SITE_KEYS = (O.ID, O.TIMEZONE)
+
+
+def input_name(key: str) -> str:
+    """Return the Python name of an input key: the key without its units and height.
+
+    Example:
+        ``area[m2]`` becomes ``area`` and ``air_temperature[C]@2m`` becomes ``air_temperature``.
+    """
+    return _UNIT.sub("", _HEIGHT.sub("", key))
+
+
+def _scopes(ts_type: str | Sequence[str] | None) -> Tuple[str, ...]:
+    """Return the type prefixes of a call: none, one type, or several."""
+    if ts_type is None:
+        return ()
+    return (ts_type,) if isinstance(ts_type, str) else tuple(ts_type)
+
+
+def _is_missing(value: Any) -> bool:
+    """Whether an object value counts as not given: None, or a missing scalar such as NaN or pd.NA."""
+    return value is None or (pd.api.types.is_scalar(value) and bool(pd.isna(value)))
+
+
+def _same_value(a: Any, b: Any) -> bool:
+    """Whether two object values are equal; values that cannot be compared are not."""
+    if a is b:
+        return True
+    if isinstance(a, (pd.Series, pd.DataFrame)) and type(a) is type(b):
+        return a.equals(b)
+    try:
+        return bool(a == b)
+    except (TypeError, ValueError):
+        return False
+
+
+def _declared_inputs(cls) -> List[str]:
+    """Return the keys of every input a method declares, in declaration order."""
+    return list(
+        dict.fromkeys(
+            [
+                *getattr(cls, "required_keys", []),
+                *getattr(cls, "optional_keys", []),
+                *getattr(cls, "required_data", []),
+                *getattr(cls, "optional_data", []),
+            ]
+        )
+    )
+
+
+def _python_names(cls) -> Tuple[Dict[str, str], Dict[str, List[str]]]:
+    """Return the Python name of each input, and the names that inputs at several heights share.
+
+    Inputs that differ only in their height, such as ``wind_speed[m s-1]@10m`` and
+    ``wind_speed[m s-1]@100m``, share a Python name that would be ambiguous. That name
+    names none of them; they are set by their keys.
+
+    Raises:
+        TypeError: If two inputs that differ in more than their height share a Python name.
+    """
+    owners: Dict[str, List[str]] = {}
+    for key in _declared_inputs(cls):
+        owners.setdefault(input_name(key), []).append(key)
+    names: Dict[str, str] = {}
+    shared: Dict[str, List[str]] = {}
+    for name, keys in owners.items():
+        if len(keys) == 1:
+            names[name] = keys[0]
+        elif len({_HEIGHT.sub("", key) for key in keys}) == 1:
+            shared[name] = keys
+        else:
+            raise TypeError(f"{cls.__name__}: inputs '{keys[0]}' and '{keys[1]}' both have the Python name '{name}'.")
+    return names, shared
+
+
+def _check_input_names(cls) -> None:
+    """Raise if two inputs of a method share a Python name or an alias is ambiguous."""
+    keys = _declared_inputs(cls)
+    names, _ = _python_names(cls)
+    for alias, key in getattr(cls, "input_aliases", {}).items():
+        if key not in keys:
+            raise TypeError(f"{cls.__name__}: alias '{alias}' names '{key}', which is not a declared input.")
+        if names.get(alias, key) != key:
+            raise TypeError(f"{cls.__name__}: alias '{alias}' for '{key}' is already a name of '{names[alias]}'.")
+
 
 class MethodMeta(ABCMeta):
     def __init__(cls, name, bases, dct):
         super().__init__(name, bases, dct)
-        if cls.__name__ == "Method" or getattr(cls, "register", True) is False:
+        if cls.__name__ == "Method":
+            return
+        _check_input_names(cls)
+        if getattr(cls, "register", True) is False:
             return
         for t in getattr(cls, "types", []):
             if t not in VALID_TYPES:
@@ -30,15 +123,54 @@ class Method(ABC, metaclass=MethodMeta):
     types: List[str]
     name: str = ""
     required_keys: List[str]
-    optional_keys: List[str] = []
+    # A list, or a mapping of each key to its default (see ``key_defaults``).
+    optional_keys: List[str] | Dict[str, Any] = []
     required_data: List[str] = []
     optional_data: List[str] = []
     output_summary: Dict[str, pd.DataFrame] = {}
     output_timeseries: Dict[str, pd.DataFrame]
+    # Python names kept from earlier releases, mapped to the input key they set.
+    input_aliases: Dict[str, str] = {}
+    # Optional hook for a method that calculates several of its types at once. When set, the
+    # runner calls ``generate_group(obj, data, results, ts_types)`` once for all the types in
+    # ``types`` that select this method on the object, and expects a mapping from each of those
+    # types to its result. Otherwise the runner calls ``generate`` once per type.
+    generate_group: Callable[..., Dict[str, Dict[str, Any]]] | None = None
 
     @abstractmethod
-    def generate(self, obj: dict, data: dict, results: dict, ts_type: str) -> Dict[str, Any]:
+    def generate(
+        self,
+        obj: dict | None = None,
+        data: dict | None = None,
+        results: dict | None = None,
+        ts_type: str = "",
+        **inputs,
+    ) -> Dict[str, Any]:
+        """Generate the time series of one object.
+
+        Args:
+            obj (dict, optional): Object keys.
+            data (dict, optional): Input tables.
+            results (dict, optional): Results of the time series already generated for the object.
+            ts_type (str, optional): Time series type to generate.
+            **inputs: Any declared input, by its key or by its Python name (see ``input_names``).
+                Keywords override the same keys in ``obj``.
+        """
         raise NotImplementedError("Method 'generate' must be implemented.")
+
+    @classmethod
+    def input_names(cls) -> Dict[str, str]:
+        """Return every name ``generate`` accepts for an input, mapped to the input's key.
+
+        Each declared input is accepted by its key, by its Python name (see ``input_name``),
+        and by the names in ``input_aliases``. Inputs that differ only in their height share
+        no Python name; they are accepted by their keys.
+        """
+        names = {key: key for key in _declared_inputs(cls)}
+        for name, key in _python_names(cls)[0].items():
+            names.setdefault(name, key)
+        names.update(cls.input_aliases)
+        return names
 
     @staticmethod
     def resolve_column(ts_key: str, column: str, ts_type: str, data: dict) -> pd.Series:
@@ -55,56 +187,190 @@ class Method(ABC, metaclass=MethodMeta):
 
         raise ValueError(f"Neither '{prefixed_col}' nor '{column}' found in timeseries '{ts_key}'.")
 
-    def get_relevant_objects(self, obj: dict, ts_type: str = None) -> dict:
-        """Extract relevant objects for the method based on the timeseries type."""
-        if ts_type is None:
-            return obj
+    @classmethod
+    def key_defaults(cls) -> Dict[str, Any]:
+        """Return each declared key mapped to its default, in declaration order.
 
-        relevant_objs = {k.split(SEP, 1)[1]: v for k, v in obj.items() if k.startswith(f"{ts_type}{SEP}")}
+        Required keys have no default. ``optional_keys`` either maps each key to its
+        default or lists the keys, which then have none.
+        """
+        defaults = dict.fromkeys(cls.required_keys)
+        optional = cls.optional_keys
+        defaults.update(optional if isinstance(optional, Mapping) else dict.fromkeys(optional))
+        return defaults
 
-        expected_keys = set(self.required_keys + self.optional_keys)
-        shared_keys_set = expected_keys - set(relevant_objs.keys())
-        shared_objs = {k: v for k, v in obj.items() if k in shared_keys_set and k not in relevant_objs}
+    @classmethod
+    def get_relevant_objects(cls, obj: Mapping, ts_type: str | Sequence[str] | None = None) -> dict:
+        """Resolve the declared keys of the method from one object.
 
-        relevant_objs.update(shared_objs)
-        logger.debug(
-            f"Method '{self.__class__.__name__}':\n"
-            f"- Required keys: {self.required_keys}\n"
-            f"- Relevant objects: {relevant_objs}\n"
-            f"- Shared keys: {shared_keys_set}"
-        )
+        Each key in ``required_keys`` and ``optional_keys`` takes the first value it finds,
+        in this order:
 
-        return relevant_objs
+        1. the key prefixed with the type, ``<ts_type>:<key>``;
+        2. the key itself;
+        3. its default (see ``key_defaults``).
 
-    def _process_kwargs(self, obj: dict = None, data: dict = None, **kwargs) -> Tuple[dict, dict]:
-        """Process keyword arguments into obj and data dictionaries.
+        ``None`` and NaN count as missing, while ``False`` and ``0`` are values. The site
+        keys ``id`` and ``timezone`` are always read without a prefix. Keys without a value
+        are left out, and undeclared keys are never returned. Values are returned as given:
+        a table reference such as ``"table|column"`` is resolved by the method.
 
         Args:
-            obj (dict, optional): Initial object dictionary. Defaults to None.
-            data (dict, optional): Initial data dictionary. Defaults to None.
-            **kwargs: Keyword arguments to process.
+            obj: The object's keys.
+            ts_type: The type the method generates, or several types that one call
+                generates together. Without a type, only unprefixed keys are read.
+
+        Returns:
+            dict: The site keys first, then the declared keys in declaration order.
+
+        Raises:
+            ValueError: If a key is given under two of the types with different values.
+        """
+        scopes = _scopes(ts_type)
+        resolved = {}
+        for key in SITE_KEYS:
+            value = cls.get_with_backup(obj, key)
+            if value is not None:
+                resolved[key] = value
+        for key, default in cls.key_defaults().items():
+            if key in SITE_KEYS:
+                continue
+            value = cls._scoped_value(obj, key, scopes)
+            if value is None:
+                value = cls.get_with_backup(obj, key, default)
+            if value is not None:
+                resolved[key] = value
+        return resolved
+
+    @classmethod
+    def _scoped_value(cls, obj: Mapping, key: str, scopes: Tuple[str, ...]) -> Any:
+        """Return the value of a key given under any of the scopes, or None."""
+        found = None
+        for scope in scopes:
+            scoped = f"{scope}{SEP}{key}"
+            value = cls.get_with_backup(obj, scoped)
+            if value is None:
+                continue
+            if found is None:
+                found = (scoped, value)
+            elif not _same_value(found[1], value):
+                raise ValueError(f"'{found[0]}' ({found[1]!r}) and '{scoped}' ({value!r}) give different values.")
+        return None if found is None else found[1]
+
+    def _process_kwargs(
+        self, obj: dict | None = None, data: dict | None = None, ts_type: str | None = None, **inputs
+    ) -> Tuple[dict, dict]:
+        """Apply the keyword inputs of a direct call to copies of obj and data.
+
+        See ``_process_inputs``. A method with an input that another type produces,
+        such as the electricity series of the occupancy methods, calls
+        ``_process_inputs`` instead.
 
         Returns:
             Tuple[dict, dict]: Processed obj and data dictionaries.
         """
-        local_obj = {} if obj is None else obj.copy()
-        local_data = {} if data is None else data.copy()
+        local_obj, local_data, results = self._process_inputs(obj, data, None, ts_type, **inputs)
+        if results:
+            raise TypeError(f"{type(self).__name__} takes results of other types; call _process_inputs.")
+        return local_obj, local_data
 
-        # Get all possible keys for this method
-        all_obj_keys = set(self.required_keys + self.optional_keys)
-        all_data_keys = set(self.required_data + self.optional_data)
+    def _process_inputs(
+        self,
+        obj: dict | None = None,
+        data: dict | None = None,
+        results: dict | None = None,
+        ts_type: str | None = None,
+        **inputs,
+    ) -> Tuple[dict, dict, dict | None]:
+        """Apply the keyword inputs of a direct call to copies of obj, data and results.
 
-        for param_name, value in kwargs.items():
+        ``obj`` may be a dict, a row of an objects table (a Series) or None; the copy is a
+        dict. A keyword sets the input it names (see ``input_names``) and overrides the
+        same key in ``obj``, including the key prefixed with ``ts_type``. A ``None`` value
+        counts as not given. For a data input:
+
+        - a string is the name of a table in ``data``; ``obj`` refers to it;
+        - a table (DataFrame or mapping) goes into ``data`` under the input's key, and
+          ``obj`` refers to it by that key;
+        - for an input that another type produces, such as ``electricity``, the table
+          becomes that type's result in ``results``.
+
+        Any other value goes into ``obj``, or for an input that only ``data`` holds,
+        into ``data`` as a table.
+
+        Args:
+            obj (dict or pd.Series, optional): Initial object. Defaults to None.
+            data (dict, optional): Initial data dictionary. Defaults to None.
+            results (dict, optional): Results of the types generated before. Defaults to None.
+            ts_type (str, optional): Time series type the method generates. Defaults to None.
+            **inputs: Inputs by key or Python name.
+
+        Returns:
+            Tuple[dict, dict, dict | None]: Processed obj, data and results. ``results`` is the
+            given mapping unless a keyword sets one of its entries.
+
+        Raises:
+            TypeError: If a keyword names no input of the method, or two keywords name the same input.
+        """
+        local_obj = {} if obj is None else dict(obj)
+        local_data = {} if data is None else dict(data)
+        if not inputs:
+            return local_obj, local_data, results
+
+        names = self.input_names()
+        unknown = [name for name in inputs if name not in names]
+        if unknown:
+            shared = _python_names(type(self))[1].get(unknown[0])
+            if shared:
+                raise TypeError(
+                    f"{type(self).__name__}.generate(): '{unknown[0]}' is ambiguous; inputs "
+                    f"{', '.join(repr(key) for key in sorted(shared))} differ only in height. "
+                    "Pass the input by its key, for example **{" + repr(sorted(shared)[0]) + ": ...}."
+                )
+            raise TypeError(
+                f"{type(self).__name__}.generate() got an unexpected keyword argument '{unknown[0]}'. "
+                f"Inputs of method '{self.name}': {self._describe_inputs(names)}."
+            )
+
+        obj_keys = set(self.key_defaults())
+        data_keys = set(self.required_data + self.optional_data)
+        given: Dict[str, str] = {}
+        for name, value in inputs.items():
             if value is None:
                 continue
+            key = names[name]
+            if key in given:
+                raise TypeError(
+                    f"{type(self).__name__}.generate() got multiple values for input '{key}': "
+                    f"'{given[key]}' and '{name}'."
+                )
+            given[key] = name
 
-            # Check if the parameter name is in the required or optional keys
-            if param_name in all_obj_keys:
-                local_obj[param_name] = value
-            elif param_name in all_data_keys:
-                local_data[param_name] = value
+            if key in data_keys and key in VALID_TYPES:
+                # Another type produces this input; the method reads it from the results.
+                table = local_data[value] if isinstance(value, str) else value
+                results = {**(results or {}), key: {Keys.TIMESERIES: table}}
+                continue
+            if key in data_keys and not isinstance(value, str):
+                if key not in obj_keys or isinstance(value, (pd.DataFrame, Mapping)):
+                    local_data[key] = value
+                    value = key  # the object refers to the table by its key
+            local_obj[key] = value
+            for scope in _scopes(ts_type):
+                local_obj.pop(f"{scope}{SEP}{key}", None)
 
-        return local_obj, local_data
+        return local_obj, local_data, results
+
+    @staticmethod
+    def _describe_inputs(names: Dict[str, str]) -> str:
+        """List the Python names of the inputs, each with its key where that differs.
+
+        An input without a Python name, such as one of several heights of a quantity, is listed by its key.
+        """
+        described = [name if name == key else f"{name} ({key})" for name, key in names.items() if name.isidentifier()]
+        named = {key for name, key in names.items() if name.isidentifier()}
+        described += [key for key in dict.fromkeys(names.values()) if key not in named]
+        return ", ".join(sorted(described, key=str.lower))
 
     @staticmethod
     def _strip_weather_height(weather: pd.DataFrame) -> pd.DataFrame:
@@ -166,11 +432,11 @@ class Method(ABC, metaclass=MethodMeta):
         return weather, info
 
     @staticmethod
-    def get_with_backup(obj: dict, key: str, backup: Any = None):
+    def get_with_backup(obj: Mapping, key: str, backup: Any = None):
         """Get a value from a dictionary with a backup value if not found or None.
 
         Args:
-            obj (dict): Dictionary to get value from
+            obj (Mapping): Mapping to get value from
             key (str): Key to look for
             backup: Default value if key doesn't exist or value is None/NaN
 
@@ -178,7 +444,7 @@ class Method(ABC, metaclass=MethodMeta):
             The value from the dictionary, or the backup value if not found
         """
         value = obj.get(key, backup)
-        if value is None or (isinstance(value, float) and math.isnan(value)):
+        if _is_missing(value):
             return backup
         return value
 
@@ -214,7 +480,7 @@ class Method(ABC, metaclass=MethodMeta):
         """Return a dictionary of the method's requirements, including required and optional keys and timeseries."""
         return {
             Keys.KEYS_REQUIRED: cls.required_keys,
-            Keys.KEYS_OPTIONAL: cls.optional_keys,
+            Keys.KEYS_OPTIONAL: list(cls.optional_keys),
             Keys.DATA_REQUIRED: cls.required_data,
             Keys.DATA_OPTIONAL: cls.optional_data,
         }

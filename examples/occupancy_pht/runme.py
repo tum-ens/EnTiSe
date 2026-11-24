@@ -10,7 +10,6 @@ import numpy as np
 import pandas as pd
 
 from entise.constants import SEP, Columns, Types
-from entise.constants import Objects as O
 from examples.utils import load_input, run_simulation
 
 
@@ -142,30 +141,18 @@ def analyze_results(summary: pd.DataFrame, dfs: dict, data: dict, save_figures: 
     # Generate 1 dataframe per object and filter by selected day
     df_1 = dfs[1].copy()
 
-    df_1[Types.OCCUPANCY] = df_1[Types.OCCUPANCY].loc[df_1[Types.OCCUPANCY].index.dayofyear == day_of_year]
-    df_1[Types.ELECTRICITY][Columns.DATETIME] = pd.to_datetime(
-        df_1[Types.ELECTRICITY][Columns.DATETIME], utc=True
-    ).dt.tz_convert("Europe/Berlin")
-    df_1[Types.ELECTRICITY] = df_1[Types.ELECTRICITY].set_index(Columns.DATETIME)
-    df_1[Types.ELECTRICITY] = df_1[Types.ELECTRICITY].loc[df_1[Types.ELECTRICITY].index.dayofyear == day_of_year]
+    df_1[Types.OCCUPANCY] = df_1[Types.OCCUPANCY].loc[df_1[Types.OCCUPANCY].index.day_of_year == day_of_year]
+    df_1[Types.ELECTRICITY] = df_1[Types.ELECTRICITY].loc[df_1[Types.ELECTRICITY].index.day_of_year == day_of_year]
 
     df_2 = dfs[2].copy()
 
-    df_2[Types.OCCUPANCY] = df_2[Types.OCCUPANCY].loc[df_2[Types.OCCUPANCY].index.dayofyear == day_of_year]
-    df_2[Types.ELECTRICITY][Columns.DATETIME] = pd.to_datetime(
-        df_2[Types.ELECTRICITY][Columns.DATETIME], utc=True
-    ).dt.tz_convert("Europe/Berlin")
-    df_2[Types.ELECTRICITY] = df_2[Types.ELECTRICITY].set_index(Columns.DATETIME)
-    df_2[Types.ELECTRICITY] = df_2[Types.ELECTRICITY].loc[df_2[Types.ELECTRICITY].index.dayofyear == day_of_year]
+    df_2[Types.OCCUPANCY] = df_2[Types.OCCUPANCY].loc[df_2[Types.OCCUPANCY].index.day_of_year == day_of_year]
+    df_2[Types.ELECTRICITY] = df_2[Types.ELECTRICITY].loc[df_2[Types.ELECTRICITY].index.day_of_year == day_of_year]
 
     df_3 = dfs[3].copy()
 
-    df_3[Types.OCCUPANCY] = df_3[Types.OCCUPANCY].loc[df_3[Types.OCCUPANCY].index.dayofyear == day_of_year]
-    df_3[Types.ELECTRICITY][Columns.DATETIME] = pd.to_datetime(
-        df_3[Types.ELECTRICITY][Columns.DATETIME], utc=True
-    ).dt.tz_convert("Europe/Berlin")
-    df_3[Types.ELECTRICITY] = df_3[Types.ELECTRICITY].set_index(Columns.DATETIME)
-    df_3[Types.ELECTRICITY] = df_3[Types.ELECTRICITY].loc[df_3[Types.ELECTRICITY].index.dayofyear == day_of_year]
+    df_3[Types.OCCUPANCY] = df_3[Types.OCCUPANCY].loc[df_3[Types.OCCUPANCY].index.day_of_year == day_of_year]
+    df_3[Types.ELECTRICITY] = df_3[Types.ELECTRICITY].loc[df_3[Types.ELECTRICITY].index.day_of_year == day_of_year]
 
     # Generate the plots
     plot_occupancy_comparison()

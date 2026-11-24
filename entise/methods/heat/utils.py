@@ -2,6 +2,7 @@
 
 import os
 import tempfile
+
 import numpy as np
 import pandas as pd
 
@@ -17,12 +18,7 @@ def create_try_file(idx_hour_full: pd.DatetimeIndex, temperature: pd.Series, pre
     """
 
     col_widths = [8, 8, 3, 3, 3, 6, 5, 4, 5, 2, 5, 4, 5, 5, 4, 5, 3]
-    col_names = [
-        "RW", "HW", "MM", "DD", "HH",
-        "t", "p", "WR", "WG", "N",
-        "x", "RF", "B", "D", "A",
-        "E", "IL"
-    ]
+    col_names = ["RW", "HW", "MM", "DD", "HH", "t", "p", "WR", "WG", "N", "x", "RF", "B", "D", "A", "E", "IL"]
 
     n = len(idx_hour_full)
 
@@ -41,7 +37,7 @@ def create_try_file(idx_hour_full: pd.DatetimeIndex, temperature: pd.Series, pre
 
         for i in range(n):
             vals = []
-            for w, col in zip(col_widths, col_names):
+            for w, col in zip(col_widths, col_names, strict=True):
                 v = df_try.at[i, col]
                 if col in ("RW", "HW", "MM", "DD", "HH", "WR", "N", "IL"):
                     s = f"{int(round(v)):d}"

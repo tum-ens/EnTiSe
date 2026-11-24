@@ -1,13 +1,10 @@
-"""
-Electricity methods for time series generation.
+"""Electricity demand generation methods."""
 
-This package contains methods for generating electricity demand or supply time series.
-"""
+from functools import partial
 
-from entise.methods.electricity.demandlib import Demandlib
-from entise.methods.electricity.pylpg import PyLPG
+from entise.methods._exports import list_exports, load_export
 
-__all__ = [
-    "Demandlib",
-    "PyLPG",
-]
+_EXPORTS = {"Demandlib": "demandlib", "PyLPG": "pylpg"}
+__all__ = list(_EXPORTS)
+__getattr__ = partial(load_export, __name__, _EXPORTS)
+__dir__ = partial(list_exports, globals(), _EXPORTS)

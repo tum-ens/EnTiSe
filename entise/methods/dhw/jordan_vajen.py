@@ -2,21 +2,26 @@ import logging
 
 import numpy as np
 import pandas as pd
-import scipy.stats as stats
 
+from entise._optional import require_module
 from entise.constants import SEP, Types
 from entise.constants import Columns as C
 from entise.constants import Objects as O
+from entise.core._random import method_rng
+from entise.core._time import output_index, site_zone
 from entise.core.base import Method
 from entise.methods.dhw.defaults import (
+    DEFAULT_DENSITY_WATER,
     DEFAULT_SEASONAL_PEAK_DAY,
     DEFAULT_SEASONAL_VARIATION,
+    DEFAULT_SPECIFIC_HEAT_WATER,
     DEFAULT_TEMP_COLD,
     DEFAULT_TEMP_HOT,
 )
 from entise.methods.dhw.jordanvajen.activity import _get_activity_data, _get_demand_data
-from entise.methods.dhw.jordanvajen.calculation import _calculate_timeseries
+from entise.methods.dhw.jordanvajen.calculation import daily_volume, local_holidays, sample_volume
 from entise.methods.dhw.jordanvajen.temperature import _get_water_temperatures
+from entise.methods.utils._calendar import time_table, wall_window
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +31,29 @@ class JordanVajen(Method):
     Jordan & Vajen (2005): "DHWcalc: PROGRAM TO GENERATE DOMESTIC HOT WATER PROFILES
     WITH STATISTICAL MEANS FOR USER DEFINED CONDITIONS". The implementation follows the
     Method pattern established in the project architecture.
+
+    Water is drawn per local day of the object's ``timezone`` (UTC if unset):
+
+    - Each event type (bath, shower, ...) has a share of the mean daily volume,
+      from the weekly mean of its ``probability_day``. Within the type,
+      ``probability_day`` gives a factor per weekday, normalised so that its weekly
+      mean is 1; holidays use Sunday's factor. A day's expected volume is a draw
+      from the dwelling's daily demand, scaled by the seasonal factor (using the
+      actual length of the year) and by Σ share × factor of its weekday. Weekday
+      totals therefore vary, and the annual event mix stays at the shares.
+    - For each day and event type, the number of events is a Poisson draw around
+      the expected volume over the type's mean event size, and each event keeps
+      its own size. One factor over the whole run makes the total equal the sum
+      of the days' expected volumes.
+    - Events are placed at the activity times of the day's weekday. A time that
+      does not exist on the day clocks go forward moves forward, and a time that
+      happens twice on the day clocks go back takes its first occurrence.
+    - ``power[W]`` is the energy of the interval that starts at the label divided
+      by the interval's length.
+    - Random draws come from the object's ``seed`` if it has one, otherwise from
+      the run seed of ``Generator.generate`` combined with the object's ``id`` and
+      the type. Either makes the time series reproducible; without a seed every
+      run differs.
 
     The module provides functionality to:
     - Process input parameters for DHW demand calculation
@@ -45,16 +73,17 @@ class JordanVajen(Method):
     types = [Types.DHW]
     name = "jordanvajen"
     required_keys = [O.DATETIMES, O.DWELLING_SIZE]
-    optional_keys = [
-        O.DHW_ACTIVITY,
-        O.DHW_DEMAND_PER_SIZE,
-        O.HOLIDAYS_LOCATION,
-        O.TEMP_WATER_COLD,
-        O.TEMP_WATER_HOT,
-        O.SEASONAL_VARIATION,
-        O.SEASONAL_PEAK_DAY,
-        O.SEED,
-    ]
+    optional_keys = {
+        O.DHW_ACTIVITY: None,
+        O.DHW_DEMAND_PER_SIZE: None,
+        O.HOLIDAYS_LOCATION: None,
+        O.TEMP_WATER_COLD: DEFAULT_TEMP_COLD,
+        O.TEMP_WATER_HOT: DEFAULT_TEMP_HOT,
+        O.SEASONAL_VARIATION: DEFAULT_SEASONAL_VARIATION,
+        O.SEASONAL_PEAK_DAY: DEFAULT_SEASONAL_PEAK_DAY,
+        O.SEED: None,
+        O.TIMEZONE: None,
+    }
     required_data = [O.DATETIMES]
     optional_data = [
         O.DHW_ACTIVITY,
@@ -63,15 +92,15 @@ class JordanVajen(Method):
         O.TEMP_WATER_HOT,
     ]
     output_summary = {
-        f"{Types.DHW}_volume_total": "total hot water demand in liters",
-        f"{Types.DHW}_volume_avg": "average hot water demand in liters",
-        f"{Types.DHW}_volume_peak": "peak hot water demand in liters",
-        f"{Types.DHW}_energy_total": "total energy demand for hot water in Wh",
-        f"{Types.DHW}_energy_avg": "average energy demand for hot water in Wh",
-        f"{Types.DHW}_energy_peak": "peak energy demand for hot water in Wh",
-        f"{Types.DHW}_power_avg": "average power for hot water in W",
-        f"{Types.DHW}_power_max": "maximum power for hot water in W",
-        f"{Types.DHW}_power_min": "minimum power for hot water in W",
+        f"{Types.DHW}{SEP}volume_total[l]": "total hot water demand in liters",
+        f"{Types.DHW}{SEP}volume_avg[l]": "average hot water demand in liters",
+        f"{Types.DHW}{SEP}volume_peak[l]": "peak hot water demand in liters",
+        f"{Types.DHW}{SEP}energy_total[Wh]": "total energy demand for hot water in Wh",
+        f"{Types.DHW}{SEP}energy_avg[Wh]": "average energy demand for hot water in Wh",
+        f"{Types.DHW}{SEP}energy_peak[Wh]": "peak energy demand for hot water in Wh",
+        f"{Types.DHW}{SEP}power_avg[W]": "average power for hot water in W",
+        f"{Types.DHW}{SEP}power_max[W]": "maximum power for hot water in W",
+        f"{Types.DHW}{SEP}power_min[W]": "minimum power for hot water in W",
     }
     output_timeseries = {
         f"{Types.DHW}_volume": "hot water demand in liters",
@@ -84,24 +113,16 @@ class JordanVajen(Method):
         f"{Types.DHW}_{O.TEMP_WATER_HOT}": "hot water temperature in degrees Celsius",
     }
 
+    input_aliases = {"temp_water_cold": O.TEMP_WATER_COLD, "temp_water_hot": O.TEMP_WATER_HOT}
+
     def generate(
         self,
-        obj: dict = None,
-        data: dict = None,
+        obj: dict | None = None,
+        data: dict | None = None,
         results: dict | None = None,
         ts_type: str = Types.DHW,
-        *,
-        datetimes: pd.DataFrame = None,
-        dwelling_size: float = None,
-        dhw_activity: pd.DataFrame = None,
-        dhw_demand_per_size: pd.DataFrame = None,
-        holidays_location: str = None,
-        temp_water_cold: float = None,
-        temp_water_hot: float = None,
-        seasonal_variation: float = None,
-        seasonal_peak_day: int = None,
-        seed: int = None,
-    ):
+        **inputs,
+    ) -> dict:
         """Generate DHW demand time series based on input parameters.
 
         This method implements the abstract generate method from the Method base class.
@@ -113,16 +134,23 @@ class JordanVajen(Method):
             data (dict, optional): Dictionary containing input data. Defaults to None.
             results (dict, optional): Dictionary with results from previously generated time series
             ts_type (str, optional): Time series type to generate. Defaults to Types.DHW.
-            datetimes (pd.DataFrame, required): DataFrame with datetime information. Defaults to None.
-            dwelling_size (float, required): Size of the dwelling in square meters. Defaults to None.
-            dhw_activity (pd.DataFrame, optional): Activity profiles for DHW demand. Defaults to None.
-            dhw_demand_per_size (pd.DataFrame, optional): Demand data per dwelling size. Defaults to None.
-            holidays_location (str, optional): Location for holiday calendar. Defaults to None.
-            temp_water_cold (float, optional): Cold water temperature in degrees Celsius. Defaults to None.
-            temp_water_hot (float, optional): Hot water temperature in degrees Celsius. Defaults to None.
-            seasonal_variation (float, optional): Seasonal variation factor. Defaults to None.
-            seasonal_peak_day (int, optional): Day of year with peak demand. Defaults to None.
-            seed (int, optional): Random seed for reproducibility. Defaults to None.
+            **inputs: Any input of the method, by its key or by its Python name (the key
+                without its unit, such as ``area`` for ``area[m2]``). Keywords override the
+                same keys in ``obj``. A table input, such as ``datetimes``, can be a
+                DataFrame. For example:
+
+                - ``datetimes`` (DataFrame or str, required): The run's datetimes.
+                - ``dwelling_size`` (``dwelling_size[m2]``, required): Size of the dwelling in m².
+                - ``dhw_activity`` (DataFrame): Activity profiles for DHW demand.
+                - ``dhw_demand_per_size`` (``dhw_demand_per_size[m2]``): Demand data per dwelling size.
+                - ``holidays_location`` (str): Location for the holiday calendar.
+                - ``temp_water_cold`` and ``temp_water_hot`` (``cold_water_temperature[C]``,
+                  ``hot_water_temperature[C]``): Cold and hot water temperature in °C.
+                - ``seasonal_variation`` (float): Seasonal variation factor.
+                - ``seasonal_peak_day`` (int): Day of year with peak demand.
+                - ``seed`` (int): The object's random seed. It takes precedence over the
+                  run seed of ``Generator.generate``. Without either, each call draws
+                  different random numbers.
 
         Returns:
             dict: Dictionary containing:
@@ -139,27 +167,14 @@ class JordanVajen(Method):
             >>> # Using explicit parameters
             >>> result = jordanvajen.generate(datetimes=datetimes_df, dwelling_size=100)
             >>> # Or using dictionaries
-            >>> obj = {"datetimes": "datetimes", "dwelling_size": 100}
+            >>> obj = {"datetimes": "datetimes", "dwelling_size[m2]": 100}
             >>> data = {"datetimes": datetimes_df}
             >>> result = jordanvajen.generate(obj=obj, data=data)
             >>> summary = result["summary"]
             >>> timeseries = result["timeseries"]
         """
         # Process keyword arguments
-        processed_obj, processed_data = self._process_kwargs(
-            obj,
-            data,
-            datetimes=datetimes,
-            dwelling_size=dwelling_size,
-            dhw_activity=dhw_activity,
-            dhw_demand_per_size=dhw_demand_per_size,
-            holidays_location=holidays_location,
-            temp_water_cold=temp_water_cold,
-            temp_water_hot=temp_water_hot,
-            seasonal_variation=seasonal_variation,
-            seasonal_peak_day=seasonal_peak_day,
-            seed=seed,
-        )
+        processed_obj, processed_data = self._process_kwargs(obj, data, ts_type, **inputs)
 
         processed_obj, processed_data = get_input_data(processed_obj, processed_data, ts_type)
 
@@ -168,6 +183,21 @@ class JordanVajen(Method):
         logger.debug(f"[DHW jordanvajen]: Generating {ts_type} data")
 
         return _format_output(processed_data, ts_volume, ts_energy, ts_power, water_temp)
+
+
+def _named_table(obj: dict, data: dict, key: str):
+    """Return the table the object names for ``key``, or the table under ``key`` in ``data``.
+
+    Raises:
+        ValueError: If the object names a table that is not in ``data``.
+    """
+    name = obj.get(key)
+    if isinstance(name, str) and name.strip():
+        table = Method.get_with_backup(data, name)
+        if table is None:
+            raise ValueError(f"Object '{obj.get(O.ID)}' names the {key} table '{name}', which is not in the data.")
+        return table
+    return Method.get_with_backup(data, key)
 
 
 def get_input_data(obj, data, method_type=Types.DHW):
@@ -211,26 +241,13 @@ def get_input_data(obj, data, method_type=Types.DHW):
         raise KeyError(f"Required parameter '{O.DATETIMES}' not found in object parameters")
 
     # Process object parameters
-    obj_out = {
-        O.DWELLING_SIZE: Method.get_with_method_backup(obj, O.DWELLING_SIZE, method_type),
-        O.DATETIMES: Method.get_with_method_backup(obj, O.DATETIMES, method_type),
-        O.SEED: Method.get_with_method_backup(obj, O.SEED, method_type),
-        O.TEMP_WATER_COLD: Method.get_with_method_backup(obj, O.TEMP_WATER_COLD, method_type, DEFAULT_TEMP_COLD),
-        O.TEMP_WATER_HOT: Method.get_with_method_backup(obj, O.TEMP_WATER_HOT, method_type, DEFAULT_TEMP_HOT),
-        O.SEASONAL_VARIATION: Method.get_with_method_backup(
-            obj, O.SEASONAL_VARIATION, method_type, DEFAULT_SEASONAL_VARIATION
-        ),
-        O.SEASONAL_PEAK_DAY: Method.get_with_method_backup(
-            obj, O.SEASONAL_PEAK_DAY, method_type, DEFAULT_SEASONAL_PEAK_DAY
-        ),
-        O.HOLIDAYS_LOCATION: Method.get_with_method_backup(obj, O.HOLIDAYS_LOCATION, method_type),
-    }
+    obj_out = JordanVajen.get_relevant_objects(obj, method_type)
 
     # Process data
     data_out = {
-        O.DATETIMES: Method.get_with_backup(data, obj_out[O.DATETIMES]),
-        O.DHW_ACTIVITY: Method.get_with_backup(data, O.DHW_ACTIVITY),
-        O.DHW_DEMAND_PER_SIZE: Method.get_with_backup(data, O.DHW_DEMAND_PER_SIZE),
+        O.DATETIMES: Method.get_with_backup(data, obj_out.get(O.DATETIMES)),
+        O.DHW_ACTIVITY: _named_table(obj_out, data, O.DHW_ACTIVITY),
+        O.DHW_DEMAND_PER_SIZE: _named_table(obj_out, data, O.DHW_DEMAND_PER_SIZE),
         O.TEMP_WATER_COLD: Method.get_with_backup(data, O.TEMP_WATER_COLD),
         O.TEMP_WATER_HOT: Method.get_with_backup(data, O.TEMP_WATER_HOT),
     }
@@ -238,22 +255,23 @@ def get_input_data(obj, data, method_type=Types.DHW):
     # Validate required data
     if data_out[O.DATETIMES] is None:
         logger.error("[DHW jordanvajen]: No datetime data")
-        raise KeyError(f"Required data '{obj_out[O.DATETIMES]}' not found in input data")
+        raise KeyError(f"Required data '{obj_out.get(O.DATETIMES)}' not found in input data")
 
-    # Process datetime data
-    datetimes = data_out[O.DATETIMES].copy()
-    datetimes[C.DATETIME] = pd.to_datetime(datetimes[C.DATETIME], utc=True).dt.tz_convert(
-        pd.to_datetime(datetimes[C.DATETIME].iloc[0]).tz
-    )
-    data_out[O.DATETIMES] = datetimes
-    data_out["datetimes_index"] = datetimes[C.DATETIME]
+    # The run's instants and the site's local calendar
+    table, step, hours = time_table(data, obj_out.get(O.DATETIMES), site_zone(obj_out))
+    data_out[O.DATETIMES] = table
+    data_out["step"] = step
+    data_out["hours"] = hours
+    data_out["datetimes_index"] = output_index(table.index, obj_out, data).to_series()
 
-    # Get activity data if not provided
+    # Use the bundled tables if none is given
     if data_out[O.DHW_ACTIVITY] is None:
         data_out[O.DHW_ACTIVITY] = _get_activity_data("jordan_vajen")
+    if data_out[O.DHW_DEMAND_PER_SIZE] is None:
+        data_out[O.DHW_DEMAND_PER_SIZE] = _get_demand_data("jordan_vajen")
 
-    # Create random number generator
-    data_out["rng"] = np.random.default_rng(obj_out[O.SEED])
+    # The object's seed wins; otherwise the run seed, the object's id and the type place its random stream.
+    data_out["rng"] = method_rng(data, obj.get(O.ID), method_type, seed=obj_out.get(O.SEED))
 
     return obj_out, data_out
 
@@ -288,48 +306,50 @@ def calculate_timeseries(obj, data):
         - It then distributes these values according to activity profiles
         - Finally, it calculates energy and power demand based on water temperatures
     """
-    # Get parameters
     dwelling_size = obj[O.DWELLING_SIZE]
-    datetimes = data[O.DATETIMES]
     activity_data = data[O.DHW_ACTIVITY]
     rng = data["rng"]
+    zone = site_zone(obj)
+    axis = data[O.DATETIMES].index
+    step = data["step"]
 
-    # Obtain statistical data for yearly demand
-    demand_data = _get_demand_data("jordan_vajen")
+    # Statistical demand of the dwelling size
+    demand_data = data[O.DHW_DEMAND_PER_SIZE]
     sizes = demand_data[O.DWELLING_SIZE].values
     idx = np.abs(sizes - dwelling_size).argmin()
     m3_per_m2_a = demand_data.iloc[idx][O.YEARLY_DHW_DEMAND]
     sigma = demand_data.iloc[idx][O.SIGMA]
 
-    # Compute mean & std in litres/day
-    mean_daily_l = m3_per_m2_a * dwelling_size * 1e3 / 365
-    sd_daily_l = mean_daily_l * sigma
+    require_module("dhw-jordanvajen", "holidays")
 
-    # Define truncation bounds (no negatives)
-    a, b = (0 - mean_daily_l) / sd_daily_l, np.inf
+    # Local days of the run and their volumes
+    start, end = wall_window(axis, zone, step)
+    days = pd.date_range(start.normalize(), (end - pd.Timedelta(1, unit="us")).normalize(), freq="D")
+    holidays = local_holidays(obj.get(O.HOLIDAYS_LOCATION), sorted(set(days.year)))
+    volume_per_day = daily_volume(
+        days,
+        m3_per_m2_a * dwelling_size * 1e3,
+        sigma,
+        activity_data,
+        obj[O.SEASONAL_VARIATION],
+        obj[O.SEASONAL_PEAK_DAY],
+        holidays,
+        rng,
+    )
+    ts_volume = sample_volume(axis, zone, step, activity_data, volume_per_day, rng, holidays, hours=data["hours"])
 
-    # Build a date index for each simulation day
-    start = datetimes[C.DATETIME].iloc[0].normalize()
-    end = datetimes[C.DATETIME].iloc[-1].normalize()
-    days = pd.date_range(start, end, freq="D")
+    # Water temperatures by local month, and the energy to heat the water
+    local_times = pd.DataFrame({C.DATETIME: axis.tz_convert(zone)})
+    water_temp = _get_water_temperatures(obj, data, local_times)
+    delta_t = water_temp[O.TEMP_WATER_HOT].to_numpy(dtype=float) - water_temp[O.TEMP_WATER_COLD].to_numpy(dtype=float)
+    energy_factor = DEFAULT_DENSITY_WATER / 1000 * DEFAULT_SPECIFIC_HEAT_WATER * delta_t / 3600  # Wh per litre
 
-    # Sample once per day from the truncated normal
-    dist = stats.truncnorm(a, b, loc=mean_daily_l, scale=sd_daily_l)
-    daily_demand_l = pd.Series(dist.rvs(size=len(days), random_state=rng), index=days)
-
-    # Get water temperatures
-    water_temp = _get_water_temperatures(obj, data, datetimes)
-
-    # Generate volume and energy time series
-    ts_volume, ts_energy = _calculate_timeseries(datetimes, activity_data, daily_demand_l, water_temp, obj)
-
-    # Convert energy into power
-    # Calculate time interval in hours
-    time_diff = pd.Series(datetimes[C.DATETIME]).diff().dt.total_seconds() / 3600
-    # Use the median time difference for the first element
-    time_diff.iloc[0] = time_diff.median()
-    # Calculate power as energy divided by time
-    ts_power = ts_energy / time_diff.values
+    out_index = data["datetimes_index"].index
+    ts_energy = pd.Series(np.round(ts_volume.to_numpy() * energy_factor).astype(int), index=out_index)
+    ts_volume = pd.Series(ts_volume.to_numpy(), index=out_index).round(3)
+    # Power is the energy of the interval that starts at the label, divided by its length.
+    ts_power = ts_energy / data["hours"]
+    water_temp.index = out_index
 
     return ts_volume, ts_energy, ts_power, water_temp
 
@@ -452,7 +472,7 @@ def _format_output(data, ts_volume, ts_energy, ts_power, water_temp, tank_durati
             f"{Types.DHW}{SEP}power_ewma[W]": ewma.astype(int),
             f"{Types.DHW}{SEP}power_gaussian[W]": gaussian.astype(int),
             f"{Types.DHW}{SEP}{O.TEMP_WATER_COLD}": water_temp.loc[:, O.TEMP_WATER_COLD],
-            f"{Types.DHW}{SEP}{O.TEMP_WATER_HOT}": water_temp.loc[:, O.TEMP_WATER_COLD],
+            f"{Types.DHW}{SEP}{O.TEMP_WATER_HOT}": water_temp.loc[:, O.TEMP_WATER_HOT],
         },
         index=time_index,
     )
