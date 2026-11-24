@@ -12,7 +12,7 @@ moves them to the start of their interval, as EnTiSe's time contract requires.
 """
 
 import os
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from functools import lru_cache
 from typing import Any, List, Optional
 from zoneinfo import ZoneInfo, available_timezones
@@ -368,6 +368,8 @@ class OpenMeteoProvider(WeatherProvider):
         air temperature are values at ``t``. Open-Meteo labels its interval
         quantities at the end of the interval, so the provider requests one more
         day, moves those columns one interval earlier and drops the extra day.
+        The archive has no day after today (UTC), so for a range that ends today
+        the last hour of each interval quantity is ``NaN``, with a warning.
         ``solar_elevation_angle[degree]`` is the elevation at the middle of each
         interval.
 
@@ -398,13 +400,28 @@ class OpenMeteoProvider(WeatherProvider):
 
         request_zone = "UTC" if timezone is None else _zone_name(timezone)
 
-        # One more day gives the interval values of the last requested hour.
+        # One more day gives the interval values of the last requested hour. The archive serves days up
+        # to today (UTC) and rejects the whole request for a later end date, so a range ending today
+        # leaves those values empty.
         last_day = date.fromisoformat(str(end_date))
+        request_end = last_day + timedelta(days=1)
+        if request_end > _utc_today():
+            request_end = last_day
+            interval_columns = [
+                self._convert_to_enriched_name(f, FEATURES)
+                for f in validated_features
+                if FEATURES.get(f, {}).get("interval")
+            ]
+            if interval_columns:
+                logger.warning(
+                    f"Open-Meteo has no data after {last_day.isoformat()} yet, so the last hour of "
+                    f"{', '.join(interval_columns)} is empty."
+                )
         params = {
             "latitude": latitude,
             "longitude": longitude,
             "start_date": start_date,
-            "end_date": (last_day + timedelta(days=1)).isoformat(),
+            "end_date": request_end.isoformat(),
             "timezone": request_zone,
             "hourly": validated_features,
             "wind_speed_unit": "ms",
@@ -484,6 +501,11 @@ class OpenMeteoProvider(WeatherProvider):
             df = df.rename(columns=rename_map)
 
         return df
+
+
+def _utc_today() -> date:
+    """Return today's date in UTC, the last day the Open-Meteo archive serves."""
+    return datetime.now(ZoneInfo("UTC")).date()
 
 
 @lru_cache(maxsize=1)
