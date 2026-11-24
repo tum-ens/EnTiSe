@@ -241,7 +241,7 @@ class ExampleClass(object):
 
     @readwrite_property.setter
     def readwrite_property(self, value):
-        value
+        self._readwrite_property = value
 
     def example_method(self, param1, param2):
         """Class methods are similar to regular functions.

@@ -1,5 +1,5 @@
 import pandas as pd
-from src.constants import Objects, Columns
+from src.constants import Columns, Objects
 
 
 def get_mock_timeseries_data():

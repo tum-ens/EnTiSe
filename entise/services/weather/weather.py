@@ -184,10 +184,10 @@ class WeatherProvider(ABC):
             quantity = Q_(values.values, src_unit)
             converted = quantity.to(tgt_unit).magnitude
             return pd.Series(converted, index=values.index)
-        except pint.errors.DimensionalityError:
-            raise ValueError(f"Incompatible units: {src_unit} → {tgt_unit}")
-        except pint.errors.UndefinedUnitError:
-            raise ValueError(f"Unknown unit: {src_unit} or {tgt_unit}")
+        except pint.errors.DimensionalityError as e:
+            raise ValueError(f"Incompatible units: {src_unit} → {tgt_unit}") from e
+        except pint.errors.UndefinedUnitError as e:
+            raise ValueError(f"Unknown unit: {src_unit} or {tgt_unit}") from e
 
     def _convert_unit_column(self, values: pd.Series, src_unit: str, tgt_unit: str) -> pd.Series:
         if src_unit == "%" and tgt_unit == "1":

@@ -1,4 +1,4 @@
-from src.constants import Objects, SEP, Types
+from src.constants import SEP, Objects, Types
 
 
 def get_valid_object():

@@ -68,6 +68,7 @@ import fnmatch
 import os
 import sys
 import time
+import warnings
 from datetime import datetime
 from typing import Dict, List, Optional, Sequence, Tuple
 
@@ -76,7 +77,6 @@ import matplotlib.gridspec as gridspec
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import warnings
 
 warnings.simplefilter("default")  # undo "error" policy if present
 warnings.filterwarnings("ignore", category=FutureWarning)

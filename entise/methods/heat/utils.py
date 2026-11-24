@@ -2,6 +2,7 @@
 
 import os
 import tempfile
+
 import numpy as np
 import pandas as pd
 
@@ -36,7 +37,7 @@ def create_try_file(idx_hour_full: pd.DatetimeIndex, temperature: pd.Series, pre
 
         for i in range(n):
             vals = []
-            for w, col in zip(col_widths, col_names):
+            for w, col in zip(col_widths, col_names, strict=True):
                 v = df_try.at[i, col]
                 if col in ("RW", "HW", "MM", "DD", "HH", "WR", "N", "IL"):
                     s = f"{int(round(v)):d}"
