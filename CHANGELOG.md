@@ -18,6 +18,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Fixed
 - **Behavior change**: the summary from `Generator.generate()` has one row per object, in the order the objects were added. Before, an object whose summary keys differed from the first object's, such as one that failed with an `error`, could move to the end, and an object that reported no summary values was left out. Values and columns are unchanged. (`#142`)
+- PV `pvlib` reads the inverter table an object names with `pv_inverter`, and Jordan-Vajen DHW reads the tables an object names with `cold_water_temperature[C]` and `hot_water_temperature[C]`. Before, both methods ignored the names: every PV object got the table under `data["pv_inverter"]` or the default inverter, and DHW used 10 °C and 50 °C with a warning. An object that names no table keeps its output: PV still uses `data["pv_inverter"]` and then the default, and DHW its scalar or default. (`#143`)
+  - `PVLib.generate(pv_inverter={...})` sets the inverter; before, it was ignored.
+  - A DHW water temperature can be a number, a Series on the run's timestamps, `"table|column"`, or the name of a table, which reads the column named by the object's `id` or its only column. Tables follow the time contract, as for the HVAC time-series inputs. Before, a table raised an error inside pandas.
+  - **Behavior change**: a `pv_inverter`, `pv_arrays` or water-temperature table that an object names but that is not in the data raises a `ValueError`, as for the DHW activity tables and the HVAC windows. Before, `pv_arrays` silently used the default arrays, and DHW used its default temperature with a warning. A DHW water-temperature Series that does not match the run's timestamps raises a `ValueError`; before, it gave NaN temperatures.
+  - `Method.named_table()` looks up a table an object names, for methods outside EnTiSe too.
 
 ## [2.0.0] Method extras, a common time contract and pandas 3 - 2026-11-24
 

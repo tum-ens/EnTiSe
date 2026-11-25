@@ -476,6 +476,45 @@ class Method(ABC, metaclass=MethodMeta):
         return value
 
     @classmethod
+    def named_table(
+        cls, obj: Mapping, data: Mapping, key: str, default: Any = None, *, fixed_key: str | None = None
+    ) -> Any:
+        """Return the table that the object's ``key`` names.
+
+        The table is looked up in this order:
+
+        1. the table in ``data`` that the object names (``obj`` as resolved by
+           ``get_relevant_objects``, so ``<type>:<key>`` is already taken into account);
+        2. if the object names none, the table under ``fixed_key`` in ``data``;
+        3. ``default``.
+
+        Args:
+            obj: The object's resolved keys.
+            data: The input tables.
+            key: The object key that names the table.
+            default: The value used when the object names no table and none is under ``fixed_key``.
+            fixed_key: A key in ``data`` that holds a table shared by every object that names none.
+
+        Raises:
+            ValueError: If the object names a table that is not in ``data``.
+            TypeError: If the object gives a value that is not the name of a table.
+        """
+        name = obj.get(key)
+        if cls.get_with_backup(obj, key) is None or (isinstance(name, str) and not name.strip()):
+            if fixed_key is None:
+                return default
+            return cls.get_with_backup(data, fixed_key, default)
+        if not isinstance(name, str):
+            raise TypeError(
+                f"Object '{obj.get(O.ID)}' gives {type(name).__name__} for '{key}'; "
+                "give the name of a table in the data."
+            )
+        table = cls.get_with_backup(data, name.strip())
+        if table is None:
+            raise ValueError(f"Object '{obj.get(O.ID)}' names the {key} table '{name}', which is not in the data.")
+        return table
+
+    @classmethod
     def get_requirements(cls) -> dict:
         """Return a dictionary of the method's requirements, including required and optional keys and timeseries."""
         return {
