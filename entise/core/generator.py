@@ -313,5 +313,6 @@ class Generator:
             summaries[obj_id] = result[K.SUMMARY]
             timeseries[obj_id] = result[K.TIMESERIES]
 
-        summary_df = pd.DataFrame.from_dict(summaries, orient="index")
+        # One row per object, in input order, also for an object that reports nothing.
+        summary_df = pd.DataFrame.from_dict(summaries, orient="index").reindex(list(summaries))
         return summary_df, timeseries

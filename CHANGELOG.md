@@ -10,6 +10,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Fixed
+- **Behavior change**: the summary from `Generator.generate()` has one row per object, in the order the objects were added. Before, an object whose summary keys differed from the first object's, such as one that failed with an `error`, could move to the end, and an object that reported no summary values was left out. Values and columns are unchanged. (`#142`)
+
 ## [2.0.0] Method extras, a common time contract and pandas 3 - 2026-11-24
 
 EnTiSe 2.0.0 changes the results of several methods, how EnTiSe is installed and how methods read their inputs. The [migration guide](https://entise.readthedocs.io/en/stable/migration.html) lists every change that can alter results or break an existing setup, with what to do about it. The entries below give the details.
