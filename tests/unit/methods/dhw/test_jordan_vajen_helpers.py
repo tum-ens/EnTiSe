@@ -145,8 +145,8 @@ def test_get_water_temperatures(caplog):
     local = axis.tz_convert("Europe/Berlin")
 
     obj = {O.TEMP_WATER_COLD: 10, O.TEMP_WATER_HOT: 60}
-    cold = water_temperature(obj, {}, O.TEMP_WATER_COLD, axis)
-    hot = water_temperature(obj, {}, O.TEMP_WATER_HOT, axis)
+    cold = water_temperature(obj, {}, O.TEMP_WATER_COLD, axis, defaults.DEFAULT_TEMP_COLD)
+    hot = water_temperature(obj, {}, O.TEMP_WATER_HOT, axis, defaults.DEFAULT_TEMP_HOT)
     result = _get_water_temperatures(cold, hot, local)
 
     assert list(result.columns) == [O.TEMP_WATER_COLD, O.TEMP_WATER_HOT]
@@ -157,8 +157,8 @@ def test_get_water_temperatures(caplog):
     # Without the keys, the object's defaults apply.
     obj = JordanVajen.get_relevant_objects({})
     with caplog.at_level("WARNING"):
-        cold = water_temperature(obj, {}, O.TEMP_WATER_COLD, axis)
-        hot = water_temperature(obj, {}, O.TEMP_WATER_HOT, axis)
+        cold = water_temperature(obj, {}, O.TEMP_WATER_COLD, axis, defaults.DEFAULT_TEMP_COLD)
+        hot = water_temperature(obj, {}, O.TEMP_WATER_HOT, axis, defaults.DEFAULT_TEMP_HOT)
     assert np.all(cold == defaults.DEFAULT_TEMP_COLD)
     assert np.all(hot == defaults.DEFAULT_TEMP_HOT)
     assert not caplog.records

@@ -483,10 +483,13 @@ class Method(ABC, metaclass=MethodMeta):
 
         The table is looked up in this order:
 
-        1. the table in ``data`` that the object names (``obj`` as resolved by
+        1. the table the object gives itself (a mapping, Series or DataFrame), or the
+           table in ``data`` that it names (``obj`` as resolved by
            ``get_relevant_objects``, so ``<type>:<key>`` is already taken into account);
-        2. if the object names none, the table under ``fixed_key`` in ``data``;
+        2. if the object gives none, the table under ``fixed_key`` in ``data``;
         3. ``default``.
+
+        A blank name counts as none.
 
         Args:
             obj: The object's resolved keys.
@@ -497,9 +500,11 @@ class Method(ABC, metaclass=MethodMeta):
 
         Raises:
             ValueError: If the object names a table that is not in ``data``.
-            TypeError: If the object gives a value that is not the name of a table.
+            TypeError: If the object gives a value that is neither a table nor the name of one.
         """
         name = obj.get(key)
+        if isinstance(name, (Mapping, pd.Series, pd.DataFrame)):
+            return name
         if cls.get_with_backup(obj, key) is None or (isinstance(name, str) and not name.strip()):
             if fixed_key is None:
                 return default
@@ -507,7 +512,7 @@ class Method(ABC, metaclass=MethodMeta):
         if not isinstance(name, str):
             raise TypeError(
                 f"Object '{obj.get(O.ID)}' gives {type(name).__name__} for '{key}'; "
-                "give the name of a table in the data."
+                "give a table or the name of one in the data."
             )
         table = cls.get_with_backup(data, name.strip())
         if table is None:

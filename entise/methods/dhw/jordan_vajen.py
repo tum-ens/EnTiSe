@@ -252,8 +252,8 @@ def get_input_data(obj, data, method_type=Types.DHW):
     data_out["datetimes_index"] = output_index(table.index, obj_out, data).to_series()
 
     # The water temperatures the object gives, on the run's instants
-    for key in (O.TEMP_WATER_COLD, O.TEMP_WATER_HOT):
-        data_out[key] = water_temperature(obj_out, data, key, table.index)
+    for key, default in ((O.TEMP_WATER_COLD, DEFAULT_TEMP_COLD), (O.TEMP_WATER_HOT, DEFAULT_TEMP_HOT)):
+        data_out[key] = water_temperature(obj_out, data, key, table.index, default)
 
     # Use the bundled tables if none is given
     if data_out[O.DHW_ACTIVITY] is None:

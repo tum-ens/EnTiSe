@@ -25,7 +25,9 @@ def _is_number(text: str) -> bool:
     return True
 
 
-def water_temperature(obj: Dict[str, Any], data: Dict[str, Any], key: str, axis: pd.DatetimeIndex) -> pd.Series:
+def water_temperature(
+    obj: Dict[str, Any], data: Dict[str, Any], key: str, axis: pd.DatetimeIndex, default: float
+) -> pd.Series:
     """Return the water temperature that the object gives for ``key``, on the run's instants.
 
     The object gives a number (also as text), a Series on the run's instants, or the
@@ -36,24 +38,34 @@ def water_temperature(obj: Dict[str, Any], data: Dict[str, Any], key: str, axis:
     - ``"table"``, which reads the column named by the object's ``id``, or the table's only column.
 
     Tables follow the time contract: a table with timestamps is aligned by instant,
-    and a table without them is used row by row.
+    and a table without them is used row by row. A missing or blank value gives ``default``.
 
     Args:
         obj: The object's resolved keys; ``key`` has its default if the object gives none.
         data: The input tables of the run.
         key: ``O.TEMP_WATER_COLD`` or ``O.TEMP_WATER_HOT``.
         axis: The run's instants.
+        default: The temperature in °C if the object gives none.
 
     Raises:
-        ValueError: If the object names a table that is not in ``data``, or a Series
-            does not match the run's instants.
+        ValueError: If the object names a table that is not in ``data`` or is not a
+            table, or a Series does not match the run's instants.
     """
     value = obj.get(key)
+    if isinstance(value, str) and not value.strip():
+        value = None
+    if Method.get_with_backup({key: value}, key) is None:
+        return pd.Series(default, index=axis)
     if isinstance(value, str) and not _is_number(value):
         name = value.split("|", 1)[0].strip()
         table = Method.named_table({**obj, key: name}, data, key)
         if isinstance(table, pd.Series):
             obj = {**obj, key: table}
+        elif not isinstance(table, pd.DataFrame):
+            raise ValueError(
+                f"Object '{obj.get(O.ID)}' names the {key} table '{name}', which is not a table "
+                f"but {type(table).__name__}."
+            )
     return resolve_ts_or_scalar_by_id(obj, data, key, axis)
 
 

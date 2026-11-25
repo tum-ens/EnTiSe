@@ -192,3 +192,32 @@ def test_dhw_reads_a_water_temperature_number_given_as_text(weather):
     result = JordanVajen().generate(_dhw("d", **{O.TEMP_WATER_COLD: "4"}), {O.WEATHER: weather})
 
     assert (result["timeseries"][COLD] == 4.0).all()
+
+
+@pytest.mark.parametrize("inverter", [SMALL, pd.Series(SMALL)], ids=["dict", "series"])
+def test_pv_inverter_given_on_the_object(weather, inverter):
+    fixed = PVLib().generate(_pv("pv"), {O.WEATHER: weather, O.PV_INVERTER: SMALL})
+    on_object = PVLib().generate(_pv("pv", **{O.PV_INVERTER: inverter}), {O.WEATHER: weather})
+
+    pd.testing.assert_frame_equal(on_object["timeseries"], fixed["timeseries"])
+
+
+def test_pv_inverter_given_as_a_keyword_series(weather):
+    fixed = PVLib().generate(_pv("pv"), {O.WEATHER: weather, O.PV_INVERTER: SMALL})
+    keyword = PVLib().generate(_pv("pv"), {O.WEATHER: weather}, pv_inverter=pd.Series(SMALL))
+
+    pd.testing.assert_frame_equal(keyword["timeseries"], fixed["timeseries"])
+
+
+@pytest.mark.parametrize("blank", ["", "  "])
+def test_dhw_blank_water_temperature_uses_the_default(weather, blank):
+    result = JordanVajen().generate(_dhw("d", **{O.TEMP_WATER_COLD: blank}), {O.WEATHER: weather})
+
+    assert (result["timeseries"][COLD] == DEFAULT_TEMP_COLD).all()
+
+
+def test_dhw_raises_for_a_water_temperature_name_that_is_not_a_table(weather):
+    obj = _dhw("d", **{O.TEMP_WATER_COLD: "c"})
+
+    with pytest.raises(ValueError, match="names the cold_water_temperature\\[C\\] table 'c', which is not a table"):
+        JordanVajen().generate(obj, {O.WEATHER: weather, "c": 12})
