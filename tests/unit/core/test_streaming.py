@@ -1,6 +1,8 @@
 """Chunked generation, the time-series sink interface and the order of the summary."""
 
+import gc
 import inspect
+import weakref
 
 import numpy as np
 import pandas as pd
@@ -15,6 +17,9 @@ from entise.core.generator import Generator
 from entise.core.storage import TimeseriesStorage
 
 STEPS = 4
+# Weak references to the frames of an earlier chunk, and whether each was freed when the next chunk ran.
+WATCHED: list = []
+FREED: list = []
 
 
 class _StreamProbe(Method):
@@ -28,6 +33,10 @@ class _StreamProbe(Method):
 
     def generate(self, obj=None, data=None, results=None, ts_type=Types.HVAC, **inputs):
         obj = {**(obj or {}), **inputs}
+        if WATCHED:
+            gc.collect()
+            FREED.extend(ref() is None for ref in WATCHED)
+            WATCHED.clear()
         if obj.get("fail") is True:
             raise RuntimeError(f"object {obj[O.ID]} failed")
         value = float(obj.get("value", 1.0))
@@ -107,6 +116,34 @@ def test_concatenated_chunks_equal_one_run():
     for obj_id, by_type in ref_timeseries.items():
         for ts_type, frame in by_type.items():
             pd.testing.assert_frame_equal(timeseries[obj_id][ts_type], frame, check_exact=True)
+
+
+def _watch(timeseries):
+    FREED.clear()
+    WATCHED[:] = [weakref.ref(frame) for by_type in timeseries.values() for frame in by_type.values()]
+
+
+def test_a_chunk_the_caller_dropped_is_freed_before_the_next_is_computed():
+    chunks = _generator(_objects(2)).iter_generate({}, chunk_size=1, workers=1, show_progress=False)
+
+    summary, timeseries = next(chunks)
+    _watch(timeseries)
+    del summary, timeseries
+    next(chunks)
+
+    assert FREED == [True, True]
+
+
+def test_a_sink_chunk_is_freed_before_the_next_is_computed():
+    class WatchingSink(_RecordingSink):
+        def write_batch(self, timeseries):
+            super().write_batch(timeseries)
+            if len(self.written) == 1:
+                _watch(timeseries)
+
+    _generator(_objects(2)).generate({}, workers=1, show_progress=False, storage=WatchingSink(chunk_size=1))
+
+    assert FREED == [True, True]
 
 
 def test_a_failing_object_keeps_its_error_and_spares_its_chunk():

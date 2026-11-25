@@ -297,7 +297,20 @@ class Generator:
         chunks = self._chunk_results(
             data, chunk_size, workers, batch_size, pre_dispatch, backend, show_progress, utc, seed
         )
-        return (self._collect_results(results) for results in chunks)
+        return self._iter_collected(chunks)
+
+    def _iter_collected(
+        self, chunks: GeneratorIterator[List[Dict[str, Any]], None, None]
+    ) -> GeneratorIterator[Tuple[pd.DataFrame, Dict[Any, Dict[str, pd.DataFrame]]], None, None]:
+        """Yield each chunk's summary and time series, holding no reference to a chunk the caller has moved past."""
+        try:
+            for results in chunks:
+                collected = self._collect_results(results)
+                del results
+                yield collected
+                del collected
+        finally:
+            chunks.close()
 
     def _chunk_results(
         self,
