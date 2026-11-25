@@ -12,6 +12,12 @@ each object.
 - Preserve the result contract at the runner boundary. A strategy returns a
   dictionary containing `Keys.TIMESERIES`. The [generator](generator.py) merges
   any `Keys.SUMMARY` entries into the object's summary.
+- `Generator.generate`, `generate(storage=...)` and `iter_generate` share one
+  path: `_prepare` checks the run once, `_execute` processes a list of
+  objects, and `_collect_results` builds the summary. Change object processing
+  there, not in one entry point, so chunked and unchunked runs stay
+  bit-identical. EnTiSe defines the [sink interface](storage.py) but ships no
+  backend.
 - A method that produces several time-series types from one calculation
   subclasses [`GroupedMethod`](grouped.py) and implements `generate_combined`.
   The runner calls its `generate_group` once for the types of `types` that

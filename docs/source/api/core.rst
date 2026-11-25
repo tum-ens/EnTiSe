@@ -13,6 +13,14 @@ TimeSeriesGenerator
    :undoc-members:
    :show-inheritance:
 
+Time Series Storage
+-------------------
+
+.. automodule:: entise.core.storage
+   :members:
+   :special-members: __enter__, __exit__
+   :show-inheritance:
+
 RowExecutor
 -----------
 

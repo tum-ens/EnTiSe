@@ -147,6 +147,100 @@ Once processing is complete, you can access and export your results. The per‑o
     hvac_ts.to_csv("output/building1_hvac.csv")
     hp_ts.to_csv("output/building1_hp.csv")
 
+.. _large_runs:
+
+Large Runs: Chunks and Sinks
+----------------------------
+
+``generate`` returns every time series at once. For a large run, for example 10,000 buildings at
+15-minute resolution, that may not fit in memory. EnTiSe can compute the objects in chunks instead and
+hand you one chunk at a time. Each object is computed exactly as by ``generate``, so the chunk size, the
+number of workers and the batch size don't change any value.
+
+- Each chunk holds up to ``chunk_size`` objects (500 by default), in the order they were added.
+- An object is never split: all its time series types are in the same chunk.
+- ``batch_size`` and ``workers`` apply within each chunk. Each chunk waits for its slowest object before
+  the next one starts.
+- Object ids must be unique. A repeated id raises a ``ValueError`` before anything is computed.
+
+**Iterate over the chunks** with ``iter_generate``. It takes the same arguments as ``generate``, plus
+``chunk_size``:
+
+.. code-block:: python
+
+    summaries = []
+    for summary, timeseries in gen.iter_generate(data, chunk_size=200, workers=4):
+        for obj_id, by_type in timeseries.items():
+            by_type["hvac"].to_csv(f"output/{obj_id}_hvac.csv")
+        summaries.append(summary)
+
+    summary = pd.concat(summaries)  # the same summary as generate() returns
+
+**Or pass a sink** to ``generate``. A sink subclasses :class:`~entise.core.storage.TimeseriesStorage` (also importable as
+``entise.TimeseriesStorage``) and implements
+``setup``, ``write_batch`` and ``finalize``, and optionally ``close``. ``generate(data, storage=sink)``
+computes the objects in chunks of ``sink.chunk_size`` and calls:
+
+1. ``sink.setup()`` once, before the first chunk;
+2. ``sink.write_batch(timeseries)`` per chunk, with ``{object id: {type: DataFrame}}``;
+3. ``sink.finalize()`` once, after the last chunk.
+
+It returns the summary of all objects and an empty dict, because the sink received the time series. If
+an object fails with ``raise_on_error=True``, or ``write_batch`` or ``finalize`` raises, the generator
+calls ``sink.close()`` instead of ``finalize()`` and re-raises the error. Chunks already written stay
+written, so a sink that must be all-or-nothing handles that in ``close``. If ``setup`` itself raises, the
+sink is not closed, as with a context manager. An object that fails with ``raise_on_error=False`` reaches
+``write_batch`` with an empty dict, and its error is in the summary.
+
+EnTiSe ships no sink. This one writes one CSV file per chunk and time series type:
+
+.. code-block:: python
+
+    from pathlib import Path
+
+    import pandas as pd
+
+    from entise import Generator, TimeseriesStorage
+
+
+    class CsvChunkSink(TimeseriesStorage):
+        """Write each chunk as one CSV file per time series type."""
+
+        chunk_size = 200
+
+        def __init__(self, folder):
+            self.folder = Path(folder)
+            self.chunks = 0
+
+        def setup(self):
+            self.folder.mkdir(parents=True, exist_ok=True)
+
+        def write_batch(self, timeseries):
+            self.chunks += 1
+            types = sorted({ts_type for by_type in timeseries.values() for ts_type in by_type})
+            for ts_type in types:
+                frames = {obj_id: by_type[ts_type] for obj_id, by_type in timeseries.items() if ts_type in by_type}
+                table = pd.concat(frames, names=["id"])  # one row per object and time step
+                table.to_csv(self.folder / f"chunk-{self.chunks:04d}-{ts_type}.csv")
+
+        def finalize(self):
+            print(f"Wrote {self.chunks} chunks to {self.folder}")
+
+
+    summary, _ = gen.generate(data, storage=CsvChunkSink("output/chunks"))
+
+For Parquet, write ``table.to_parquet(...)`` instead of ``table.to_csv(...)``. That needs ``pyarrow``,
+which EnTiSe doesn't install.
+
+To drive a sink from your own loop over ``iter_generate``, use it as a context manager. Entering calls
+``setup``, and leaving calls ``finalize``, or ``close`` if the block raised:
+
+.. code-block:: python
+
+    with CsvChunkSink("output/chunks") as sink:
+        for summary, timeseries in gen.iter_generate(data, chunk_size=sink.chunk_size):
+            sink.write_batch(timeseries)
+
 
 Alternative Workflow: Direct Method Access
 ------------------------------------------
