@@ -10,6 +10,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+- Added generation in chunks, so a large run doesn't have to hold every time series in memory. (`#142`)
+  - `Generator.iter_generate(data, chunk_size=500, ...)` takes the arguments of `generate()` and yields one `(summary, timeseries)` per chunk. Each chunk holds whole objects, with all their time series types, in the order they were added. The results are bit-identical to `generate()` for any chunk size, number of workers and batch size, and the concatenated chunk summaries equal its summary.
+  - `Generator.generate(data, storage=sink)` passes the chunks to a sink instead of returning them, and returns the summary with an empty time-series dict. A sink subclasses `entise.TimeseriesStorage` and implements `setup()`, `write_batch(timeseries)` and `finalize()`. If the run fails after `setup()`, the generator calls the sink's `close()` and re-raises the error; chunks already written stay written. The chunk size is the sink's `chunk_size` (500 by default).
+  - Object ids must be unique in these chunked runs. EnTiSe ships no storage backend; the workflow guide has an example sink that writes CSV files. `generate()` without `storage` is unchanged.
+
 ### Fixed
 - **Behavior change**: the summary from `Generator.generate()` has one row per object, in the order the objects were added. Before, an object whose summary keys differed from the first object's, such as one that failed with an `error`, could move to the end, and an object that reported no summary values was left out. Values and columns are unchanged. (`#142`)
 
