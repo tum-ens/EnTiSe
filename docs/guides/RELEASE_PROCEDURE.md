@@ -57,7 +57,10 @@ A maintainer configures these settings before the first rehearsal.
 ## Rehearse on TestPyPI
 
 Tag the reviewed commit with an unused candidate version and push just that
-tag. Substitute the reviewed merge SHA in the example.
+tag. Substitute the reviewed merge SHA in the example. Create every release
+tag annotated (`git tag -a`). Hatch VCS takes the version from `git describe`,
+which prefers annotated tags and, of two on one commit, the newer one. So a
+final tag on a candidate's commit must be annotated and created after it.
 
 ```bash
 git fetch origin refs/heads/main:refs/remotes/origin/main --tags
@@ -90,7 +93,8 @@ git push origin "refs/tags/$tag"
 ## Publish the final release
 
 1. After a successful rehearsal, create and push the unused final tag
-   (for example, `v2.0.0`) on the reviewed commit. Follow the same build,
+   (for example, `v2.0.0`) on the reviewed commit, annotated and in the same
+   way as the candidate. Follow the same build,
    checksum and TestPyPI steps for the final tag. TestPyPI now verifies the
    final version's files, which are the files promoted to PyPI.
 2. Review the final tag, commit, manifest and successful
@@ -115,8 +119,14 @@ git push origin "refs/tags/$tag"
    )
    ```
 4. Create the GitLab Release for the final tag with the changelog notes,
-   pipeline link and SHA-256 manifest. Sync release changes back to
-   `develop` through a merge request.
+   pipeline link and SHA-256 manifest.
+5. Merge `main` back into `develop` through a merge request from `main`,
+   with a merge commit. Don't squash, and don't delete the source branch.
+   `develop` then contains the release tag, so its development versions
+   count from it. Confirm that `git describe origin/develop` starts with the
+   new tag, for example `v2.0.0-2-g…`.
+6. Check that Read the Docs built the tag and that the stable documentation
+   shows the new version.
 
 If an upload fails partway, retry the upload job with the retained artifacts.
 The publisher can reuse already uploaded files with matching hashes. A digest
