@@ -17,12 +17,16 @@ A maintainer configures these settings before the first rehearsal.
 - Protect tags matching `v*` and limit tag creation to maintainers. Check
   inherited or overlapping tag rules for broader access.
 - In **Settings → CI/CD → Protected environments**, protect `testpypi` and
-  `pypi`. Allow only the release maintainers to deploy. Set a required
-  deployment approval on `pypi` from the release maintainer group and keep
-  pipeline-triggerer self-approval disabled. A maintainer approves the
-  deployment and starts the manual job once approval is recorded. Confirm
-  the LRZ project tier exposes both protections and approvals before issuing
-  the production credential. [GitLab deployment approvals](https://docs.gitlab.com/ci/environments/deployment_approvals/)
+  `pypi`. Allow only the release maintainers to deploy, and add them as
+  individual users. The Maintainers role also includes everyone who
+  inherits the Owner role from the parent groups.
+- LRZ GitLab doesn't offer deployment approvals; this was checked for 2.0.0.
+  So `pypi` is guarded by its deploy access, the manual
+  `release:upload:pypi` job and the job's confirmation prompt: only a named
+  release maintainer can start the upload. If the tier gains approvals, also
+  set a required deployment approval on `pypi` from the release maintainers,
+  and keep pipeline-triggerer self-approval disabled.
+  [GitLab deployment approvals](https://docs.gitlab.com/ci/environments/deployment_approvals/)
 - Create separate API tokens scoped to the `entise` project on TestPyPI and
   PyPI. In **Settings → CI/CD → Variables**, add `TEST_PYPI_API_TOKEN` with
   environment scope `testpypi` and `PYPI_API_TOKEN` with scope `pypi`.
@@ -90,9 +94,9 @@ git push origin "refs/tags/$tag"
    checksum and TestPyPI steps for the final tag. TestPyPI now verifies the
    final version's files, which are the files promoted to PyPI.
 2. Review the final tag, commit, manifest and successful
-   `release:verify:testpypi` result. Have an eligible production approver
-   approve the `pypi` deployment in GitLab and start
-   `release:upload:pypi` as an authorized release maintainer. The job
+   `release:verify:testpypi` result. A release maintainer with deploy access
+   to `pypi` then starts `release:upload:pypi` and confirms the prompt,
+   after approving the deployment where the tier has approvals. The job
    compares the build manifest with the TestPyPI verification record and
    uploads the matching wheel and sdist.
 3. Wait for `release:verify:pypi` to verify both downloads and install the
