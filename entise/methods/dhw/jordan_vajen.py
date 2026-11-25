@@ -5,7 +5,6 @@ import pandas as pd
 
 from entise._optional import require_module
 from entise.constants import SEP, Types
-from entise.constants import Columns as C
 from entise.constants import Objects as O
 from entise.core._random import method_rng
 from entise.core._time import output_index, site_zone
@@ -20,7 +19,7 @@ from entise.methods.dhw.defaults import (
 )
 from entise.methods.dhw.jordanvajen.activity import _get_activity_data, _get_demand_data
 from entise.methods.dhw.jordanvajen.calculation import daily_volume, local_holidays, sample_volume
-from entise.methods.dhw.jordanvajen.temperature import _get_water_temperatures
+from entise.methods.dhw.jordanvajen.temperature import _get_water_temperatures, water_temperature
 from entise.methods.utils._calendar import time_table, wall_window
 
 logger = logging.getLogger(__name__)
@@ -145,7 +144,13 @@ class JordanVajen(Method):
                 - ``dhw_demand_per_size`` (``dhw_demand_per_size[m2]``): Demand data per dwelling size.
                 - ``holidays_location`` (str): Location for the holiday calendar.
                 - ``temp_water_cold`` and ``temp_water_hot`` (``cold_water_temperature[C]``,
-                  ``hot_water_temperature[C]``): Cold and hot water temperature in °C.
+                  ``hot_water_temperature[C]``): Cold and hot water temperature in °C
+                  (defaults 10 and 50). Each is a number, a Series on the run's timestamps,
+                  or a table: ``"table|column"``, or the name of a table in ``data``, which
+                  reads the column named by the object's ``id`` or the table's only column. A
+                  table with a ``datetime`` column is aligned by time, and one without is used
+                  row by row. A table that an object names must be in ``data``; otherwise the
+                  method raises a ``ValueError``.
                 - ``seasonal_variation`` (float): Seasonal variation factor.
                 - ``seasonal_peak_day`` (int): Day of year with peak demand.
                 - ``seed`` (int): The object's random seed. It takes precedence over the
@@ -183,21 +188,6 @@ class JordanVajen(Method):
         logger.debug(f"[DHW jordanvajen]: Generating {ts_type} data")
 
         return _format_output(processed_data, ts_volume, ts_energy, ts_power, water_temp)
-
-
-def _named_table(obj: dict, data: dict, key: str):
-    """Return the table the object names for ``key``, or the table under ``key`` in ``data``.
-
-    Raises:
-        ValueError: If the object names a table that is not in ``data``.
-    """
-    name = obj.get(key)
-    if isinstance(name, str) and name.strip():
-        table = Method.get_with_backup(data, name)
-        if table is None:
-            raise ValueError(f"Object '{obj.get(O.ID)}' names the {key} table '{name}', which is not in the data.")
-        return table
-    return Method.get_with_backup(data, key)
 
 
 def get_input_data(obj, data, method_type=Types.DHW):
@@ -244,13 +234,10 @@ def get_input_data(obj, data, method_type=Types.DHW):
     obj_out = JordanVajen.get_relevant_objects(obj, method_type)
 
     # Process data
-    data_out = {
-        O.DATETIMES: Method.get_with_backup(data, obj_out.get(O.DATETIMES)),
-        O.DHW_ACTIVITY: _named_table(obj_out, data, O.DHW_ACTIVITY),
-        O.DHW_DEMAND_PER_SIZE: _named_table(obj_out, data, O.DHW_DEMAND_PER_SIZE),
-        O.TEMP_WATER_COLD: Method.get_with_backup(data, O.TEMP_WATER_COLD),
-        O.TEMP_WATER_HOT: Method.get_with_backup(data, O.TEMP_WATER_HOT),
-    }
+    # A table the object names, else the table under the key itself, else the bundled one (below)
+    data_out = {O.DATETIMES: Method.get_with_backup(data, obj_out.get(O.DATETIMES))}
+    for key in (O.DHW_ACTIVITY, O.DHW_DEMAND_PER_SIZE):
+        data_out[key] = Method.named_table(obj_out, data, key, fixed_key=key)
 
     # Validate required data
     if data_out[O.DATETIMES] is None:
@@ -263,6 +250,10 @@ def get_input_data(obj, data, method_type=Types.DHW):
     data_out["step"] = step
     data_out["hours"] = hours
     data_out["datetimes_index"] = output_index(table.index, obj_out, data).to_series()
+
+    # The water temperatures the object gives, on the run's instants
+    for key, default in ((O.TEMP_WATER_COLD, DEFAULT_TEMP_COLD), (O.TEMP_WATER_HOT, DEFAULT_TEMP_HOT)):
+        data_out[key] = water_temperature(obj_out, data, key, table.index, default)
 
     # Use the bundled tables if none is given
     if data_out[O.DHW_ACTIVITY] is None:
@@ -338,18 +329,16 @@ def calculate_timeseries(obj, data):
     )
     ts_volume = sample_volume(axis, zone, step, activity_data, volume_per_day, rng, holidays, hours=data["hours"])
 
-    # Water temperatures by local month, and the energy to heat the water
-    local_times = pd.DataFrame({C.DATETIME: axis.tz_convert(zone)})
-    water_temp = _get_water_temperatures(obj, data, local_times)
+    # Water temperatures and the energy to heat the water
+    out_index = data["datetimes_index"].index
+    water_temp = _get_water_temperatures(data[O.TEMP_WATER_COLD], data[O.TEMP_WATER_HOT], out_index)
     delta_t = water_temp[O.TEMP_WATER_HOT].to_numpy(dtype=float) - water_temp[O.TEMP_WATER_COLD].to_numpy(dtype=float)
     energy_factor = DEFAULT_DENSITY_WATER / 1000 * DEFAULT_SPECIFIC_HEAT_WATER * delta_t / 3600  # Wh per litre
 
-    out_index = data["datetimes_index"].index
     ts_energy = pd.Series(np.round(ts_volume.to_numpy() * energy_factor).astype(int), index=out_index)
     ts_volume = pd.Series(ts_volume.to_numpy(), index=out_index).round(3)
     # Power is the energy of the interval that starts at the label, divided by its length.
     ts_power = ts_energy / data["hours"]
-    water_temp.index = out_index
 
     return ts_volume, ts_energy, ts_power, water_temp
 

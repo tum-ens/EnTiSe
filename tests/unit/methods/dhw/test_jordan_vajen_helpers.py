@@ -11,8 +11,9 @@ import pandas as pd
 import entise.methods.dhw.defaults as defaults
 from entise.constants import Columns as C
 from entise.constants import Objects as O
+from entise.methods.dhw.jordan_vajen import JordanVajen
 from entise.methods.dhw.jordanvajen.activity import _get_activity_data, _get_demand_data
-from entise.methods.dhw.jordanvajen.temperature import _get_water_temperatures
+from entise.methods.dhw.jordanvajen.temperature import _get_water_temperatures, water_temperature
 from entise.methods.dhw.jordanvajen.utils import (
     SEASONAL_FACTOR,
     _convert_time_to_seconds_of_day,
@@ -139,39 +140,25 @@ def test_get_demand_data():
 
 
 def test_get_water_temperatures(caplog):
-    """Test the _get_water_temperatures function."""
-    # Create sample data
+    """The water temperatures an object gives, or their defaults, on the run's instants."""
+    axis = pd.date_range("2023-01-01", periods=7 * 24, freq="h", tz="UTC")
+    local = axis.tz_convert("Europe/Berlin")
+
     obj = {O.TEMP_WATER_COLD: 10, O.TEMP_WATER_HOT: 60}
-    data = {}
+    cold = water_temperature(obj, {}, O.TEMP_WATER_COLD, axis, defaults.DEFAULT_TEMP_COLD)
+    hot = water_temperature(obj, {}, O.TEMP_WATER_HOT, axis, defaults.DEFAULT_TEMP_HOT)
+    result = _get_water_temperatures(cold, hot, local)
 
-    # Create sample weather data
-    start = pd.Timestamp("2023-01-01")
-    end = start + pd.Timedelta(7, unit="D")
-    index = pd.date_range(start=start, end=end, freq="h")
-    weather = pd.DataFrame({C.DATETIME: index})
-
-    # Get water temperatures
-    result = _get_water_temperatures(obj, data, weather)
-
-    # Check that the result is a DataFrame with the expected columns
-    assert isinstance(result, pd.DataFrame)
-    assert O.TEMP_WATER_COLD in result.columns
-    assert O.TEMP_WATER_HOT in result.columns
-
-    # Check that the values match the input
+    assert list(result.columns) == [O.TEMP_WATER_COLD, O.TEMP_WATER_HOT]
+    assert result.index.equals(local)
     assert np.all(result[O.TEMP_WATER_COLD] == 10)
     assert np.all(result[O.TEMP_WATER_HOT] == 60)
 
-    obj = {O.TEMP_WATER_HOT: 60}
-    with caplog.at_level("ERROR"):
-        result = _get_water_temperatures(obj, data, weather)
-    assert np.all(result[O.TEMP_WATER_COLD] == defaults.DEFAULT_TEMP_COLD)
+    # Without the keys, the object's defaults apply.
+    obj = JordanVajen.get_relevant_objects({})
+    with caplog.at_level("WARNING"):
+        cold = water_temperature(obj, {}, O.TEMP_WATER_COLD, axis, defaults.DEFAULT_TEMP_COLD)
+        hot = water_temperature(obj, {}, O.TEMP_WATER_HOT, axis, defaults.DEFAULT_TEMP_HOT)
+    assert np.all(cold == defaults.DEFAULT_TEMP_COLD)
+    assert np.all(hot == defaults.DEFAULT_TEMP_HOT)
     assert not caplog.records
-
-    # Test with missing hot water temperature (should use default)
-    obj = {O.TEMP_WATER_COLD: 10}
-    result = _get_water_temperatures(obj, data, weather)
-
-    # Check that hot water temperature is set to default
-    assert O.TEMP_WATER_HOT in result.columns
-    assert np.all(result[O.TEMP_WATER_HOT] == defaults.DEFAULT_TEMP_HOT)
