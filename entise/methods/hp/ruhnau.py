@@ -177,10 +177,11 @@ class Ruhnau(Method):
         data_out = {}
         keys = self.get_relevant_objects(obj, method_type)
 
-        # Get system parameters either from obj df or specifications
+        # Get system parameters either from the table the object names or from its keys.
+        # A blank name counts as none; a name that is not in the data raises.
         hp_system = keys.get(O.HP_SYSTEM)
-        if isinstance(hp_system, str):
-            params = self.get_with_backup(data, hp_system)
+        params = self.named_table(keys, data, O.HP_SYSTEM) if isinstance(hp_system, str) else None
+        if params is not None:
             obj_out[HP_PARAMS] = params[HP_PARAMS]
             obj_out[HEAT_PARAMS] = params[HEAT_PARAMS]
             obj_out[DHW_PARAMS] = params[DHW_PARAMS]

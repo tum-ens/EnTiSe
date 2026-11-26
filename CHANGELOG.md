@@ -26,6 +26,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   - A DHW water temperature can be a number, a Series on the run's timestamps, `"table|column"`, or the name of a table, which reads the column named by the object's `id` or its only column. Tables follow the time contract, as for the HVAC time-series inputs. Before, a table raised an error inside pandas.
   - **Behavior change**: a `pv_inverter`, `pv_arrays` or water-temperature table that an object names but that is not in the data raises a `ValueError`, as for the DHW activity tables and the HVAC windows. Before, `pv_arrays` silently used the default arrays, and DHW used its default temperature with a warning. A DHW water-temperature Series that does not match the run's timestamps raises a `ValueError`; before, it gave NaN temperatures.
   - `Method.named_table()` looks up the table an object gives or names, for methods outside EnTiSe too. A DHW activity or demand table given on the object itself is therefore used; before, it was ignored.
+- The Ruhnau heat pump raises `ValueError: Object '<id>' names the hp_system table '<name>', which is not in the data.` when the `hp_system` table an object names is missing, as the other named tables do. Before, it failed with `TypeError: 'NoneType' object is not subscriptable`. A blank `hp_system` counts as none, so the object's `hp_source` and `hp_sink` keys are used. (`#144`)
 
 ## [2.0.0] Method extras, a common time contract and pandas 3 - 2026-11-24
 
