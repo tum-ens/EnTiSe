@@ -1,14 +1,56 @@
+Migration guide
+===============
+
+This page lists, for each release, the changes that can alter your results
+or break an existing setup, with what to do about them. The full list is in
+the changelog.
+
+Migrating to 2.1.0
+------------------
+
+EnTiSe 2.1.0 adds generation in chunks (``Generator.iter_generate()`` and
+``generate(storage=...)``). Existing runs keep working, except in the cases
+below, which now raise an error or change the summary.
+
+**Object ids must be unique.** ``Generator.generate()`` raises
+``ValueError: Object ids must be unique; these repeat: ...`` before it computes
+any object. Before, the results were keyed by id, so the last object with an
+id silently replaced the earlier ones. Give every object its own ``id``.
+
+**A table an object names must be in the data.** An object that names a
+``pv_inverter``, ``pv_arrays``, ``cold_water_temperature[C]``,
+``hot_water_temperature[C]`` or ``hp_system`` table that is missing from
+``data`` raises ``ValueError: Object '<id>' names the <key> table '<name>',
+which is not in the data.`` Before, PV silently used its default arrays, DHW
+used its default water temperatures with a warning, and the Ruhnau heat pump
+failed with a ``TypeError``. Add the table to ``data`` under the name the
+object gives, or remove the key from the object to use the default. A blank
+value counts as no table.
+
+**PV and DHW use the tables an object names.** A PV object that names an
+inverter table now gets that inverter instead of ``data["pv_inverter"]`` or
+the default. A DHW object that names water-temperature tables now gets those
+temperatures instead of 10 °C and 50 °C. Results change for such objects;
+check that the tables hold what you expect.
+
+**The summary has one row per object, in the order you added them.** Before,
+an object whose summary keys differed from the first object's, such as one
+that failed with an ``error``, could move to the end, and an object that
+reported no summary values was left out. Values and columns are unchanged. If
+you read summary rows by position, read them by ``id`` instead, and expect
+rows for objects without summary values.
+
 Migrating to 2.0.0
-==================
+------------------
 
 EnTiSe 2.0.0 changes how time is read and written, how some methods count
-energy, and how EnTiSe is installed. This page lists every change that can
+energy, and how EnTiSe is installed. This section lists every change that can
 alter your results or break an existing setup, with what to do about it. The
 full list is in the changelog; the time rules are described in
 :ref:`time-contract`.
 
 Installation
-------------
+~~~~~~~~~~~~
 
 **Before:** ``pip install entise`` installed every method and its dependencies.
 
@@ -27,7 +69,7 @@ The weather service and the example tools have their own extras.
 is no longer supported. It works with pandas 2 (2.2.2 or newer) and pandas 3.
 
 Direct method calls
--------------------
+~~~~~~~~~~~~~~~~~~~
 
 Keep ``obj``, ``data``, ``results`` and ``ts_type`` as the first four
 arguments to ``generate()``. Pass method-specific inputs by keyword.
@@ -43,7 +85,7 @@ the unused ``weather`` keyword on demandlib electricity. See
 keywords.
 
 Custom methods
---------------
+~~~~~~~~~~~~~~
 
 This section applies if you subclass ``Method`` yourself.
 
@@ -90,7 +132,7 @@ its own result. Route a direct call with ``ts_type`` through ``group_result``.
 See :ref:`api_core` for the details.
 
 Constants
----------
+~~~~~~~~~
 
 ``Columns``, ``Objects``, ``Types`` and ``Keys`` in ``entise.constants`` are
 read-only namespaces. Their values are still plain strings. ``Types()`` and the
@@ -100,7 +142,7 @@ attribute raises ``AttributeError``, also through
 code looks it up instead, for example ``mock.patch("mypackage.module.Types", ...)``.
 
 Timestamps
-----------
+~~~~~~~~~~
 
 **Text timestamps must be ISO 8601.** ``2022-07-01 12:00:00+02:00``,
 ``2022-07-01T10:00:00Z`` and ``2022-07-01 12:00`` work. Formats such as
@@ -137,7 +179,7 @@ accepted and most calendar methods shifted every later row onto a regular
 grid.
 
 The site time zone
-------------------
+~~~~~~~~~~~~~~~~~~
 
 Add a ``timezone`` column to your objects, with an IANA name such as
 ``Europe/Berlin``:
@@ -163,7 +205,7 @@ of the hour before; with UTC timestamps, every hour was one to two hours off.
 25-hour day the repeated hour is read twice.
 
 Interval labels
----------------
+~~~~~~~~~~~~~~~
 
 Every value is labelled at the **start** of its interval. Interval quantities,
 such as irradiance, precipitation or power, are means or sums over
@@ -224,7 +266,7 @@ middle of each interval. Annual PV yield changes by a few per cent on east- and
 west-facing arrays; south-facing arrays change little.
 
 Outputs
--------
+~~~~~~~
 
 **Every time series of an object shares one index:** the instants of its input
 in the object's ``timezone``. Before, the index depended on the method and on
@@ -259,7 +301,7 @@ number. Before, it was a one-element Series. Drop any ``.iloc[0]`` you used to
 read it.
 
 HVAC (1R0C, 1R1C, 5R1C, 7R2C)
------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 **Typed heating and cooling.** Before, an object could select an RC model for
 ``heating`` or ``cooling``, although the models declared only ``hvac``. It then
@@ -350,7 +392,7 @@ ignored the flag and always applied ventilation. The flag still defaults to
 ``weather`` key, like the other methods. Before, they always read ``weather``.
 
 Demand and calendars
---------------------
+~~~~~~~~~~~~~~~~~~~~
 
 ``demand[kWh]`` **is the demand over the simulated run.** demandlib
 electricity and DistrictHeatingSim now scale so that the series over the run
@@ -391,7 +433,7 @@ clock. The hold starts once occupancy has lasted ``night_schedule_duration[h]``
 data.
 
 Method inputs
--------------
+~~~~~~~~~~~~~
 
 **Solar gains you supply.** 1R0C, 1R1C, 5R1C and 7R2C now use an object's
 ``gains_solar[W]`` instead of calculating solar gains. It can be a constant in
@@ -449,7 +491,7 @@ built-in methods now declare ``optional_keys`` as mappings, so code such as
 ``get_requirements()``, which still returns lists.
 
 Other changes
--------------
+~~~~~~~~~~~~~
 
 - ``entise.set_accelerator()`` now applies to process workers on every call,
   including reused ones. A forced ``"numba"`` mode reports a missing Numba
