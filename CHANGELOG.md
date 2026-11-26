@@ -10,6 +10,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [2.1.0] Streaming generation - 2026-11-26
+
+EnTiSe 2.1.0 adds generation in chunks, so a large run no longer has to hold every time series in memory. It also makes PV and DHW use the tables an object names. The [migration guide](https://entise.readthedocs.io/en/stable/migration.html) lists the changes that can break a working setup or change its results, with what to do about them. The entries below give the details.
+
+**New:** `Generator.iter_generate()` yields the results chunk by chunk, and `Generator.generate(storage=...)` passes them to a sink, a subclass of `entise.TimeseriesStorage`. The results are bit-identical to `generate()`. (`#142`)
+
+**Behavior changes**
+- `Generator.generate()` raises a `ValueError` when two objects share an id. Before, the last of them silently replaced the others. (`#144`)
+- The summary has one row per object, in the order the objects were added. Before, objects could move to the end or be left out. (`#142`)
+- PV `pvlib` uses the inverter table an object names, and Jordan-Vajen DHW the water-temperature tables it names, so results change for such objects. A `pv_inverter`, `pv_arrays`, water-temperature or `hp_system` table that an object names but that is missing from the data raises a `ValueError`. (`#143`, `#144`)
+
+**Fixed:** PyLPG no longer writes its `C1/` calculation folder into the working directory. (`#153`)
+
 ### Added
 - Added generation in chunks, so a large run doesn't have to hold every time series in memory. (`#142`)
   - `Generator.iter_generate(data, chunk_size=500, ...)` takes the arguments of `generate()` and yields one `(summary, timeseries)` per chunk. Each chunk holds whole objects, with all their time series types, in the order they were added. The results are bit-identical to `generate()` for any chunk size, number of workers and batch size, and the concatenated chunk summaries equal its summary.
