@@ -18,11 +18,11 @@ A simple tool for generating time series data related to energy systems and buil
 Introduction
 =============
 **EnTiSe** (En-ergy Ti-me Se-ries) is a Python package designed to generate realistic time series data for various energy systems and building operations.
-It provides a flexible, pipeline- and strategy-based approach to create time series for different applications including HVAC, domestic hot water, electricity, mobility, and occupancy patterns.
+It provides a flexible, pipeline- and strategy-based approach to create time series for different applications including HVAC, domestic hot water, electricity, and occupancy patterns.
 
 Key Features
 -------------
-- Multiple time series types including DHW, HVAC, PV, and more in the works.
+- Multiple time series types including DHW, HVAC, PV and wind.
 - Flexible pipeline- and strategy-based architecture for customizable time series generation.
 - Support for dependent methods to create related time series.
 - Two access patterns: batch processing via Generator or direct method imports for individual control.
@@ -184,29 +184,21 @@ hours of synthetic midday irradiance in Munich.
 See the `Getting Started guide <https://entise.readthedocs.io/en/latest/getting_started.html>`_
 and the examples directory for more ways to use EnTiSe.
 
-Supported or Planned Time Series Types
----------------------------------------
-EnTiSe supports generating time series for the following types:
-
-Integrated:
+Supported Time Series Types
+---------------------------
+EnTiSe generates time series for the following types:
 
 - Electricity demand
 - Domestic Hot Water (DHW)
+- Heating demand
+- Cooling demand
 - Heat pump (COP)
 - HVAC (Heating, Ventilation, and Air Conditioning)
 - Occupancy data
 - Solar Photovoltaic (PV)
 - Wind energy
 
-Planned:
-
-- Concentrated Solar Power (CSP) (https://oemof-thermal.readthedocs.io/en/latest/concentrating_solar_power.html)
-- Geothermal energy
-- Hydroelectric power (https://github.com/IdahoLabResearch/HydroGenerate or https://github.com/9505-PNNL/wmpy_power or https://www.theoj.org/joss-papers/joss.03294/10.21105.joss.03294.pdf)
-- Mobility (https://emobpy.readthedocs.io/en/latest/)
-- Solar thermal (https://oemof-thermal.readthedocs.io or https://www.theoj.org/joss-papers/joss.03294/10.21105.joss.03294.pdf)
-- Tidal energy
-- Wave energy
+The ``file`` method reads time series of any type from your own tables.
 
 Documentation
 ==============
