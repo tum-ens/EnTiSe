@@ -47,6 +47,11 @@ A maintainer configures these settings before the first rehearsal.
    template for the release into `main`. Summarize the release in
    [CHANGELOG.md](../../CHANGELOG.md), move the entries out of `[Unreleased]`
    into a dated release heading, and review the migration notes and examples.
+   Date the heading with the day you plan to push the final tag. If the tag
+   lands on a later day, correct the date on `develop` afterwards; don't cut
+   a new candidate for it.
+   `README.rst` is the package's PyPI project page, so make it final before
+   the candidate tag. Every tag publishes the README it contains.
 2. Merge the release only after review and the required checks pass,
    including strict Sphinx and the supported Python and pandas matrix.
    Native PyLPG is the only advisory job; review its result before tagging.
@@ -87,7 +92,28 @@ git push origin "refs/tags/$tag"
    installs the downloaded wheel in a fresh environment. Dependencies come
    from PyPI. Check the rendered project description and record the pipeline
    link and result. Candidate tags have no production publishing job.
-4. If the rehearsal identifies a source issue, fix it through review and
+4. Install the candidate yourself as well, in a clean environment, with the
+   extras users install, and run an example. Take only the wheel from
+   TestPyPI and every dependency from PyPI. Never mix the two indexes:
+   TestPyPI may hold an unrelated package under a dependency's name.
+   Compare the wheel's SHA-256 with the manifest.
+
+   ```bash
+   version=2.0.0rc1
+   work=$(mktemp -d)
+   (
+     cd "$work"
+     uv venv --seed --python 3.12 rehearsal-env
+     rehearsal-env/bin/python -m pip download --no-deps --only-binary :all: \
+       --index-url https://test.pypi.org/simple/ -d wheel "entise==$version"
+     wheel=$(ls wheel/entise-*.whl)
+     sha256sum "$wheel"
+     uv pip install --python rehearsal-env/bin/python --default-index https://pypi.org/simple/ \
+       "entise[hvac-1r1c,pv-pvlib] @ file://$PWD/$wheel"
+     rehearsal-env/bin/python -I -c 'from importlib.metadata import version; import entise, sys; assert entise.__version__ == version("entise") == sys.argv[1]' "$version"
+   )
+   ```
+5. If the rehearsal identifies a source issue, fix it through review and
    repeat the rehearsal with a new candidate tag.
 
 ## Publish the final release

@@ -3,7 +3,8 @@
 ### Before merging to main
 
 - [ ] Record the intended version and release issue.
-- [ ] Review the changelog, migration notes and affected examples.
+- [ ] Review the changelog, migration notes, affected examples and the README,
+      which is the PyPI project page.
 - [ ] Review the support matrix, strict Sphinx and advisory job results.
 - [ ] Confirm the protected main branch, release tags, environments with
       deploy access for the named release maintainers only, runner access
