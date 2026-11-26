@@ -22,7 +22,6 @@ from entise.methods.hvac.defaults import (
     DEFAULT_ACTIVE_VENTILATION,
     DEFAULT_POWER_COOLING,
     DEFAULT_POWER_HEATING,
-    DEFAULT_TEMP_INIT,
     DEFAULT_TEMP_MAX,
     DEFAULT_TEMP_MIN,
     DEFAULT_VENTILATION,
@@ -228,89 +227,6 @@ class R1C0(TypedViews, Method):
         data_out = {k: v for k, v in data_out.items() if v is not None}
 
         return obj_out, data_out
-
-    def _prepare_inputs(self, obj: dict, data: dict) -> dict:
-        """Prepare a solver-ready bundle for R1C0.
-
-        Returns a dict with keys:
-          - index: pd.DatetimeIndex
-          - dt_s: float (seconds)
-          - weather: pd.DataFrame
-          - g_int_series: pd.Series [W]
-          - g_sol_series: pd.Series [W]
-          - Hve_series: pd.Series [W/K] (prefers O.H_VE if provided)
-          - controls: dict (setpoints, caps, activation flags)
-          - params: dict with R1C0 parameters (C, R)
-        """
-        # Weather and timestep — see note in generate() for why we avoid
-        # materializing the full DATETIME column via astype.
-        weather = data[O.WEATHER]
-        index = weather.index
-        dt_col = weather[C.DATETIME]
-        dt_s = float((dt_col.iloc[1] - dt_col.iloc[0]).total_seconds())
-
-        # Gains (R1C1 currently computes auxiliaries unconditionally, keep behavior)
-        g_sol_df = data.get(O.GAINS_SOLAR) or SolarGains().generate(obj, {**data, O.WEATHER: weather})
-        g_int_df = data.get(O.GAINS_INTERNAL) or InternalGains().generate(obj, {**data, O.WEATHER: weather})
-
-        g_int_series = g_int_df.sum(axis=1) if isinstance(g_int_df, pd.DataFrame) else pd.Series(0.0, index=index)
-        g_sol_series = g_sol_df.sum(axis=1) if isinstance(g_sol_df, pd.DataFrame) else pd.Series(0.0, index=index)
-
-        # Ventilation normalization: prefer direct H_ve if present; otherwise use auxiliary/data/default
-        hve_series: pd.Series
-        if O.H_VE in obj and obj[O.H_VE] is not None:
-            val = obj[O.H_VE]
-            if isinstance(val, pd.Series):
-                if not val.index.equals(index):
-                    raise ValueError("H_ve series index does not match weather index.")
-                hve_series = val.astype(float)
-            else:
-                try:
-                    fval = float(val)
-                    hve_series = pd.Series(np.full(len(index), fval, dtype=float), index=index, name=O.VENTILATION)
-                except Exception as err:
-                    raise ValueError(f"H_ve must be a float or a pandas Series, got {type(val)}") from err
-        else:
-            ven_df = data.get(O.VENTILATION)
-            if isinstance(ven_df, pd.DataFrame) and O.VENTILATION in ven_df:
-                hve_series = ven_df[O.VENTILATION].astype(float)
-            elif O.VENTILATION in obj:
-                try:
-                    fval = float(obj[O.VENTILATION])
-                    hve_series = pd.Series(np.full(len(index), fval, dtype=float), index=index, name=O.VENTILATION)
-                except Exception:
-                    ven_df = Ventilation().generate(obj, {**data, O.WEATHER: weather})
-                    hve_series = ven_df[O.VENTILATION].astype(float)
-            else:
-                ven_df = Ventilation().generate(obj, {**data, O.WEATHER: weather})
-                hve_series = ven_df[O.VENTILATION].astype(float)
-
-        # Controls and parameters
-        controls = dict(
-            T_init=float(obj.get(O.TEMP_INIT, DEFAULT_TEMP_INIT)),
-            T_min=float(obj.get(O.TEMP_MIN, DEFAULT_TEMP_MIN)),
-            T_max=float(obj.get(O.TEMP_MAX, DEFAULT_TEMP_MAX)),
-            P_h_max=float(obj.get(O.POWER_HEATING, DEFAULT_POWER_HEATING)),
-            P_c_max=float(obj.get(O.POWER_COOLING, DEFAULT_POWER_COOLING)),
-            on_h=bool(obj.get(O.ACTIVE_HEATING, DEFAULT_ACTIVE_HEATING)),
-            on_c=bool(obj.get(O.ACTIVE_COOLING, DEFAULT_ACTIVE_COOLING)),
-        )
-
-        params = dict(
-            R=float(obj[O.RESISTANCE]),
-            T_S=float(obj[O.TEMP_INIT]),
-        )
-
-        return dict(
-            index=index,
-            dt_s=dt_s,
-            weather=weather,
-            g_int_series=g_int_series,
-            g_sol_series=g_sol_series,
-            Hve_series=hve_series,
-            controls=controls,
-            params=params,
-        )
 
     @staticmethod
     def _format_output(temp_in, p_heat, p_cool, obj, data, timestep) -> dict:
