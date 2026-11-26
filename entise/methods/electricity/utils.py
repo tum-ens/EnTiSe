@@ -73,18 +73,18 @@ def run_year_chunk(
     prev_cwd = os.getcwd()
 
     try:
-        pylpg_root = os.path.dirname(pylpg.__file__)
-        src_c1 = os.path.join(pylpg_root, "C1")
+        # pyLPG writes its calculation folder (C1/) into the current directory,
+        # so each run works in its own temporary folder. Older pyLPG releases
+        # ship a C1 template, which is copied there.
+        tmp_base = tempfile.mkdtemp(prefix=f"pylpg_run_{os.getpid()}_")
+        work_dir = tmp_base
+        src_c1 = os.path.join(os.path.dirname(pylpg.__file__), "C1")
+        if os.path.isdir(src_c1):
+            work_dir = os.path.join(tmp_base, "C1")
+            shutil.copytree(src_c1, work_dir)
 
-        tmp_base = os.path.join(tempfile.gettempdir(), f"pylpg_run_{os.getpid()}_{obj_id}_{year}")
-        dst_c1 = os.path.join(tmp_base, "C1")
-
-        if os.path.exists(dst_c1):
-            shutil.rmtree(dst_c1, ignore_errors=True)
-        shutil.copytree(src_c1, dst_c1)
-
-        os.chdir(dst_c1)
-        os.environ["PYLPG_HOME"] = dst_c1
+        os.chdir(work_dir)
+        os.environ["PYLPG_HOME"] = work_dir
     except Exception as e:
         logger.warning("[pylpg] Could not prepare isolated PyLPG dir (continuing): %s", e)
 

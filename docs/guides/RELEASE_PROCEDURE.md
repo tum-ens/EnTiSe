@@ -17,12 +17,16 @@ A maintainer configures these settings before the first rehearsal.
 - Protect tags matching `v*` and limit tag creation to maintainers. Check
   inherited or overlapping tag rules for broader access.
 - In **Settings → CI/CD → Protected environments**, protect `testpypi` and
-  `pypi`. Allow only the release maintainers to deploy. Set a required
-  deployment approval on `pypi` from the release maintainer group and keep
-  pipeline-triggerer self-approval disabled. A maintainer approves the
-  deployment and starts the manual job once approval is recorded. Confirm
-  the LRZ project tier exposes both protections and approvals before issuing
-  the production credential. [GitLab deployment approvals](https://docs.gitlab.com/ci/environments/deployment_approvals/)
+  `pypi`. Allow only the release maintainers to deploy, and add them as
+  individual users. The Maintainers role also includes everyone who
+  inherits the Owner role from the parent groups.
+- LRZ GitLab doesn't offer deployment approvals; this was checked for 2.0.0.
+  So `pypi` is guarded by its deploy access, the manual
+  `release:upload:pypi` job and the job's confirmation prompt: only a named
+  release maintainer can start the upload. If the tier gains approvals, also
+  set a required deployment approval on `pypi` from the release maintainers,
+  and keep pipeline-triggerer self-approval disabled.
+  [GitLab deployment approvals](https://docs.gitlab.com/ci/environments/deployment_approvals/)
 - Create separate API tokens scoped to the `entise` project on TestPyPI and
   PyPI. In **Settings → CI/CD → Variables**, add `TEST_PYPI_API_TOKEN` with
   environment scope `testpypi` and `PYPI_API_TOKEN` with scope `pypi`.
@@ -43,6 +47,11 @@ A maintainer configures these settings before the first rehearsal.
    template for the release into `main`. Summarize the release in
    [CHANGELOG.md](../../CHANGELOG.md), move the entries out of `[Unreleased]`
    into a dated release heading, and review the migration notes and examples.
+   Date the heading with the day you plan to push the final tag. If the tag
+   lands on a later day, correct the date on `develop` afterwards; don't cut
+   a new candidate for it.
+   `README.rst` is the package's PyPI project page, so make it final before
+   the candidate tag. Every tag publishes the README it contains.
 2. Merge the release only after review and the required checks pass,
    including strict Sphinx and the supported Python and pandas matrix.
    Native PyLPG is the only advisory job; review its result before tagging.
@@ -83,7 +92,28 @@ git push origin "refs/tags/$tag"
    installs the downloaded wheel in a fresh environment. Dependencies come
    from PyPI. Check the rendered project description and record the pipeline
    link and result. Candidate tags have no production publishing job.
-4. If the rehearsal identifies a source issue, fix it through review and
+4. Install the candidate yourself as well, in a clean environment, with the
+   extras users install, and run an example. Take only the wheel from
+   TestPyPI and every dependency from PyPI. Never mix the two indexes:
+   TestPyPI may hold an unrelated package under a dependency's name.
+   Compare the wheel's SHA-256 with the manifest.
+
+   ```bash
+   version=2.0.0rc1
+   work=$(mktemp -d)
+   (
+     cd "$work"
+     uv venv --seed --python 3.12 rehearsal-env
+     rehearsal-env/bin/python -m pip download --no-deps --only-binary :all: \
+       --index-url https://test.pypi.org/simple/ -d wheel "entise==$version"
+     wheel=$(ls wheel/entise-*.whl)
+     sha256sum "$wheel"
+     uv pip install --python rehearsal-env/bin/python --default-index https://pypi.org/simple/ \
+       "entise[hvac-1r1c,pv-pvlib] @ file://$PWD/$wheel"
+     rehearsal-env/bin/python -I -c 'from importlib.metadata import version; import entise, sys; assert entise.__version__ == version("entise") == sys.argv[1]' "$version"
+   )
+   ```
+5. If the rehearsal identifies a source issue, fix it through review and
    repeat the rehearsal with a new candidate tag.
 
 ## Publish the final release
@@ -94,9 +124,9 @@ git push origin "refs/tags/$tag"
    checksum and TestPyPI steps for the final tag. TestPyPI now verifies the
    final version's files, which are the files promoted to PyPI.
 2. Review the final tag, commit, manifest and successful
-   `release:verify:testpypi` result. Have an eligible production approver
-   approve the `pypi` deployment in GitLab and start
-   `release:upload:pypi` as an authorized release maintainer. The job
+   `release:verify:testpypi` result. A release maintainer with deploy access
+   to `pypi` then starts `release:upload:pypi` and confirms the prompt,
+   after approving the deployment where the tier has approvals. The job
    compares the build manifest with the TestPyPI verification record and
    uploads the matching wheel and sdist.
 3. Wait for `release:verify:pypi` to verify both downloads and install the

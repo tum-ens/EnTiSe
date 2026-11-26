@@ -399,3 +399,50 @@ def test_prefixed_keys_take_precedence(dummy_inputs):
 
     assert prefixed == same
     assert prefixed != plain
+
+
+# -- a named hp_system table -------------------------------------------------------------------------------------------
+
+_SYSTEM = {
+    "heat_pump_parameters": {O.HP_SOURCE: defs.HP_AIR, "coeffs": {"a": 0.0005, "b": -0.09, "c": 6.58}},
+    "heating_parameters": {O.HP_SINK: defs.RADIATOR, O.TEMP_SINK: 40, O.GRADIENT_SINK: -1.0},
+    "dhw_parameters": {O.HP_SINK: defs.WATER, O.TEMP_SINK: 50, O.GRADIENT_SINK: 0},
+}
+
+
+def _system_obj(**keys):
+    return {O.ID: "hp1", O.WEATHER: "weather", O.CORRECTION_FACTOR: 0.85, **keys}
+
+
+def _same(result, expected):
+    pd.testing.assert_frame_equal(result["timeseries"], expected["timeseries"])
+    assert result["summary"] == expected["summary"]
+
+
+def test_a_named_hp_system_table_is_used(dummy_weather):
+    by_keys = Ruhnau().generate(
+        _system_obj(
+            **{O.HP_SOURCE: defs.HP_AIR, O.HP_SINK: defs.RADIATOR, O.TEMP_SINK: 40, O.GRADIENT_SINK: -1.0},
+            **{O.TEMP_WATER: 50, O.COP_COEFFICIENTS: _SYSTEM["heat_pump_parameters"]["coeffs"]},
+        ),
+        {"weather": dummy_weather},
+    )
+
+    by_table = Ruhnau().generate(
+        _system_obj(**{O.HP_SYSTEM: "my_system"}), {"weather": dummy_weather, "my_system": _SYSTEM}
+    )
+
+    _same(by_table, by_keys)
+
+
+def test_a_missing_hp_system_table_names_it(dummy_weather):
+    message = r"^Object 'hp1' names the hp_system table 'my_system', which is not in the data\.$"
+    with pytest.raises(ValueError, match=message):
+        Ruhnau().generate(_system_obj(**{O.HP_SYSTEM: "my_system"}), {"weather": dummy_weather, "other": _SYSTEM})
+
+
+def test_a_blank_hp_system_counts_as_none(dummy_weather):
+    keys = {O.HP_SOURCE: defs.HP_AIR, O.HP_SINK: defs.RADIATOR}
+    without = Ruhnau().generate(_system_obj(**keys), {"weather": dummy_weather})
+
+    _same(Ruhnau().generate(_system_obj(**{O.HP_SYSTEM: " "}, **keys), {"weather": dummy_weather}), without)

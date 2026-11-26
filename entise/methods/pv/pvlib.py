@@ -55,7 +55,7 @@ class PVLib(Method):
         O.TIMEZONE: None,
     }
     required_data = [O.WEATHER]
-    optional_data = [O.PV_ARRAYS]
+    optional_data = [O.PV_ARRAYS, O.PV_INVERTER]
     output_summary = {
         f"{Types.PV}{SEP}{C.GENERATION}": "total PV generation",
         f"{Types.PV}{SEP}{O.GEN_MAX}": "maximum PV generation",
@@ -96,8 +96,15 @@ class PVLib(Method):
                   270=West).
                 - ``tilt`` (``tilt[degree]``): Panel tilt in degrees (0=horizontal, 90=vertical).
                 - ``altitude`` (``altitude[m]``): Site altitude in m.
-                - ``pv_arrays`` (dict or str): PV array configuration parameters.
-                - ``pv_inverter``: PV inverter configuration parameters.
+                - ``pv_arrays`` (dict or str): PV array configuration parameters, or the
+                  name of a table in ``data`` that holds them. Without one, the arrays use
+                  ``pdc0=1`` and ``gamma_pdc=-0.004``.
+                - ``pv_inverter`` (dict or str): PV inverter configuration parameters, or the
+                  name of a table in ``data`` that holds them. An object that names none uses
+                  the table under ``data["pv_inverter"]`` if there is one, otherwise ``pdc0=3``.
+
+                A table that an object names must be in ``data``; otherwise the method
+                raises a ``ValueError``.
 
         Returns:
             dict: Dictionary containing:
@@ -169,8 +176,9 @@ class PVLib(Method):
         run = run_time(data)
         data_out = {
             O.WEATHER: run.table(weather_key) if weather_key in run else None,
-            O.PV_ARRAYS: Method.get_with_backup(data, obj_out.get(O.PV_ARRAYS), PV_ARRAYS),
-            O.PV_INVERTER: Method.get_with_backup(data, O.PV_INVERTER, PV_INVERTER),
+            O.PV_ARRAYS: Method.named_table(obj_out, data, O.PV_ARRAYS, PV_ARRAYS),
+            # An object that names no inverter uses the table under the key itself, then the default.
+            O.PV_INVERTER: Method.named_table(obj_out, data, O.PV_INVERTER, PV_INVERTER, fixed_key=O.PV_INVERTER),
         }
 
         # Fill missing data

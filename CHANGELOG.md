@@ -10,7 +10,39 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
-## [2.0.0] Method extras, a common time contract and pandas 3 - 2026-11-24
+## [2.1.0] Streaming generation - 2026-11-26
+
+EnTiSe 2.1.0 adds generation in chunks, so a large run no longer has to hold every time series in memory. It also makes PV and DHW use the tables an object names. The [migration guide](https://entise.readthedocs.io/en/stable/migration.html) lists the changes that can break a working setup or change its results, with what to do about them. The entries below give the details.
+
+**New:** `Generator.iter_generate()` yields the results chunk by chunk, and `Generator.generate(storage=...)` passes them to a sink, a subclass of `entise.TimeseriesStorage`. The results are bit-identical to `generate()`. (`#142`)
+
+**Behavior changes**
+- `Generator.generate()` raises a `ValueError` when two objects share an id. Before, the last of them silently replaced the others. (`#144`)
+- The summary has one row per object, in the order the objects were added. Before, objects could move to the end or be left out. (`#142`)
+- PV `pvlib` uses the inverter table an object names, and Jordan-Vajen DHW the water-temperature tables it names, so results change for such objects. A `pv_inverter`, `pv_arrays`, water-temperature or `hp_system` table that an object names but that is missing from the data raises a `ValueError`. (`#143`, `#144`)
+
+**Fixed:** PyLPG no longer writes its `C1/` calculation folder into the working directory. (`#153`)
+
+### Added
+- Added generation in chunks, so a large run doesn't have to hold every time series in memory. (`#142`)
+  - `Generator.iter_generate(data, chunk_size=500, ...)` takes the arguments of `generate()` and yields one `(summary, timeseries)` per chunk. Each chunk holds whole objects, with all their time series types, in the order they were added. The results are bit-identical to `generate()` for any chunk size, number of workers and batch size, and the concatenated chunk summaries equal its summary.
+  - `Generator.generate(data, storage=sink)` passes the chunks to a sink instead of returning them, and returns the summary with an empty time-series dict. A sink subclasses `entise.TimeseriesStorage` and implements `setup()`, `write_batch(timeseries)` and `finalize()`. If the run fails after `setup()`, the generator calls the sink's `close()` and re-raises the error; chunks already written stay written. The chunk size is the sink's `chunk_size` (500 by default).
+  - Object ids must be unique, as in every run (see Changed). EnTiSe ships no storage backend; the workflow guide has an example sink that writes CSV files.
+
+### Changed
+- **Behavior change**: `Generator.generate()` raises a `ValueError` that names the repeated ids when two objects share an id, before any object is computed. Before, the results were keyed by id, so the last of these objects silently replaced the earlier ones in the summary and the time series. `iter_generate()` and `generate(storage=...)` already raised; the three now share one check and one message. (`#144`)
+
+### Fixed
+- PyLPG runs in its own temporary folder again. EnTiSe tried to set this folder up by copying a `C1` template from the pyLPG package, which current pyLPG releases no longer ship. The copy failed with a warning, and pyLPG wrote its `C1/` calculation folder into the caller's working directory, where all process workers shared it. The folder is now created whether or not the template exists, and removed after the run. (`#153`)
+- **Behavior change**: the summary from `Generator.generate()` has one row per object, in the order the objects were added. Before, an object whose summary keys differed from the first object's, such as one that failed with an `error`, could move to the end, and an object that reported no summary values was left out. Values and columns are unchanged. (`#142`)
+- **Behavior change**: PV `pvlib` reads the inverter table an object names with `pv_inverter`, and Jordan-Vajen DHW reads the tables an object names with `cold_water_temperature[C]` and `hot_water_temperature[C]`. Before, both methods ignored the names: every PV object got the table under `data["pv_inverter"]` or the default inverter, and DHW used 10 °C and 50 °C with a warning. An object that names no table keeps its output: PV still uses `data["pv_inverter"]` and then the default, and DHW its scalar or default. (`#143`)
+  - An inverter or arrays given on the object or as a keyword, as a dict or a Series (such as one from pvlib's `retrieve_sam`), are used. Before, an inverter given this way was ignored, and arrays given on the object raised a `TypeError`.
+  - A DHW water temperature can be a number, a Series on the run's timestamps, `"table|column"`, or the name of a table, which reads the column named by the object's `id` or its only column. Tables follow the time contract, as for the HVAC time-series inputs. Before, a table raised an error inside pandas.
+  - **Behavior change**: a `pv_inverter`, `pv_arrays` or water-temperature table that an object names but that is not in the data raises a `ValueError`, as for the DHW activity tables and the HVAC windows. Before, `pv_arrays` silently used the default arrays, and DHW used its default temperature with a warning. A DHW water-temperature Series that does not match the run's timestamps raises a `ValueError`; before, it gave NaN temperatures.
+  - `Method.named_table()` looks up the table an object gives or names, for methods outside EnTiSe too. A DHW activity or demand table given on the object itself is therefore used; before, it was ignored.
+- **Behavior change**: the Ruhnau heat pump raises `ValueError: Object '<id>' names the hp_system table '<name>', which is not in the data.` when the `hp_system` table an object names is missing, as the other named tables do. Before, it failed with `TypeError: 'NoneType' object is not subscriptable`. A blank `hp_system` counts as none, so the object's `hp_source` and `hp_sink` keys are used. (`#144`)
+
+## [2.0.0] Method extras, a common time contract and pandas 3 - 2026-11-25
 
 EnTiSe 2.0.0 changes the results of several methods, how EnTiSe is installed and how methods read their inputs. The [migration guide](https://entise.readthedocs.io/en/stable/migration.html) lists every change that can alter results or break an existing setup, with what to do about it. The entries below give the details.
 

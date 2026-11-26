@@ -137,7 +137,9 @@ def test_resampling_behaviour_preserves_energy_in_summary():
         dt_s = float(pd.Series(pd.DatetimeIndex(ts.index)).diff().dt.total_seconds().median())
         e_wh = float(ts[OUT_COL].astype(float).sum()) * (dt_s / 3600.0)
 
-        assert res["summary"][f"{Types.ELECTRICITY}{SEP}{C.DEMAND}[Wh]"] == int(round(e_wh))
+        # The summary is the series energy rounded to whole Wh. At 5-minute steps a row is 1/12 h, so a total
+        # of exactly x.5 Wh can round either way depending on the summation order; allow that half Wh.
+        assert abs(res["summary"][f"{Types.ELECTRICITY}{SEP}{C.DEMAND}[Wh]"] - e_wh) <= 0.5 + 1e-6
 
 
 @pytest.mark.native_pylpg

@@ -12,6 +12,7 @@ except ImportError:
 
 # Import and expose the methods module
 from entise.core.generator import Generator
+from entise.core.storage import TimeseriesStorage
 from entise.perf import get_accelerator, set_accelerator
 
 __all__ = [
@@ -20,4 +21,5 @@ __all__ = [
     "methods",
     "get_accelerator",
     "set_accelerator",
+    "TimeseriesStorage",
 ]
