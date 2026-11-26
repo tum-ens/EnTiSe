@@ -296,6 +296,41 @@ def test_bad_arguments_raise_before_the_sink_is_set_up():
     assert sink.calls == []
 
 
+# -- object ids --------------------------------------------------------------------------------------------------------
+
+
+def _run(gen: Generator, how: str, **kwargs):
+    if how == "iter_generate":
+        return gen.iter_generate({}, workers=1, show_progress=False, **kwargs)
+    return gen.generate({}, workers=1, show_progress=False, **kwargs)
+
+
+@pytest.mark.parametrize("how", ["generate", "iter_generate", "storage"])
+def test_repeated_ids_raise_before_any_object_is_computed(how, monkeypatch):
+    computed = []
+    monkeypatch.setattr(_StreamProbe, "generate", lambda self, obj=None, *args, **kwargs: computed.append(obj))
+    sink = _RecordingSink()
+    kwargs = {"storage": sink} if how == "storage" else {}
+
+    with pytest.raises(ValueError, match=r"^Object ids must be unique; these repeat: 'b0', 'b1'\.$"):
+        _run(_generator(_objects(3) + _objects(2)), how, **kwargs)
+
+    assert computed == []
+    assert sink.calls == []
+
+
+def test_more_than_ten_repeated_ids_are_counted():
+    with pytest.raises(ValueError, match=r"'b9' and 2 more\.$"):
+        _generator(_objects(12) + _objects(12)).generate({}, workers=1, show_progress=False)
+
+
+def test_unique_ids_keep_every_object():
+    summary, timeseries = _generator(_objects(3)).generate({}, workers=1, show_progress=False)
+
+    assert list(summary.index) == ["b0", "b1", "b2"]
+    assert list(timeseries) == ["b0", "b1", "b2"]
+
+
 # -- TimeseriesStorage -------------------------------------------------------------------------------------------------
 
 

@@ -31,7 +31,7 @@ Detailed Steps
 
 Objects represent the entities for which timeseries data will be generated. Each object should have:
 
-    - A unique identifier (``Objects.ID``).
+    - A unique identifier (``Objects.ID``). Results are keyed by it, so ``generate`` raises a ``ValueError`` before anything is computed if two objects share an id.
     - References to the methods and input data required for processing.
 
 In this example we are creating the timeseries for a building's thermal behavior, so we define an object with the necessary metadata for both HVAC and heat pump methods, as well as shared inputs like weather. Each method may require specific parameters (e.g., resistance and capacitance for HVAC, source/sink types for heat pumps) that should be included in the object definition. You can look up the required and optional parameters for each method in the :ref:`methods` section.
@@ -161,7 +161,6 @@ number of workers and the batch size don't change any value.
 - An object is never split: all its time series types are in the same chunk.
 - ``batch_size`` and ``workers`` apply within each chunk. Each chunk waits for its slowest object before
   the next one starts.
-- Object ids must be unique. A repeated id raises a ``ValueError`` before anything is computed.
 
 **Iterate over the chunks** with ``iter_generate``. It takes the same arguments as ``generate``, plus
 ``chunk_size``:

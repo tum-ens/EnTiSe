@@ -77,7 +77,7 @@ def _check_chunk_size(chunk_size: Any) -> int:
 
 
 def _check_unique_ids(object_params: List[dict]) -> None:
-    """Raise if two objects share an id, which would make chunks ambiguous."""
+    """Raise if two objects share an id; the results are keyed by id, so one would replace the other."""
     seen: set = set()
     repeated: List[Any] = []
     for obj in object_params:
@@ -87,7 +87,7 @@ def _check_unique_ids(object_params: List[dict]) -> None:
         seen.add(obj_id)
     if repeated:
         shown = ", ".join(map(repr, repeated[:10])) + (f" and {len(repeated) - 10} more" if len(repeated) > 10 else "")
-        raise ValueError(f"Object ids must be unique to generate in chunks; these repeat: {shown}.")
+        raise ValueError(f"Object ids must be unique; these repeat: {shown}.")
 
 
 def _process_with_accelerator(
@@ -225,7 +225,7 @@ class Generator:
                 bounded for large runs. The generator calls ``storage.setup()`` before the
                 first chunk and ``storage.finalize()`` after the last. If anything raises
                 in between, it calls ``storage.close()`` instead and re-raises the error;
-                chunks already written stay written. Object ids must be unique. Defaults
+                chunks already written stay written. Defaults
                 to None, which returns every time series.
 
         Returns:
@@ -236,8 +236,9 @@ class Generator:
 
         Raises:
             ValueError: If no objects are added to the processing pipeline before
-            calling this method, if ``seed`` is negative, or, with ``storage``, if
-            object ids repeat or ``storage.chunk_size`` is smaller than 1.
+            calling this method, if object ids repeat, if ``seed`` is negative, or,
+            with ``storage``, if ``storage.chunk_size`` is smaller than 1. These are
+            checked before any object is computed.
             TypeError: If ``seed`` is not an integer.
         """
         if storage is not None:
@@ -327,7 +328,6 @@ class Generator:
         """Check the run now, and return an iterator over the per-object results of each chunk."""
         chunk_size = _check_chunk_size(chunk_size)
         object_params, data = self._prepare(data, utc, seed)
-        _check_unique_ids(object_params)
         return self._iter_chunks(
             object_params, data, chunk_size, workers, batch_size, pre_dispatch, backend, show_progress
         )
@@ -405,10 +405,11 @@ class Generator:
         if self.objects.empty:
             raise ValueError("No objects have been added for processing.")
         seed = check_run_seed(seed)
+        object_params = self.objects.to_dict("records")
+        _check_unique_ids(object_params)
 
         data = {**data, RUN_TIME_KEY: RunTime(data, utc=utc, seed=seed)}
 
-        object_params = self.objects.to_dict("records")
         self._warn_missing_time_zones(object_params)
         return object_params, data
 
