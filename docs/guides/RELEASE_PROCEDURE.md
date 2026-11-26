@@ -96,7 +96,9 @@ git push origin "refs/tags/$tag"
    extras users install, and run an example. Take only the wheel from
    TestPyPI and every dependency from PyPI. Never mix the two indexes:
    TestPyPI may hold an unrelated package under a dependency's name.
-   Compare the wheel's SHA-256 with the manifest.
+   Compare the wheel's SHA-256 with the manifest. Right after an upload,
+   TestPyPI's index can lag behind its JSON API; `--no-cache-dir` keeps pip
+   from reusing an index page it fetched before the version appeared.
 
    ```bash
    version=2.0.0rc1
@@ -104,7 +106,7 @@ git push origin "refs/tags/$tag"
    (
      cd "$work"
      uv venv --seed --python 3.12 rehearsal-env
-     rehearsal-env/bin/python -m pip download --no-deps --only-binary :all: \
+     rehearsal-env/bin/python -m pip download --no-cache-dir --no-deps --only-binary :all: \
        --index-url https://test.pypi.org/simple/ -d wheel "entise==$version"
      wheel=$(ls wheel/entise-*.whl)
      sha256sum "$wheel"
